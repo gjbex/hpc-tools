@@ -6,6 +6,7 @@ import unittest
 
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import _statement_command, build_parser, cmd_clone
+from hpc_tools.hardware import render_hardware_context
 from hpc_tools.ssh import build_ssh_argv
 from hpc_tools import slurm
 
@@ -50,6 +51,7 @@ class CommandTests(unittest.TestCase):
         self.assertIn("queue", help_text)
         self.assertIn("balance", help_text)
         self.assertIn("statement", help_text)
+        self.assertIn("hardware", help_text)
 
     def test_optional_commands_hidden_when_unconfigured(self) -> None:
         parser = build_parser(
@@ -58,6 +60,10 @@ class CommandTests(unittest.TestCase):
                 queue_command=None,
                 sam_balance_command=None,
                 sam_statement_command=None,
+                hardware_reference=None,
+                hardware_url=None,
+                slurm_reference=None,
+                slurm_url=None,
             )
         )
         help_text = parser.format_help()
@@ -66,6 +72,7 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("queue", help_text)
         self.assertNotIn("balance", help_text)
         self.assertNotIn("statement", help_text)
+        self.assertNotIn("hardware", help_text)
 
     def test_hidden_optional_command_is_rejected_if_invoked(self) -> None:
         parser = build_parser(make_profile(quota_command=None))
@@ -109,6 +116,17 @@ class CommandTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             _statement_command("sam-statement", account="proj-123", start="01-01-2026")
 
+    def test_hardware_context_renders_sources(self) -> None:
+        profile = make_profile(
+            hardware_url="https://example.org/hardware",
+            slurm_url="https://example.org/slurm",
+        )
+
+        self.assertEqual(
+            render_hardware_context(profile, source_only=True),
+            "hardware_url: https://example.org/hardware\nslurm_url: https://example.org/slurm",
+        )
+
 
 def make_profile(
     *,
@@ -116,6 +134,10 @@ def make_profile(
     queue_command: str | None = "slurm_queuestate",
     sam_balance_command: str | None = "sam-balance",
     sam_statement_command: str | None = "sam-statement",
+    hardware_reference: str | None = "examples/references/kuleuven-tier2-hardware.md",
+    hardware_url: str | None = "https://example.org/hardware",
+    slurm_reference: str | None = "examples/references/kuleuven-tier2-slurm.md",
+    slurm_url: str | None = "https://example.org/slurm",
 ) -> Profile:
     return Profile(
         name="genius",
@@ -129,6 +151,10 @@ def make_profile(
         queue_command=queue_command,
         sam_balance_command=sam_balance_command,
         sam_statement_command=sam_statement_command,
+        hardware_reference=hardware_reference,
+        hardware_url=hardware_url,
+        slurm_reference=slurm_reference,
+        slurm_url=slurm_url,
         default_cluster="wice",
     )
 

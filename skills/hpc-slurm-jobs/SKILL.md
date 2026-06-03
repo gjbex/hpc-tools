@@ -43,6 +43,22 @@ hpc --profile <profile> jobs --cluster <cluster>
 hpc --profile <profile> run 'squeue -M <cluster> -j <jobid> -o "%.18i %.9P %.40j %.8u %.2t %.10M %.10l %.6D %R"'
 ```
 
+## Hardware and Site Context
+
+Before choosing partitions, memory, CPU counts, GPU directives, account
+directives, or cluster flags for a job script, check whether the selected
+profile exposes local hardware/site context:
+
+```bash
+hpc --profile <profile> hardware
+hpc --profile <profile> hardware --source
+```
+
+Use local hardware references to map requested resources to node types and
+partitions. Use source URLs when the user asks for current hardware details or
+when the local reference appears stale. Do not hardcode site-specific partitions
+in this skill.
+
 ## Accounts and Credits
 
 Some Slurm sites require credits on an account before jobs can run. When the

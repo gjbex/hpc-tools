@@ -20,6 +20,10 @@ class ConfigTests(unittest.TestCase):
             projects_dir = "$VSC_DATA/Projects"
             sam_balance_command = "sam-balance"
             sam_statement_command = "sam-statement"
+            hardware_reference = "/tmp/hardware.md"
+            hardware_url = "https://example.org/hardware"
+            slurm_reference = "/tmp/slurm.md"
+            slurm_url = "https://example.org/slurm"
             default_cluster = "wice"
             """
         )
@@ -37,6 +41,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(profile.projects_dir, "$VSC_DATA/Projects")
         self.assertEqual(profile.sam_balance_command, "sam-balance")
         self.assertEqual(profile.sam_statement_command, "sam-statement")
+        self.assertEqual(profile.hardware_reference, "/tmp/hardware.md")
+        self.assertEqual(profile.hardware_url, "https://example.org/hardware")
+        self.assertEqual(profile.slurm_reference, "/tmp/slurm.md")
+        self.assertEqual(profile.slurm_url, "https://example.org/slurm")
         self.assertEqual(profile.default_cluster, "wice")
 
     def test_loads_ssh_config_alias_profile(self) -> None:

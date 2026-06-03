@@ -32,6 +32,14 @@ corresponding field:
 - `hpc projects` requires `projects_dir`.
 - `hpc quota` requires `quota_command`.
 - `hpc queue` requires `queue_command`.
+- `hpc hardware` exposes optional local hardware and Slurm policy references.
+
+When build placement matters, such as GPU model, CPU generation, memory class,
+local disk, or partition choice, inspect hardware context first:
+
+```bash
+hpc --profile <profile> hardware
+```
 
 ## Deploy Repositories
 

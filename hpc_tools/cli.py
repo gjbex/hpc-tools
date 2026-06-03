@@ -6,6 +6,7 @@ import shlex
 import sys
 
 from hpc_tools.config import ConfigError, Profile, load_config, resolve_profile
+from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
 from hpc_tools.ssh import run_remote
 from hpc_tools import slurm
 
@@ -48,6 +49,23 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     spider_parser = subparsers.add_parser("module-spider", help="Search Lmod modules")
     spider_parser.add_argument("name", help="Module name or search term")
     spider_parser.set_defaults(handler=cmd_module_spider)
+
+    if profile_has_hardware_context(profile):
+        hardware_parser = subparsers.add_parser(
+            "hardware",
+            help="Show profile hardware and Slurm reference context",
+        )
+        hardware_parser.add_argument(
+            "--source",
+            action="store_true",
+            help="Print configured source URLs only",
+        )
+        hardware_parser.add_argument(
+            "--path",
+            action="store_true",
+            help="Print configured local reference paths only",
+        )
+        hardware_parser.set_defaults(handler=cmd_hardware)
 
     if profile is None or profile.queue_command:
         queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
@@ -147,6 +165,13 @@ def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
     command = f"module spider {shlex.quote(args.name)} 2>&1"
     return run_remote(profile, command, dry_run=args.dry_run)
+
+
+def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
+    if args.source and args.path:
+        raise ConfigError("use only one of --source or --path")
+    print(render_hardware_context(profile, source_only=args.source, path_only=args.path))
+    return 0
 
 
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
