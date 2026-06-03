@@ -20,7 +20,7 @@ Planned production around mid 2026.
 - Nodes: 40
 - CPUs: 2 x Intel Xeon Platinum 6972P, 96 cores per socket
 - Memory: 768 GiB
-- Local disk: 960 GB NVMe
+- Local scratch: 600 GB usable on a 960 GB NVMe drive
 - Partitions: `batch_graniterapids`, `batch_graniterapids_long`
 
 #### Big Memory
@@ -28,7 +28,7 @@ Planned production around mid 2026.
 - Nodes: 10
 - CPUs: 2 x Intel Xeon 6972P, 96 cores per socket
 - Memory: 1536 GiB
-- Local disk: 3840 GB NVMe
+- Local scratch: approximately 3500 GB usable on a 3840 GB NVMe drive
 - Partition: `bigmem`
 
 #### GPU: B200
@@ -37,7 +37,7 @@ Planned production around mid 2026.
 - GPUs: 8 x NVIDIA B200 SXM6 192 GiB per node
 - CPUs: 2 x AMD EPYC 9655, 96 cores per socket
 - Memory: 1536 GiB
-- Local disk: 960 GB NVMe
+- Local scratch: 600 GB usable on a 960 GB NVMe drive
 - Partition: `gpu_b200`
 
 ### wICE
@@ -47,7 +47,7 @@ Planned production around mid 2026.
 - Nodes: 172
 - CPUs: 2 x Intel Xeon Platinum 8360Y, 36 cores per socket
 - Memory: 256 GiB
-- Local disk: 960 GB SSD
+- Local scratch: 600 GB usable on a 960 GB SSD
 - Partitions: `batch`, `batch_long`, `batch_icelake`, `batch_icelake_long`
 
 #### Thin CPU: Sapphire Rapids
@@ -55,7 +55,7 @@ Planned production around mid 2026.
 - Nodes: 68
 - CPUs: 2 x Intel Xeon Platinum 8468, 48 cores per socket
 - Memory: 256 GiB
-- Local disk: 960 GB SSD
+- Local scratch: 600 GB usable on a 960 GB SSD
 - Partitions: `batch_sapphirerapids`, `batch_sapphirerapids_long`
 
 #### Memory Nodes
@@ -80,7 +80,7 @@ Currently mainly login nodes and most GPU nodes remain in operation.
 - GPUs: 4 x NVIDIA P100 SXM2 16 GiB per node
 - CPUs: 2 x Xeon Gold 6140, 18 cores per socket
 - Memory: 192 GiB
-- Local disk: 200 GB SSD
+- Local scratch: 200 GB SSD
 - Partitions: `gpu_p100`, `gpu_p100_long`, `gpu_p100_debug`
 
 #### GPU: V100
@@ -89,5 +89,5 @@ Currently mainly login nodes and most GPU nodes remain in operation.
 - GPUs: 8 x NVIDIA V100 SXM2 32 GiB per node
 - CPUs: 2 x Xeon Gold 6240, 18 cores per socket
 - Memory: 768 GiB
-- Local disk: 200 GB SSD
+- Local scratch: 200 GB SSD
 - Partitions: `gpu_v100`, `gpu_v100_long`

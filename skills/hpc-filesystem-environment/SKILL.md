@@ -61,6 +61,15 @@ reference to identify the appropriate scratch filesystem. Do not assume home or
 data filesystems are suitable; on many HPC systems they are NFS-mounted and not
 intended for parallel I/O.
 
+For workloads that read and write many files frequently, consider local node
+scratch when the storage reference shows SSD or NVMe local scratch. Local
+scratch is only available while the job runs, so job scripts must stage inputs
+in, stage outputs out, and preserve partial output with traps or periodic
+checkpoint/stage-out logic if failure halfway would lose useful data. When the
+site exposes an environment variable for node-local scratch, use that variable
+instead of hardcoding a path; for KU Leuven this is `VSC_SCRATCH_NODE`. Treat
+local scratch capacity as shared node state, not scheduler-reserved capacity.
+
 For ownership or path questions, inspect likely paths directly:
 
 ```bash

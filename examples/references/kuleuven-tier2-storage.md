@@ -15,6 +15,21 @@ Sources:
   where appropriate.
 - Copy important output from scratch to persistent storage when the job is
   complete.
+- Use local node scratch for workloads that read and write many files
+  frequently, especially when metadata traffic would dominate on shared
+  filesystems. Local scratch is node-local SSD or NVMe storage and only exists
+  while the job runs.
+- Jobs that use local scratch must stage input data into local scratch and
+  stage output data back to persistent or shared scratch storage from within the
+  job script.
+- `VSC_SCRATCH_NODE` contains the path to the job-specific local scratch
+  directory on the compute node.
+- Local scratch capacity is shared by all jobs running on the same node and is
+  not reserved or managed by the scheduler. Multiple jobs can fill the same
+  node-local filesystem even though each job gets its own directory.
+- For long or failure-prone jobs, add traps or periodic checkpoint/stage-out
+  logic so data produced before a failure is copied out before the allocation is
+  released.
 
 ## Mindwell
 

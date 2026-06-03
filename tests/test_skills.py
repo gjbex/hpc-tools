@@ -52,6 +52,20 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Use SCRATCH filesystems for jobs with parallel I/O", text)
         self.assertIn("NFS-mounted", text)
         self.assertIn("GPFS", text)
+        self.assertIn("Local scratch is node-local SSD or NVMe storage", text)
+        self.assertIn("stage input data into local scratch", text)
+        self.assertIn("VSC_SCRATCH_NODE", text)
+        self.assertIn("not reserved or managed by the scheduler", text)
+        self.assertIn("each job gets its own directory", text)
+        self.assertIn("traps or periodic checkpoint/stage-out", text)
+
+    def test_hardware_reference_uses_usable_local_scratch_capacities(self) -> None:
+        text = (ROOT / "examples" / "references" / "kuleuven-tier2-hardware.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("600 GB usable on a 960 GB", text)
+        self.assertIn("approximately 3500 GB usable on a 3840 GB", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()

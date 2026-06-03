@@ -57,9 +57,14 @@ hpc --profile <profile> hardware --source
 Use local hardware references to map requested resources to node types and
 partitions. Use storage references to choose appropriate scratch filesystems for
 parallel I/O and to avoid home/data filesystems that are not intended for heavy
-job I/O. Use source URLs when the user asks for current details or when the
-local reference appears stale. Do not hardcode site-specific partitions or
-filesystem paths in this skill.
+job I/O. For workloads with many frequent small-file reads/writes, consider
+local node scratch when available, but include stage-in, stage-out, and failure
+handling because local scratch disappears when the job allocation ends. Use the
+site-provided node-local scratch variable when one exists, and remember that
+local scratch capacity may be shared with other jobs on the node rather than
+reserved by the scheduler. Use source URLs when the user asks for current
+details or when the local reference appears stale. Do not hardcode site-specific
+partitions or filesystem paths in this skill.
 
 ## Accounts and Credits
 
@@ -106,6 +111,11 @@ set -euo pipefail
 
 module purge
 # module load <required modules>
+
+# For local scratch workflows, use the site-provided node-local scratch variable
+# when available, stage inputs in, run there, and stage outputs back to
+# persistent storage. Use trap-based cleanup/stage-out for partial results when
+# useful.
 
 # job commands
 ```
