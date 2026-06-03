@@ -1,0 +1,10 @@
+default_profile = "genius"
+
+[profiles.genius]
+ssh_target = "genius"
+ssh_options = ["-x"]
+login_shell = ["bash", "-l", "-c"]
+projects_dir = "$VSC_DATA/Projects"
+quota_command = "myquota"
+queue_command = "slurm_queuestate"
+default_cluster = "wice"
