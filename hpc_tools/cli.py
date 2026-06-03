@@ -9,7 +9,7 @@ from hpc_tools.ssh import run_remote
 from hpc_tools import slurm
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hpc")
     parser.add_argument("--profile", help="Profile name from the configuration file")
     parser.add_argument(
@@ -22,14 +22,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the SSH command without executing it",
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>", required=True)
 
     run_parser = subparsers.add_parser("run", help="Run a command on the remote host")
     run_parser.add_argument("remote_command", help="Command to run through the configured login shell")
     run_parser.set_defaults(handler=cmd_run)
 
-    quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
-    quota_parser.set_defaults(handler=cmd_quota)
+    if profile is None or profile.quota_command:
+        quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
+        quota_parser.set_defaults(handler=cmd_quota)
 
     projects_parser = subparsers.add_parser("projects", help="List the remote project directory")
     projects_parser.set_defaults(handler=cmd_projects)
@@ -47,8 +48,9 @@ def build_parser() -> argparse.ArgumentParser:
     spider_parser.add_argument("name", help="Module name or search term")
     spider_parser.set_defaults(handler=cmd_module_spider)
 
-    queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
-    queue_parser.set_defaults(handler=cmd_queue)
+    if profile is None or profile.queue_command:
+        queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
+        queue_parser.set_defaults(handler=cmd_queue)
 
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
     jobs_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
@@ -78,15 +80,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
+    if argv is None:
+        argv = sys.argv[1:]
 
     try:
-        config = load_config(args.config)
-        profile = resolve_profile(config, args.profile)
+        pre_args, _ = _build_pre_parser().parse_known_args(argv)
+        config = load_config(pre_args.config)
+        profile = resolve_profile(config, pre_args.profile)
+        parser = build_parser(profile)
+        args = parser.parse_args(argv)
         return args.handler(args, profile)
     except ConfigError as error:
+        parser = build_parser()
         parser.exit(2, f"hpc: configuration error: {error}\n")
+
+
+def _build_pre_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--profile")
+    parser.add_argument("--config")
+    return parser
 
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
@@ -94,8 +107,9 @@ def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_quota(args: argparse.Namespace, profile: Profile) -> int:
-    command = profile.quota_command or "myquota"
-    return run_remote(profile, command, dry_run=args.dry_run)
+    if not profile.quota_command:
+        raise ConfigError(f"profile '{profile.name}' does not define quota_command")
+    return run_remote(profile, profile.quota_command, dry_run=args.dry_run)
 
 
 def cmd_projects(args: argparse.Namespace, profile: Profile) -> int:
@@ -124,6 +138,8 @@ def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
+    if not profile.queue_command:
+        raise ConfigError(f"profile '{profile.name}' does not define queue_command")
     return run_remote(
         profile,
         slurm.queue_state_command(profile.queue_command),

@@ -10,18 +10,7 @@ from hpc_tools import slurm
 
 class CommandTests(unittest.TestCase):
     def test_ssh_command_quotes_remote_command(self) -> None:
-        profile = Profile(
-            name="genius",
-            target="gjb@genius",
-            host="genius",
-            user="gjb",
-            ssh_options=("-x",),
-            login_shell=("bash", "-l", "-c"),
-            projects_dir="$VSC_DATA/Projects",
-            quota_command="myquota",
-            queue_command="slurm_queuestate",
-            default_cluster="wice",
-        )
+        profile = make_profile()
 
         argv = build_ssh_argv(profile, 'cd "$VSC_DATA/Projects/foo" && git status')
 
@@ -50,6 +39,45 @@ class CommandTests(unittest.TestCase):
         self.assertIs(args.handler, cmd_clone)
         self.assertEqual(args.url, "https://github.com/org/repo.git")
         self.assertEqual(args.branch, "main")
+
+    def test_optional_commands_visible_when_configured(self) -> None:
+        parser = build_parser(make_profile())
+        help_text = parser.format_help()
+
+        self.assertIn("quota", help_text)
+        self.assertIn("queue", help_text)
+
+    def test_optional_commands_hidden_when_unconfigured(self) -> None:
+        parser = build_parser(make_profile(quota_command=None, queue_command=None))
+        help_text = parser.format_help()
+
+        self.assertNotIn("quota", help_text)
+        self.assertNotIn("queue", help_text)
+
+    def test_hidden_optional_command_is_rejected_if_invoked(self) -> None:
+        parser = build_parser(make_profile(quota_command=None))
+
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["quota"])
+
+
+def make_profile(
+    *,
+    quota_command: str | None = "myquota",
+    queue_command: str | None = "slurm_queuestate",
+) -> Profile:
+    return Profile(
+        name="genius",
+        target="gjb@genius",
+        host="genius",
+        user="gjb",
+        ssh_options=("-x",),
+        login_shell=("bash", "-l", "-c"),
+        projects_dir="$VSC_DATA/Projects",
+        quota_command=quota_command,
+        queue_command=queue_command,
+        default_cluster="wice",
+    )
 
 
 if __name__ == "__main__":

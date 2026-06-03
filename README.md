@@ -68,15 +68,19 @@ ssh_options = ["-x"]
 `projects_dir` is interpreted by the remote shell. Values such as
 `$VSC_DATA/Projects` are intentionally not expanded locally.
 
+`quota_command` and `queue_command` are optional. If a profile does not define
+one of them, the corresponding `quota` or `queue` subcommand is hidden from help
+for that profile and rejected if invoked anyway.
+
 ## Commands
 
 ```bash
 hpc run 'hostname'
-hpc quota
+hpc quota                  # if quota_command is configured
 hpc projects
 hpc clone https://github.com/org/repo.git --branch main
 hpc module-spider Rust
-hpc queue
+hpc queue                  # if queue_command is configured
 hpc jobs
 hpc submit job.slurm
 hpc submit --test-only job.slurm

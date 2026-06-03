@@ -7,8 +7,8 @@ SQUEUE_FORMAT = "%.18i %.9P %.40j %.8u %.2t %.10M %.10l %.6D %R"
 SACCT_FORMAT = "JobID,JobName%24,Partition,Account,State,ExitCode,Elapsed"
 
 
-def queue_state_command(queue_command: str | None) -> str:
-    return queue_command or "slurm_queuestate"
+def queue_state_command(queue_command: str) -> str:
+    return queue_command
 
 
 def squeue_user_command(cluster: str | None = None) -> str:
