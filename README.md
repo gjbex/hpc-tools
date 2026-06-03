@@ -28,7 +28,14 @@ By default, `hpc` reads:
 
 Set `HPC_TOOLS_CONFIG` or pass `--config` to use another file.
 
-Example:
+Two example configuration files are provided:
+
+- [examples/ssh-alias-config.toml](examples/ssh-alias-config.toml) uses a target
+  from `~/.ssh/config`, such as `ssh genius`.
+- [examples/user-host-config.toml](examples/user-host-config.toml) uses explicit
+  `user` and `host` fields.
+
+SSH alias example:
 
 ```toml
 default_profile = "genius"
@@ -49,12 +56,13 @@ host, username, agent forwarding, and credentials, use `ssh_target = "genius"`.
 `ssh_options` is passed before the target; `["-x"]` disables X11 forwarding for
 non-interactive commands.
 
-Profiles can also use explicit host fields:
+User/host example:
 
 ```toml
 [profiles.some-cluster]
 host = "login.somewhere"
 user = "myuser"
+ssh_options = ["-x"]
 ```
 
 `projects_dir` is interpreted by the remote shell. Values such as

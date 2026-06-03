@@ -52,7 +52,8 @@ def load_config(path: str | None = None) -> Config:
     if not config_path.exists():
         raise ConfigError(
             f"configuration file not found: {config_path}\n"
-            "Create one from examples/config.toml or pass --config."
+            "Create one from examples/ssh-alias-config.toml or examples/user-host-config.toml, "
+            "or pass --config."
         )
 
     raw_config = _load_toml(config_path)
