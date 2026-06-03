@@ -44,6 +44,15 @@ class SkillTests(unittest.TestCase):
         self.assertIn("do not assume `#SBATCH --account=...` is required", text)
         self.assertIn("omit unless the site requires an account", text)
 
+    def test_storage_reference_warns_about_nfs_for_parallel_io(self) -> None:
+        text = (ROOT / "examples" / "references" / "kuleuven-tier2-storage.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Use SCRATCH filesystems for jobs with parallel I/O", text)
+        self.assertIn("NFS-mounted", text)
+        self.assertIn("GPFS", text)
+
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()
         self.assertGreaterEqual(len(lines), 3)

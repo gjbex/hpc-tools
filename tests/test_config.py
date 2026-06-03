@@ -24,6 +24,8 @@ class ConfigTests(unittest.TestCase):
             hardware_url = "https://example.org/hardware"
             slurm_reference = "/tmp/slurm.md"
             slurm_url = "https://example.org/slurm"
+            storage_reference = "/tmp/storage.md"
+            storage_url = "https://example.org/storage"
             default_cluster = "wice"
             """
         )
@@ -45,6 +47,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(profile.hardware_url, "https://example.org/hardware")
         self.assertEqual(profile.slurm_reference, "/tmp/slurm.md")
         self.assertEqual(profile.slurm_url, "https://example.org/slurm")
+        self.assertEqual(profile.storage_reference, "/tmp/storage.md")
+        self.assertEqual(profile.storage_url, "https://example.org/storage")
         self.assertEqual(profile.default_cluster, "wice")
 
     def test_loads_ssh_config_alias_profile(self) -> None:

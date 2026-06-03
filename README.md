@@ -53,6 +53,8 @@ hardware_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/hardware.md"
 hardware_url = "https://docs.vscentrum.be/leuven/tier2_hardware.html"
 slurm_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/slurm.md"
 slurm_url = "https://docs.vscentrum.be/leuven/slurm_specifics.html"
+storage_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/storage.md"
+storage_url = "https://docs.vscentrum.be/leuven/tier2_hardware/storage.html"
 default_cluster = "wice"
 ```
 
@@ -79,11 +81,12 @@ ssh_options = ["-x"]
 the corresponding `quota`, `queue`, `balance`, or `statement` subcommand is
 hidden from help for that profile and rejected if invoked anyway.
 
-`hardware_reference`, `hardware_url`, `slurm_reference`, and `slurm_url` are
-optional metadata fields. They let users and Codex skills inspect site-specific
-hardware, partitions, and Slurm policy without hardcoding those details in the
-generic skills. Local reference files should be concise Markdown summaries of
-the relevant web documentation.
+`hardware_reference`, `hardware_url`, `slurm_reference`, `slurm_url`,
+`storage_reference`, and `storage_url` are optional metadata fields. They let
+users and Codex skills inspect site-specific hardware, partitions, filesystems,
+and Slurm policy without hardcoding those details in the generic skills. Local
+reference files should be concise Markdown summaries of the relevant web
+documentation.
 
 ## Commands
 

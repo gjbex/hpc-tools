@@ -46,8 +46,8 @@ hpc --profile <profile> run 'squeue -M <cluster> -j <jobid> -o "%.18i %.9P %.40j
 ## Hardware and Site Context
 
 Before choosing partitions, memory, CPU counts, GPU directives, account
-directives, or cluster flags for a job script, check whether the selected
-profile exposes local hardware/site context:
+directives, cluster flags, or I/O paths for a job script, check whether the
+selected profile exposes local hardware/site context:
 
 ```bash
 hpc --profile <profile> hardware
@@ -55,9 +55,11 @@ hpc --profile <profile> hardware --source
 ```
 
 Use local hardware references to map requested resources to node types and
-partitions. Use source URLs when the user asks for current hardware details or
-when the local reference appears stale. Do not hardcode site-specific partitions
-in this skill.
+partitions. Use storage references to choose appropriate scratch filesystems for
+parallel I/O and to avoid home/data filesystems that are not intended for heavy
+job I/O. Use source URLs when the user asks for current details or when the
+local reference appears stale. Do not hardcode site-specific partitions or
+filesystem paths in this skill.
 
 ## Accounts and Credits
 

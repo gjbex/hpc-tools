@@ -32,6 +32,8 @@ class Profile:
     hardware_url: str | None
     slurm_reference: str | None
     slurm_url: str | None
+    storage_reference: str | None
+    storage_url: str | None
     default_cluster: str | None
 
     @property
@@ -118,6 +120,8 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         hardware_url=_optional_string(raw_profile, "hardware_url", profile=name),
         slurm_reference=_optional_string(raw_profile, "slurm_reference", profile=name),
         slurm_url=_optional_string(raw_profile, "slurm_url", profile=name),
+        storage_reference=_optional_string(raw_profile, "storage_reference", profile=name),
+        storage_url=_optional_string(raw_profile, "storage_url", profile=name),
         default_cluster=_optional_string(raw_profile, "default_cluster", profile=name),
     )
 

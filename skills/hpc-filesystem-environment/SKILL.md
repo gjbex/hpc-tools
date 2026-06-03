@@ -28,6 +28,13 @@ hpc --profile <profile> --help
 Use `hpc quota` only when the profile defines `quota_command`. Use `hpc
 projects` only when the profile defines `projects_dir`.
 
+If the profile exposes site context, inspect it before making storage or I/O
+recommendations:
+
+```bash
+hpc --profile <profile> hardware
+```
+
 ## Quotas and Storage
 
 Inspect quota state when configured:
@@ -48,6 +55,11 @@ For configured project storage:
 ```bash
 hpc --profile <profile> projects
 ```
+
+For jobs with parallel I/O or heavy temporary I/O, use the profile's storage
+reference to identify the appropriate scratch filesystem. Do not assume home or
+data filesystems are suitable; on many HPC systems they are NFS-mounted and not
+intended for parallel I/O.
 
 For ownership or path questions, inspect likely paths directly:
 

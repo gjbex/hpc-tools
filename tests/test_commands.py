@@ -64,6 +64,8 @@ class CommandTests(unittest.TestCase):
                 hardware_url=None,
                 slurm_reference=None,
                 slurm_url=None,
+                storage_reference=None,
+                storage_url=None,
             )
         )
         help_text = parser.format_help()
@@ -120,11 +122,14 @@ class CommandTests(unittest.TestCase):
         profile = make_profile(
             hardware_url="https://example.org/hardware",
             slurm_url="https://example.org/slurm",
+            storage_url="https://example.org/storage",
         )
 
         self.assertEqual(
             render_hardware_context(profile, source_only=True),
-            "hardware_url: https://example.org/hardware\nslurm_url: https://example.org/slurm",
+            "hardware_url: https://example.org/hardware\n"
+            "slurm_url: https://example.org/slurm\n"
+            "storage_url: https://example.org/storage",
         )
 
 
@@ -138,6 +143,8 @@ def make_profile(
     hardware_url: str | None = "https://example.org/hardware",
     slurm_reference: str | None = "examples/references/kuleuven-tier2-slurm.md",
     slurm_url: str | None = "https://example.org/slurm",
+    storage_reference: str | None = "examples/references/kuleuven-tier2-storage.md",
+    storage_url: str | None = "https://example.org/storage",
 ) -> Profile:
     return Profile(
         name="genius",
@@ -155,6 +162,8 @@ def make_profile(
         hardware_url=hardware_url,
         slurm_reference=slurm_reference,
         slurm_url=slurm_url,
+        storage_reference=storage_reference,
+        storage_url=storage_url,
         default_cluster="wice",
     )
 
