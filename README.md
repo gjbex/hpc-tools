@@ -47,6 +47,8 @@ login_shell = ["bash", "-l", "-c"]
 projects_dir = "$VSC_DATA/Projects"
 quota_command = "myquota"
 queue_command = "slurm_queuestate"
+sam_balance_command = "sam-balance"
+sam_statement_command = "sam-statement"
 default_cluster = "wice"
 ```
 
@@ -68,9 +70,10 @@ ssh_options = ["-x"]
 `projects_dir` is interpreted by the remote shell. Values such as
 `$VSC_DATA/Projects` are intentionally not expanded locally.
 
-`quota_command` and `queue_command` are optional. If a profile does not define
-one of them, the corresponding `quota` or `queue` subcommand is hidden from help
-for that profile and rejected if invoked anyway.
+`quota_command`, `queue_command`, `sam_balance_command`, and
+`sam_statement_command` are optional. If a profile does not define one of them,
+the corresponding `quota`, `queue`, `balance`, or `statement` subcommand is
+hidden from help for that profile and rejected if invoked anyway.
 
 ## Commands
 
@@ -81,6 +84,8 @@ hpc projects
 hpc clone https://github.com/org/repo.git --branch main
 hpc module-spider Rust
 hpc queue                  # if queue_command is configured
+hpc balance                # if sam_balance_command is configured
+hpc statement --account <account> --start 2026-01-01 --end 2026-01-31
 hpc jobs
 hpc submit job.slurm
 hpc submit --test-only job.slurm

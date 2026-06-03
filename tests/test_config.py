@@ -18,6 +18,8 @@ class ConfigTests(unittest.TestCase):
             host = "genius"
             user = "gjb"
             projects_dir = "$VSC_DATA/Projects"
+            sam_balance_command = "sam-balance"
+            sam_statement_command = "sam-statement"
             default_cluster = "wice"
             """
         )
@@ -33,6 +35,8 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(profile.ssh_options, ())
         self.assertEqual(profile.login_shell, ("bash", "-l", "-c"))
         self.assertEqual(profile.projects_dir, "$VSC_DATA/Projects")
+        self.assertEqual(profile.sam_balance_command, "sam-balance")
+        self.assertEqual(profile.sam_statement_command, "sam-statement")
         self.assertEqual(profile.default_cluster, "wice")
 
     def test_loads_ssh_config_alias_profile(self) -> None:

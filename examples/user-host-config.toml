@@ -8,4 +8,6 @@ login_shell = ["bash", "-l", "-c"]
 projects_dir = "$VSC_DATA/Projects"
 quota_command = "myquota"
 queue_command = "slurm_queuestate"
+sam_balance_command = "sam-balance"
+sam_statement_command = "sam-statement"
 default_cluster = "wice"

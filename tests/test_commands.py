@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import unittest
 
-from hpc_tools.config import Profile
-from hpc_tools.cli import build_parser, cmd_clone
+from hpc_tools.config import ConfigError, Profile
+from hpc_tools.cli import _statement_command, build_parser, cmd_clone
 from hpc_tools.ssh import build_ssh_argv
 from hpc_tools import slurm
 
@@ -46,25 +48,74 @@ class CommandTests(unittest.TestCase):
 
         self.assertIn("quota", help_text)
         self.assertIn("queue", help_text)
+        self.assertIn("balance", help_text)
+        self.assertIn("statement", help_text)
 
     def test_optional_commands_hidden_when_unconfigured(self) -> None:
-        parser = build_parser(make_profile(quota_command=None, queue_command=None))
+        parser = build_parser(
+            make_profile(
+                quota_command=None,
+                queue_command=None,
+                sam_balance_command=None,
+                sam_statement_command=None,
+            )
+        )
         help_text = parser.format_help()
 
         self.assertNotIn("quota", help_text)
         self.assertNotIn("queue", help_text)
+        self.assertNotIn("balance", help_text)
+        self.assertNotIn("statement", help_text)
 
     def test_hidden_optional_command_is_rejected_if_invoked(self) -> None:
         parser = build_parser(make_profile(quota_command=None))
 
-        with self.assertRaises(SystemExit):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit):
             parser.parse_args(["quota"])
+
+    def test_statement_command_requires_account_and_accepts_date_range(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "statement",
+                "--account",
+                "proj-123",
+                "--start",
+                "2026-01-01",
+                "--end",
+                "2026-01-31",
+            ]
+        )
+
+        self.assertEqual(args.account, "proj-123")
+        self.assertEqual(args.start, "2026-01-01")
+        self.assertEqual(args.end, "2026-01-31")
+
+    def test_statement_command_builds_remote_command(self) -> None:
+        command = _statement_command(
+            "sam-statement",
+            account="proj 123",
+            start="2026-01-01",
+            end="2026-01-31",
+        )
+
+        self.assertEqual(
+            command,
+            "sam-statement --account 'proj 123' --start 2026-01-01 --end 2026-01-31",
+        )
+
+    def test_statement_command_rejects_invalid_dates(self) -> None:
+        with self.assertRaises(ConfigError):
+            _statement_command("sam-statement", account="proj-123", start="01-01-2026")
 
 
 def make_profile(
     *,
     quota_command: str | None = "myquota",
     queue_command: str | None = "slurm_queuestate",
+    sam_balance_command: str | None = "sam-balance",
+    sam_statement_command: str | None = "sam-statement",
 ) -> Profile:
     return Profile(
         name="genius",
@@ -76,6 +127,8 @@ def make_profile(
         projects_dir="$VSC_DATA/Projects",
         quota_command=quota_command,
         queue_command=queue_command,
+        sam_balance_command=sam_balance_command,
+        sam_statement_command=sam_statement_command,
         default_cluster="wice",
     )
 

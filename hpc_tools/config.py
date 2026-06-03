@@ -26,6 +26,8 @@ class Profile:
     projects_dir: str | None
     quota_command: str | None
     queue_command: str | None
+    sam_balance_command: str | None
+    sam_statement_command: str | None
     default_cluster: str | None
 
     @property
@@ -106,6 +108,8 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         projects_dir=_optional_string(raw_profile, "projects_dir", profile=name),
         quota_command=_optional_string(raw_profile, "quota_command", profile=name),
         queue_command=_optional_string(raw_profile, "queue_command", profile=name),
+        sam_balance_command=_optional_string(raw_profile, "sam_balance_command", profile=name),
+        sam_statement_command=_optional_string(raw_profile, "sam_statement_command", profile=name),
         default_cluster=_optional_string(raw_profile, "default_cluster", profile=name),
     )
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import shlex
 import sys
 
@@ -51,6 +52,17 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     if profile is None or profile.queue_command:
         queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
         queue_parser.set_defaults(handler=cmd_queue)
+
+    if profile is None or profile.sam_balance_command:
+        balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
+        balance_parser.set_defaults(handler=cmd_balance)
+
+    if profile is None or profile.sam_statement_command:
+        statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
+        statement_parser.add_argument("--account", required=True, help="Slurm account name")
+        statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
+        statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
+        statement_parser.set_defaults(handler=cmd_statement)
 
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
     jobs_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
@@ -147,6 +159,24 @@ def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
     )
 
 
+def cmd_balance(args: argparse.Namespace, profile: Profile) -> int:
+    if not profile.sam_balance_command:
+        raise ConfigError(f"profile '{profile.name}' does not define sam_balance_command")
+    return run_remote(profile, profile.sam_balance_command, dry_run=args.dry_run)
+
+
+def cmd_statement(args: argparse.Namespace, profile: Profile) -> int:
+    if not profile.sam_statement_command:
+        raise ConfigError(f"profile '{profile.name}' does not define sam_statement_command")
+    command = _statement_command(
+        profile.sam_statement_command,
+        account=args.account,
+        start=args.start,
+        end=args.end,
+    )
+    return run_remote(profile, command, dry_run=args.dry_run)
+
+
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster
     return run_remote(profile, slurm.squeue_user_command(cluster), dry_run=args.dry_run)
@@ -164,6 +194,30 @@ def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster
     return run_remote(profile, slurm.sacct_command(args.jobid, cluster), dry_run=args.dry_run)
+
+
+def _statement_command(
+    base_command: str,
+    *,
+    account: str,
+    start: str | None = None,
+    end: str | None = None,
+) -> str:
+    parts = [base_command, "--account", shlex.quote(account)]
+    if start:
+        _validate_date(start, "start")
+        parts.extend(["--start", shlex.quote(start)])
+    if end:
+        _validate_date(end, "end")
+        parts.extend(["--end", shlex.quote(end)])
+    return " ".join(parts)
+
+
+def _validate_date(value: str, name: str) -> None:
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as error:
+        raise ConfigError(f"{name} date must use YYYY-mm-dd format: {value}") from error
 
 
 if __name__ == "__main__":
