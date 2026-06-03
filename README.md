@@ -99,3 +99,30 @@ hpc --profile genius --dry-run run 'cd "$VSC_DATA/Projects/foo" && git status'
 The initial implementation deliberately avoids destructive operations. Cleanup,
 job cancellation, and file deletion should remain explicit until the command
 surface has enough validation and safeguards.
+
+## Codex Skills
+
+The repository also includes reusable Codex skills under [skills](skills). They
+generalize the original Genius-specific workflows so agents can work with any
+configured `hpc-tools` profile:
+
+- [skills/hpc-filesystem-environment](skills/hpc-filesystem-environment) for
+  storage, quota, ownership, module, and conda environment inspection.
+- [skills/hpc-deploy-build](skills/hpc-deploy-build) for cloning, building, and
+  verifying software on a remote HPC profile.
+- [skills/hpc-slurm-jobs](skills/hpc-slurm-jobs) for queue inspection, Slurm job
+  scripts, submission, accounting, and output follow-up.
+
+Install them into a Codex skills directory by copying or symlinking the skill
+directories, for example:
+
+```bash
+mkdir -p ~/.codex/skills
+ln -s /home/gjb/Projects/hpc-tools/skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
+ln -s /home/gjb/Projects/hpc-tools/skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
+ln -s /home/gjb/Projects/hpc-tools/skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
+```
+
+Each skill assumes the `hpc` CLI is installed and the relevant profile is
+configured. Optional commands such as `hpc quota` and `hpc queue` are used only
+when the selected profile exposes them.
