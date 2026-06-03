@@ -1,0 +1,21 @@
+$ df -hT
+Filesystem                                 Type      Size  Used Avail Use% Mounted on
+/dev/mapper/systemvg-rootlv                xfs        30G  5.5G   25G  19% /
+efivarfs                                   efivarfs  512K   84K  424K  17% /sys/firmware/efi/efivars
+devtmpfs                                   devtmpfs  4.0M     0  4.0M   0% /dev
+tmpfs                                      tmpfs     126G     0  126G   0% /dev/shm
+tmpfs                                      tmpfs      51G  944M   50G   2% /run
+/dev/mapper/systemvg-scratchlv             ext4      591G  316K  565G   1% /tmp
+/dev/mapper/systemvg-varlv                 xfs        10G  819M  9.2G   8% /var
+/dev/mapper/systemvg-coredumplv            xfs        10G  104M  9.9G   2% /var/lib/systemd/coredump
+/dev/sda2                                  xfs       484M  188M  297M  39% /boot
+/dev/sda1                                  vfat      488M  2.5M  485M   1% /boot/efi
+10.118.240.67:/user                        nfs       7.0T  2.6T  4.5T  36% /vsc-hard-mounts/leuven-user
+10.118.240.67:/data                        nfs       451T  149T  302T  34% /vsc-hard-mounts/leuven-data
+10.118.240.67:/data/projects/vswmc         nfs        21T  3.9T   18T  19% /vsc-hard-mounts/leuven-data/projects/vswmc
+10.118.240.67:/apps/tier2/2018             nfs        18T   14T  4.9T  74% /vsc-hard-mounts/leuven-apps
+10.118.240.88:/hpc_archive                 nfs4      973T  627T  347T  65% /vsc-hard-mounts/leuven-archive
+scratch                                    gpfs      601T   48T  553T   8% /gpfs1/scratch
+10.112.31.60:/beheer_homes                 nfs       1.3T  994G  236G  81% /.autofs/beheer_homes
+project                                    gpfs      2.0P   11G  2.0P   1% /gpfs1/project
+172.23.13.5@o2ib:172.23.13.6@o2ib:/lustre1 lustre     41T   38T  3.9T  91% /lustre1

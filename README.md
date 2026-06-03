@@ -121,6 +121,30 @@ The initial implementation deliberately avoids destructive operations. Cleanup,
 job cancellation, and file deletion should remain explicit until the command
 surface has enough validation and safeguards.
 
+## Hardware Probing
+
+For clusters where hardware documentation is missing or incomplete, use the
+example Slurm probe script at
+[examples/job-scripts/hardware-probe.slurm](examples/job-scripts/hardware-probe.slurm).
+It records CPU/cache hierarchy, NUMA hints, memory, filesystems, block devices,
+memory bandwidth/latency through Intel MLC when available, GPU inventory when
+available, and relevant Slurm environment variables from inside a real
+allocation.
+
+Adapt site-required `#SBATCH` directives such as `--account`, `--clusters`, or
+`--partition`. For meaningful Intel MLC results, probe an entire node: keep
+`#SBATCH --exclusive`, and on sites that enforce CPU cgroups add a
+partition-specific `#SBATCH --cpus-per-task=<full-node-core-count>`. Also adjust
+`#SBATCH --time` if Intel MLC or other probes take longer on the target node.
+Then submit with:
+
+```bash
+hpc submit hardware-probe.slurm --directory <remote-dir>
+```
+
+The script writes a `hardware-probe-<host>-<jobid>` directory in the submission
+directory unless `HPC_PROBE_OUTPUT_DIR` is set.
+
 ## Codex Skills
 
 The repository also includes reusable Codex skills under [skills](skills). They

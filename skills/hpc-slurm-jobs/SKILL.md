@@ -66,6 +66,16 @@ reserved by the scheduler. Use source URLs when the user asks for current
 details or when the local reference appears stale. Do not hardcode site-specific
 partitions or filesystem paths in this skill.
 
+When documentation is missing or uncertain, use the bundled probe script
+`examples/job-scripts/hardware-probe.slurm` as a starting point. Adapt required
+site directives, submit it through `hpc submit`, then use the output to update a
+profile hardware/storage reference. If Intel MLC is available on the node, the
+probe also records memory bandwidth and latency information. MLC can take
+several minutes, so increase the probe script's `#SBATCH --time` when needed.
+For meaningful MLC results, request an entire node with `#SBATCH --exclusive`
+and, when the site enforces CPU cgroups, set partition-specific
+`#SBATCH --cpus-per-task` to the full node core count.
+
 ## Accounts and Credits
 
 Some Slurm sites require credits on an account before jobs can run. When the

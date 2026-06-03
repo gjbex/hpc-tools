@@ -1,0 +1,23 @@
+$ bash -lc for d in /sys/block/*; do echo "## $d"; cat "$d/device/model" 2>/dev/null || true; cat "$d/queue/rotational" 2>/dev/null || true; cat "$d/size" 2>/dev/null || true; done
+## /sys/block/dm-0
+0
+62914560
+## /sys/block/dm-1
+0
+31457280
+## /sys/block/dm-2
+0
+20971520
+## /sys/block/dm-3
+0
+4194304
+## /sys/block/dm-4
+0
+1258291200
+## /sys/block/dm-5
+0
+20971520
+## /sys/block/sda
+INTEL SSDSC2KG96
+0
+1875385008

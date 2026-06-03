@@ -5,6 +5,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PROBE_SCRIPT = ROOT / "examples" / "job-scripts" / "hardware-probe.slurm"
 SKILLS = [
     "hpc-deploy-build",
     "hpc-filesystem-environment",
@@ -66,6 +67,21 @@ class SkillTests(unittest.TestCase):
 
         self.assertIn("600 GB usable on a 960 GB", text)
         self.assertIn("approximately 3500 GB usable on a 3840 GB", text)
+
+    def test_hardware_probe_collects_cache_and_topology_information(self) -> None:
+        text = PROBE_SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn("lscpu --cache", text)
+        self.assertIn("/sys/devices/system/cpu/cpu*/cache/index*", text)
+        self.assertIn("shared_cpu_list", text)
+        self.assertIn("numactl --hardware", text)
+        self.assertIn("lstopo-no-graphics", text)
+        self.assertIn("mlc --bandwidth_matrix", text)
+        self.assertIn("mlc --latency_matrix", text)
+        self.assertIn("#SBATCH --time=00:20:00", text)
+        self.assertIn("#SBATCH --exclusive", text)
+        self.assertIn("--cpus-per-task value equal to the full node core count", text)
+        self.assertIn("MLC measurements can take several minutes", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()

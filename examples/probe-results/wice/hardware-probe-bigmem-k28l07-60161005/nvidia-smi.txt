@@ -1,0 +1,2 @@
+$ nvidia-smi
+/var/spool/slurmd/job60161005/slurm_script: line 27: nvidia-smi: command not found

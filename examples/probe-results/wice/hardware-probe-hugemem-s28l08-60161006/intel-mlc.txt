@@ -1,0 +1,68 @@
+$ mlc
+Intel(R) Memory Latency Checker - v3.11a
+*** Unable to modify prefetchers (try executing 'modprobe msr')
+*** So, enabling random access for latency measurements
+Measuring idle latencies for random access (in ns)...
+		Numa node
+Numa node	     0	     1	
+       0	  83.6	 139.6	
+       1	 140.0	  84.0	
+
+Measuring Peak Injection Memory Bandwidths for the system
+Bandwidths are in MB/sec (1 MB/sec = 1,000,000 Bytes/sec)
+Using all the threads from each core if Hyper-threading is enabled
+Using traffic with the following read-write ratios
+ALL Reads        :	298335.7	
+3:1 Reads-Writes :	243907.1	
+2:1 Reads-Writes :	233826.4	
+1:1 Reads-Writes :	242584.1	
+Stream-triad like:	259044.3	
+
+Measuring Memory Bandwidths between nodes within system 
+Bandwidths are in MB/sec (1 MB/sec = 1,000,000 Bytes/sec)
+Using all the threads from each core if Hyper-threading is enabled
+Using Read-only traffic type
+		Numa node
+Numa node	     0	     1	
+       0	148888.3	55700.5	
+       1	55685.0	149105.4	
+
+Measuring Loaded Latencies for the system
+Using all the threads from each core if Hyper-threading is enabled
+Using Read-only traffic type
+Inject	Latency	Bandwidth
+Delay	(ns)	MB/sec
+==========================
+ 00000	278.54	 298666.8
+ 00002	278.74	 298446.2
+ 00008	276.49	 298877.6
+ 00015	262.60	 301927.2
+ 00050	213.81	 306600.8
+ 00100	183.42	 293605.2
+ 00200	123.05	 210522.2
+ 00300	109.58	 153962.9
+ 00400	104.96	 120898.8
+ 00500	102.12	  99393.4
+ 00700	 99.34	  73243.5
+ 01000	 97.39	  53150.8
+ 01300	 95.59	  41661.3
+ 01700	 94.29	  32373.1
+ 02500	 92.33	  22523.8
+ 03500	 91.12	  16435.1
+ 05000	 89.34	  11793.0
+ 09000	 86.69	   6927.9
+ 20000	 85.47	   3545.8
+
+Measuring cache-to-cache transfer latency (in ns)...
+Local Socket L2->L2 HIT  latency	55.2
+Local Socket L2->L2 HITM latency	58.2
+Remote Socket L2->L2 HITM latency (data address homed in writer socket)
+			Reader Numa Node
+Writer Numa Node     0	     1	
+            0	     -	 123.4	
+            1	 123.4	     -	
+Remote Socket L2->L2 HITM latency (data address homed in reader socket)
+			Reader Numa Node
+Writer Numa Node     0	     1	
+            0	     -	 124.6	
+            1	 123.4	     -	

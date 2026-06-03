@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu54/cache/index2
+level=2
+type=Unified
+size=1280K
+coherency_line_size=64
+number_of_sets=1024
+ways_of_associativity=20
+shared_cpu_list=54
+shared_cpu_map=00,00400000,00000000

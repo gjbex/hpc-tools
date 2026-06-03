@@ -1,0 +1,50 @@
+$ findmnt
+TARGET                                                  SOURCE                                                         FSTYPE      OPTIONS
+/                                                       /dev/mapper/systemvg-rootlv                                    xfs         rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota
+├─/sys                                                  sysfs                                                          sysfs       rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/kernel/security                                securityfs                                                     securityfs  rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/fs/cgroup                                      cgroup2                                                        cgroup2     rw,nosuid,nodev,noexec,relatime,nsdelegate,memory_recursiveprot
+│ ├─/sys/fs/pstore                                      pstore                                                         pstore      rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/firmware/efi/efivars                           efivarfs                                                       efivarfs    rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/fs/bpf                                         bpf                                                            bpf         rw,nosuid,nodev,noexec,relatime,mode=700
+│ ├─/sys/kernel/debug                                   debugfs                                                        debugfs     rw,nosuid,nodev,noexec,relatime
+│ │ └─/sys/kernel/debug/tracing                         tracefs                                                        tracefs     rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/kernel/tracing                                 tracefs                                                        tracefs     rw,nosuid,nodev,noexec,relatime
+│ ├─/sys/fs/fuse/connections                            fusectl                                                        fusectl     rw,nosuid,nodev,noexec,relatime
+│ └─/sys/kernel/config                                  configfs                                                       configfs    rw,nosuid,nodev,noexec,relatime
+├─/dev                                                  devtmpfs                                                       devtmpfs    rw,nosuid,size=4096k,nr_inodes=32946501,mode=755,inode64
+│ ├─/dev/shm                                            tmpfs                                                          tmpfs       rw,nosuid,nodev,inode64
+│ │ └─/dev/shm                                          tmpfs                                                          tmpfs       rw,relatime,inode64
+│ ├─/dev/pts                                            devpts                                                         devpts      rw,nosuid,noexec,relatime,gid=5,mode=620,ptmxmode=000
+│ ├─/dev/hugepages                                      hugetlbfs                                                      hugetlbfs   rw,relatime,pagesize=2M
+│ └─/dev/mqueue                                         mqueue                                                         mqueue      rw,nosuid,nodev,noexec,relatime
+├─/run                                                  tmpfs                                                          tmpfs       rw,nosuid,nodev,size=52743068k,nr_inodes=819200,mode=755,inode64
+│ ├─/run/credentials/systemd-sysctl.service             none                                                           ramfs       ro,nosuid,nodev,noexec,relatime,mode=700
+│ ├─/run/credentials/systemd-sysusers.service           none                                                           ramfs       ro,nosuid,nodev,noexec,relatime,mode=700
+│ ├─/run/credentials/systemd-tmpfiles-setup-dev.service none                                                           ramfs       ro,nosuid,nodev,noexec,relatime,mode=700
+│ └─/run/credentials/systemd-tmpfiles-setup.service     none                                                           ramfs       ro,nosuid,nodev,noexec,relatime,mode=700
+├─/proc                                                 proc                                                           proc        rw,nosuid,nodev,noexec,relatime,gid=900,hidepid=invisible
+│ └─/proc/sys/fs/binfmt_misc                            systemd-1                                                      autofs      rw,relatime,fd=29,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=40970
+│   └─/proc/sys/fs/binfmt_misc                          binfmt_misc                                                    binfmt_misc rw,nosuid,nodev,noexec,relatime
+├─/tmp                                                  /dev/mapper/systemvg-tmplv                                     xfs         rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota
+│ └─/tmp                                                /dev/mapper/systemvg-scratchlv[/slurm/60161003/.60161003/_tmp] ext4        rw,relatime
+├─/var                                                  /dev/mapper/systemvg-varlv                                     xfs         rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota
+│ ├─/var/lib/nfs/rpc_pipefs                             sunrpc                                                         rpc_pipefs  rw,relatime
+│ └─/var/lib/systemd/coredump                           /dev/mapper/systemvg-coredumplv                                xfs         rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota
+├─/boot                                                 /dev/sda2                                                      xfs         rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota
+│ └─/boot/efi                                           /dev/sda1                                                      vfat        rw,relatime,fmask=0022,dmask=0022,codepage=437,iocharset=ascii,shortname=mixed,errors=remount-ro
+├─/local_scratch                                        /dev/mapper/systemvg-scratchlv                                 ext4        rw,relatime
+├─/rootlv                                               /dev/mapper/systemvg-rootlv                                    xfs         rw,relatime,attr2,inode64,logbufs=8,logbsize=32k,noquota
+├─/vsc-hard-mounts/leuven-user                          10.118.240.67:/user                                            nfs         rw,nosuid,nodev,relatime,vers=3,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=10.118.240.67,mountvers=3,mountport=635,mountproto=udp,fsc,local_lock=none,addr=10.118.240.67
+├─/vsc-hard-mounts/leuven-data                          10.118.240.67:/data                                            nfs         rw,nosuid,nodev,relatime,vers=3,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=10.118.240.67,mountvers=3,mountport=635,mountproto=udp,local_lock=none,addr=10.118.240.67
+│ └─/vsc-hard-mounts/leuven-data/projects/vswmc         10.118.240.67:/data/projects/vswmc                             nfs         rw,nosuid,nodev,relatime,vers=3,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,local_lock=none,addr=10.118.240.67
+├─/vsc-hard-mounts/leuven-apps                          10.118.240.67:/apps/tier2/2018                                 nfs         rw,nosuid,nodev,relatime,vers=3,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=10.118.240.67,mountvers=3,mountport=635,mountproto=udp,local_lock=none,addr=10.118.240.67
+├─/vsc-hard-mounts/leuven-archive                       10.118.240.88:/hpc_archive                                     nfs4        rw,nosuid,nodev,relatime,vers=4.2,rsize=65536,wsize=65536,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=10.118.227.140,local_lock=none,addr=10.118.240.88
+├─/gpfs1/project                                        project                                                        gpfs        rw,relatime
+├─/gpfs1/scratch                                        scratch                                                        gpfs        rw,relatime
+├─/.autofs                                              /etc/auto.homes                                                autofs      rw,relatime,fd=6,pgrp=14529,timeout=1500,minproto=5,maxproto=5,indirect,pipe_ino=65224
+│ └─/.autofs/beheer_homes                               10.112.31.60:/beheer_homes                                     nfs         rw,relatime,vers=3,rsize=32768,wsize=32768,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,mountaddr=10.112.31.60,mountvers=3,mountport=635,mountproto=udp,local_lock=none,addr=10.112.31.60
+├─/vsc-mounts                                           /etc/auto._vsc-mounts                                          autofs      rw,relatime,fd=9,pgrp=14529,timeout=300,minproto=5,maxproto=5,indirect,pipe_ino=87957
+├─/cvmfs                                                /etc/auto.cvmfs                                                autofs      rw,relatime,fd=12,pgrp=14529,timeout=60,minproto=5,maxproto=5,indirect,pipe_ino=67026
+├─/net                                                  -hosts                                                         autofs      rw,relatime,fd=15,pgrp=14529,timeout=300,minproto=5,maxproto=5,indirect,pipe_ino=68771
+└─/lustre1                                              172.23.13.5@o2ib:172.23.13.6@o2ib:/lustre1                     lustre      rw,nosuid,nodev,checksum,rchecksum_force,flock,user_xattr,lruresize,lazystatfs,nouser_fid2path,verbose,encrypt,statfs_project

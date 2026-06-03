@@ -1,0 +1,2 @@
+$ hostname -f
+s28l08.tier2.hpc.kuleuven.be
