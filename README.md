@@ -29,10 +29,17 @@ python3 -m pip install --user -e .
 By default, `hpc` reads:
 
 ```text
+$XDG_CONFIG_HOME/hpc-tools/config.toml
+```
+
+When `XDG_CONFIG_HOME` is not set, it falls back to:
+
+```text
 ~/.config/hpc-tools/config.toml
 ```
 
-Set `HPC_TOOLS_CONFIG` or pass `--config` to use another file.
+Path precedence is: explicit `--config`, then `HPC_TOOLS_CONFIG`, then
+`XDG_CONFIG_HOME`, then `~/.config`.
 
 Two example configuration files are provided:
 
@@ -102,10 +109,11 @@ reference files should be concise Markdown summaries of the relevant web
 documentation.
 
 Keep generated profile references outside the repository so the checkout can be
-deleted after installation. The recommended layout is:
+deleted after installation. The recommended layout is under the hpc-tools config
+directory, normally `$XDG_CONFIG_HOME/hpc-tools` or `~/.config/hpc-tools`:
 
 ```text
-~/.config/hpc-tools/
+<hpc-tools-config-dir>/
 ├── config.toml
 └── profiles/
     └── <profile>/
@@ -180,8 +188,8 @@ python3 -m pip uninstall hpc-tools
 This does not remove user-managed state such as copied Codex skills, profile
 configuration, generated references, or remote probe output. Run `hpc paths`
 before uninstalling if you want to inspect those locations. The durable local
-state is normally under `~/.config/hpc-tools` and copied skills are normally
-under `~/.codex/skills`.
+state is normally under `$XDG_CONFIG_HOME/hpc-tools` or `~/.config/hpc-tools`;
+copied skills are normally under `~/.codex/skills`.
 
 ## Hardware Probing
 
@@ -229,7 +237,9 @@ and reference set. The goal is to collect enough site facts that later build,
 filesystem, and Slurm workflows can make site-aware choices without embedding
 site-specific assumptions in the generic skills.
 
-Start with a minimal profile in `~/.config/hpc-tools/config.toml`:
+Start with a minimal profile in the hpc-tools config file shown by `hpc paths`,
+normally `$XDG_CONFIG_HOME/hpc-tools/config.toml` or
+`~/.config/hpc-tools/config.toml`:
 
 ```toml
 [profiles.example]
@@ -320,7 +330,9 @@ Then collect information in this order:
    hpc --profile example submit hardware-probe.slurm --directory <remote-dir>
    ```
 
-Use the collected facts to create concise durable Markdown files under
+Use the collected facts to create concise durable Markdown files under the
+profile reference directory shown by `hpc paths`, normally
+`$XDG_CONFIG_HOME/hpc-tools/profiles/<profile>/` or
 `~/.config/hpc-tools/profiles/<profile>/`, then add their paths and source URLs
 to the profile config. Those local references become the context that
 `hpc hardware` and the Codex skills use for future work. The repository's

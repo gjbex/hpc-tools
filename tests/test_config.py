@@ -4,11 +4,28 @@ import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from hpc_tools.config import ConfigError, load_config, resolve_profile
+from hpc_tools.config import ConfigError, default_config_dir, default_config_path, load_config, resolve_profile
 
 
 class ConfigTests(unittest.TestCase):
+    def test_default_config_path_uses_xdg_config_home(self) -> None:
+        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": "/tmp/xdg"}, clear=True):
+            self.assertEqual(default_config_dir(), Path("/tmp/xdg/hpc-tools"))
+            self.assertEqual(default_config_path(), Path("/tmp/xdg/hpc-tools/config.toml"))
+
+    def test_hpc_tools_config_overrides_xdg_config_home(self) -> None:
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "XDG_CONFIG_HOME": "/tmp/xdg",
+                "HPC_TOOLS_CONFIG": "/tmp/custom/config.toml",
+            },
+            clear=True,
+        ):
+            self.assertEqual(default_config_path(), Path("/tmp/custom/config.toml"))
+
     def test_loads_default_profile(self) -> None:
         path = self._write_config(
             """

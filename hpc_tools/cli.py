@@ -7,7 +7,7 @@ from pathlib import Path
 import shlex
 import sys
 
-from hpc_tools.config import ConfigError, Profile, default_config_path, load_config, resolve_profile
+from hpc_tools.config import ConfigError, Profile, default_config_dir, default_config_path, load_config, resolve_profile
 from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
 from hpc_tools.ssh import run_remote
 from hpc_tools import slurm
@@ -21,7 +21,7 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     parser.add_argument("--profile", help="Profile name from the configuration file")
     parser.add_argument(
         "--config",
-        help="Configuration file path; defaults to HPC_TOOLS_CONFIG or ~/.config/hpc-tools/config.toml",
+        help="Configuration file path; defaults to HPC_TOOLS_CONFIG, XDG_CONFIG_HOME, or ~/.config/hpc-tools/config.toml",
     )
     parser.add_argument(
         "--dry-run",
@@ -226,14 +226,15 @@ def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     del args, profile
     package_probe = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm")
+    config_dir = default_config_dir()
     print(f"config: {default_config_path()}")
-    print("profile_references: ~/.config/hpc-tools/profiles/<profile>/")
+    print(f"profile_references: {config_dir / 'profiles' / '<profile>'}")
     print("codex_skills: ~/.codex/skills/")
     print(f"hardware_probe_template: {package_probe}")
     print()
     print("python_uninstall: python3 -m pip uninstall hpc-tools")
     print("optional_user_state:")
-    print("  ~/.config/hpc-tools")
+    print(f"  {config_dir}")
     print("optional_copied_skills:")
     print("  ~/.codex/skills/_shared")
     print("  ~/.codex/skills/hpc-cluster-onboarding")

@@ -5,6 +5,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
@@ -62,13 +63,13 @@ class CommandTests(unittest.TestCase):
 
     def test_paths_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()
-        with contextlib.redirect_stdout(stdout):
+        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": "/tmp/xdg"}, clear=True), contextlib.redirect_stdout(stdout):
             result = main(["paths"])
 
         output = stdout.getvalue()
         self.assertEqual(result, 0)
-        self.assertIn("config:", output)
-        self.assertIn("profile_references: ~/.config/hpc-tools/profiles/<profile>/", output)
+        self.assertIn("config: /tmp/xdg/hpc-tools/config.toml", output)
+        self.assertIn("profile_references: /tmp/xdg/hpc-tools/profiles/<profile>", output)
         self.assertIn("codex_skills: ~/.codex/skills/", output)
         self.assertIn("python_uninstall: python3 -m pip uninstall hpc-tools", output)
         self.assertIn("hpc-cluster-onboarding", output)

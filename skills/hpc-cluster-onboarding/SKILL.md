@@ -54,8 +54,10 @@ site-aware decisions without hardcoding site facts into generic skills. Assume
 Slurm is the scheduler, but do not assume site-specific partitions, accounts,
 storage paths, module names, or quota commands.
 
-Produce or update three concise profile reference notes under
-`~/.config/hpc-tools/profiles/<profile>/` when possible:
+Produce or update three concise profile reference notes under the hpc-tools
+config directory when possible. `hpc paths` shows the active location; normally
+it is `$XDG_CONFIG_HOME/hpc-tools/profiles/<profile>/` when `XDG_CONFIG_HOME`
+is set, otherwise `~/.config/hpc-tools/profiles/<profile>/`:
 
 - hardware reference: node classes, CPUs, GPUs, memory, local scratch,
   interconnect, and partition mapping;
@@ -67,7 +69,7 @@ Produce or update three concise profile reference notes under
 The recommended durable layout is:
 
 ```text
-~/.config/hpc-tools/
+<hpc-tools-config-dir>/
 ├── config.toml
 └── profiles/
     └── <profile>/
@@ -110,7 +112,7 @@ Create or update the user's hpc-tools config outside this skill only when the
 user asks. Otherwise, provide the TOML snippet they should review.
 
 When adding reference paths to the profile, point them at durable files under
-`~/.config/hpc-tools/profiles/<profile>/`:
+the profile reference directory shown by `hpc paths`:
 
 ```toml
 hardware_reference = "~/.config/hpc-tools/profiles/<profile>/hardware.md"

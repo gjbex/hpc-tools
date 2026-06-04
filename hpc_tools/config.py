@@ -12,7 +12,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
     tomllib = None  # type: ignore[assignment]
 
 
-DEFAULT_CONFIG_PATH = Path("~/.config/hpc-tools/config.toml").expanduser()
+CONFIG_DIR_NAME = "hpc-tools"
+CONFIG_FILE_NAME = "config.toml"
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,16 @@ class ConfigError(ValueError):
 
 
 def default_config_path() -> Path:
-    return Path(os.environ.get("HPC_TOOLS_CONFIG", DEFAULT_CONFIG_PATH)).expanduser()
+    if "HPC_TOOLS_CONFIG" in os.environ:
+        return Path(os.environ["HPC_TOOLS_CONFIG"]).expanduser()
+    return default_config_dir() / CONFIG_FILE_NAME
+
+
+def default_config_dir() -> Path:
+    xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
+    if xdg_config_home:
+        return Path(xdg_config_home).expanduser() / CONFIG_DIR_NAME
+    return Path("~/.config").expanduser() / CONFIG_DIR_NAME
 
 
 def load_config(path: str | None = None) -> Config:
