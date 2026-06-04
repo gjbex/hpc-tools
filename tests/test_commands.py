@@ -71,7 +71,7 @@ class CommandTests(unittest.TestCase):
         self.assertIn("config: /tmp/xdg/hpc-tools/config.toml", output)
         self.assertIn("profile_references: /tmp/xdg/hpc-tools/profiles/<profile>", output)
         self.assertIn("codex_skills: ~/.codex/skills/", output)
-        self.assertIn("python_uninstall: python3 -m pip uninstall hpc-tools", output)
+        self.assertIn("package_uninstall: pipx uninstall hpc-tools", output)
         self.assertIn("hpc-cluster-onboarding", output)
 
     def test_write_hardware_probe_parser(self) -> None:

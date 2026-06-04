@@ -133,7 +133,8 @@ class SkillTests(unittest.TestCase):
 
         self.assertIn("Verify Local Installation", text)
         self.assertIn("command -v hpc", text)
-        self.assertIn("python3 -m pip install --user .", text)
+        self.assertIn("pipx install hpc-tools", text)
+        self.assertIn("pipx install .", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("hardware_reference", text)
         self.assertIn("Establish a Minimal Profile", text)
@@ -146,19 +147,21 @@ class SkillTests(unittest.TestCase):
     def test_readme_installs_without_repo_dependency(self) -> None:
         text = README.read_text(encoding="utf-8")
 
-        self.assertIn("python3 -m pip install --user .", text)
+        self.assertIn("pipx install hpc-tools", text)
+        self.assertIn("pipx install .", text)
         self.assertIn("Use an editable install only when developing", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
         self.assertIn("hpc paths", text)
-        self.assertIn("python3 -m pip uninstall hpc-tools", text)
+        self.assertIn("pipx uninstall hpc-tools", text)
         self.assertNotIn("ln -s /home", text)
 
     def test_agents_guidance_routes_hpc_workflows(self) -> None:
         text = AGENTS.read_text(encoding="utf-8")
 
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
-        self.assertIn("python3 -m pip install --user .", text)
+        self.assertIn("pipx install hpc-tools", text)
+        self.assertIn("pipx install .", text)
         self.assertIn("not\n  by symlinking", text)
         self.assertIn("hpc paths", text)
         self.assertIn("hpc-cluster-onboarding", text)

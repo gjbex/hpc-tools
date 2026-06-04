@@ -6,16 +6,19 @@ commands can target `genius`, another login node, or a local SSH alias.
 
 ## Install
 
-From the repository root:
+For normal released use, install the CLI with `pipx`:
 
 ```bash
-python3 -m pip install --user .
+pipx install hpc-tools
+pipx ensurepath
+hpc --help
 ```
 
-Make sure the user script directory is on `PATH`:
+From the repository root, use `pipx` only when testing a local release-style
+install:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+pipx install .
 ```
 
 Use an editable install only when developing `hpc-tools` itself:
@@ -182,7 +185,7 @@ surface has enough validation and safeguards.
 Remove the installed Python package and `hpc` console command with:
 
 ```bash
-python3 -m pip uninstall hpc-tools
+pipx uninstall hpc-tools
 ```
 
 This does not remove user-managed state such as copied Codex skills, profile
@@ -267,12 +270,19 @@ Then collect information in this order:
    hpc --help
    ```
 
-   If `hpc` is not found and you are in the `hpc-tools` repository root,
-   install it:
+   If `hpc` is not found, install the released CLI:
 
    ```bash
-   python3 -m pip install --user .
-   export PATH="$HOME/.local/bin:$PATH"
+   pipx install hpc-tools
+   pipx ensurepath
+   hpc --help
+   ```
+
+   If you are testing from the `hpc-tools` repository root before release, use
+   a local release-style install instead:
+
+   ```bash
+   pipx install .
    hpc --help
    ```
 

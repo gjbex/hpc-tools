@@ -15,18 +15,18 @@ command -v hpc
 hpc --help
 ```
 
-If the command is missing and the user is working from the `hpc-tools`
-repository root, install it with:
+If the command is missing, install the released CLI with `pipx`:
 
 ```bash
-python3 -m pip install --user .
+pipx install hpc-tools
+pipx ensurepath
 ```
 
-If installation succeeds but `hpc` is still not found, ask the user to add the
-user script directory to `PATH`, commonly:
+If the user is working from the `hpc-tools` repository root before release,
+use a local release-style install instead:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+pipx install .
 ```
 
 Do not proceed to remote profile checks until the local `hpc --help` command
@@ -93,8 +93,7 @@ or user context is missing.
 ### 0. Verify Local Installation
 
 Run the local installation checks above. If `hpc-tools` is not installed, help
-the user install it from the repository root with a non-editable install before
-collecting remote cluster facts.
+the user install it with `pipx` before collecting remote cluster facts.
 
 ### 1. Establish a Minimal Profile
 

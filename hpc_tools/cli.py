@@ -232,7 +232,7 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print("codex_skills: ~/.codex/skills/")
     print(f"hardware_probe_template: {package_probe}")
     print()
-    print("python_uninstall: python3 -m pip uninstall hpc-tools")
+    print("package_uninstall: pipx uninstall hpc-tools")
     print("optional_user_state:")
     print(f"  {config_dir}")
     print("optional_copied_skills:")

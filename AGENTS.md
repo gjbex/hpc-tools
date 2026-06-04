@@ -11,8 +11,9 @@ Slurm-based HPC systems.
 - Treat `examples/` as templates and sample data.
 - Do not store durable user-generated cluster references in this repository.
 - Store user profile references under `~/.config/hpc-tools/profiles/<profile>/`.
-- Install the CLI with a non-editable install for normal use:
-  `python3 -m pip install --user .`
+- Install the released CLI with pipx for normal use:
+  `pipx install hpc-tools`
+- Use `pipx install .` only for release-style testing from this checkout.
 - Use editable installs only for development:
   `python3 -m pip install --user -e .`
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
