@@ -1,0 +1,2 @@
+$ rocm-smi
+/var/spool/slurmd/job60161400/slurm_script: line 27: rocm-smi: command not found

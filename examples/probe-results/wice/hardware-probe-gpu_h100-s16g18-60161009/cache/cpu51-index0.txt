@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu51/cache/index0
+level=1
+type=Data
+size=32K
+coherency_line_size=64
+number_of_sets=64
+ways_of_associativity=8
+shared_cpu_list=51
+shared_cpu_map=00080000,00000000

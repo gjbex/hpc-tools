@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu63/cache/index1
+level=1
+type=Instruction
+size=32K
+coherency_line_size=64
+number_of_sets=64
+ways_of_associativity=8
+shared_cpu_list=63
+shared_cpu_map=00000000,80000000,00000000

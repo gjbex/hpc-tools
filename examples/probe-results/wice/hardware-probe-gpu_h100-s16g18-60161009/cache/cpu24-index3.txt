@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu24/cache/index3
+level=3
+type=Unified
+size=32768K
+coherency_line_size=64
+number_of_sets=32768
+ways_of_associativity=16
+shared_cpu_list=24-31
+shared_cpu_map=00000000,ff000000

@@ -1,0 +1,92 @@
+$ mlc
+Intel(R) Memory Latency Checker - v3.11a
+*** Unable to modify prefetchers (try executing 'modprobe msr')
+*** So, enabling random access for latency measurements
+Measuring idle latencies for random access (in ns)...
+		Numa node
+Numa node	     0	     1	     2	     3	     4	     5	     6	     7	
+       0	  97.4	 107.5	 112.9	 124.6	 189.6	 189.5	 189.2	 189.6	
+       1	 104.7	  97.8	 120.6	 114.5	 188.3	 188.5	 187.7	 188.5	
+       2	 111.0	 121.6	  97.1	 108.7	 188.6	 188.6	 188.3	 188.8	
+       3	 122.1	 114.2	 103.5	  98.2	 188.8	 188.8	 188.4	 189.0	
+       4	 189.0	 189.5	 188.2	 190.0	  98.3	 107.8	 111.6	 121.6	
+       5	 187.9	 188.6	 186.9	 189.0	 106.6	  98.5	 118.1	 111.0	
+       6	 188.3	 189.0	 187.7	 189.4	 110.7	 121.5	  98.9	 108.6	
+       7	 187.6	 188.5	 186.9	 188.8	 119.1	 111.5	 106.0	  98.3	
+
+Measuring Peak Injection Memory Bandwidths for the system
+Bandwidths are in MB/sec (1 MB/sec = 1,000,000 Bytes/sec)
+Using all the threads from each core if Hyper-threading is enabled
+Using traffic with the following read-write ratios
+ALL Reads        :	491544.9	
+3:1 Reads-Writes :	429726.8	
+2:1 Reads-Writes :	421648.6	
+1:1 Reads-Writes :	400952.7	
+Stream-triad like:	423746.0	
+
+Measuring Memory Bandwidths between nodes within system 
+Bandwidths are in MB/sec (1 MB/sec = 1,000,000 Bytes/sec)
+Using all the threads from each core if Hyper-threading is enabled
+Using Read-only traffic type
+		Numa node
+Numa node	     0	     1	     2	     3	     4	     5	     6	     7	
+       0	61456.9	61432.7	61601.5	61375.2	56280.9	56494.8	56208.1	56479.1	
+       1	61442.5	61524.0	61507.4	61442.5	56308.7	56541.6	56261.2	56539.8	
+       2	61469.8	61454.9	61685.2	61393.6	56309.5	56534.7	56236.6	56534.7	
+       3	60861.6	61502.9	60739.8	61422.5	56312.2	56551.9	56254.6	56505.7	
+       4	56284.9	56316.0	56420.8	56247.7	61386.6	61248.0	61362.5	61353.5	
+       5	56323.8	56346.6	56506.5	56279.9	59919.9	61637.5	60768.6	61609.4	
+       6	56335.6	56379.2	56522.5	56268.5	61415.8	59672.3	61378.7	59856.6	
+       7	56318.4	56363.7	56420.8	56274.4	61138.8	61598.8	61358.5	61638.9	
+
+Measuring Loaded Latencies for the system
+Using all the threads from each core if Hyper-threading is enabled
+Using Read-only traffic type
+Inject	Latency	Bandwidth
+Delay	(ns)	MB/sec
+==========================
+ 00000	253.99	 491980.3
+ 00002	253.24	 492496.8
+ 00008	247.92	 492875.4
+ 00015	215.70	 488165.0
+ 00050	205.73	 485047.5
+ 00100	198.82	 479832.1
+ 00200	119.07	 308876.7
+ 00300	113.05	 219582.5
+ 00400	108.04	 169838.4
+ 00500	105.67	 138665.2
+ 00700	103.61	 101525.5
+ 01000	101.85	  72541.7
+ 01300	102.30	  56437.6
+ 01700	100.29	  43683.5
+ 02500	 99.22	  30159.8
+ 03500	 98.72	  21832.9
+ 05000	 98.36	  15547.0
+ 09000	 98.11	   8920.6
+ 20000	 97.70	   4373.3
+
+Measuring cache-to-cache transfer latency (in ns)...
+Local Socket L2->L2 HIT  latency	57.9
+Local Socket L2->L2 HITM latency	59.0
+Remote Socket L2->L2 HITM latency (data address homed in writer socket)
+			Reader Numa Node
+Writer Numa Node     0	     1	     2	     3	     4	     5	     6	     7	
+            0	     -	  66.8	  73.5	  82.6	 160.3	 159.3	 159.8	 159.2	
+            1	  69.6	     -	  81.8	  76.8	 161.0	 159.9	 160.5	 159.7	
+            2	  75.4	  80.6	     -	  66.6	 159.2	 158.6	 159.3	 158.5	
+            3	  84.0	  75.9	  68.7	     -	 160.7	 159.5	 160.0	 159.5	
+            4	 160.8	 159.8	 160.0	 159.6	     -	  67.3	  73.3	  78.7	
+            5	 161.2	 160.3	 160.5	 160.7	  69.6	     -	  81.8	  74.6	
+            6	 160.4	 159.3	 159.5	 159.7	  73.1	  78.3	     -	  65.4	
+            7	 161.0	 160.1	 160.1	 160.4	  81.6	  73.1	  68.9	     -	
+Remote Socket L2->L2 HITM latency (data address homed in reader socket)
+			Reader Numa Node
+Writer Numa Node     0	     1	     2	     3	     4	     5	     6	     7	
+            0	     -	  66.7	  73.6	  82.6	 160.5	 159.3	 169.9	 159.2	
+            1	  69.6	     -	  81.9	  77.0	 161.1	 160.0	 160.5	 159.8	
+            2	  75.5	  80.8	     -	  66.8	 159.8	 158.7	 159.2	 158.5	
+            3	  83.9	  75.7	  69.0	     -	 160.7	 159.6	 160.1	 159.5	
+            4	 160.7	 159.8	 160.1	 160.2	     -	  67.4	  73.5	  78.8	
+            5	 161.3	 160.3	 160.5	 160.7	  69.7	     -	  82.0	  74.6	
+            6	 160.3	 159.3	 159.5	 159.7	  73.1	  78.3	     -	  65.9	
+            7	 161.0	 160.0	 160.2	 160.4	  81.7	  73.2	  69.0	     -	

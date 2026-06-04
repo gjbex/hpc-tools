@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu36/cache/index3
+level=3
+type=Unified
+size=32768K
+coherency_line_size=64
+number_of_sets=32768
+ways_of_associativity=16
+shared_cpu_list=32-39
+shared_cpu_map=000000ff,00000000

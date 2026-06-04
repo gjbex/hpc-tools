@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu94/cache/index3
+level=3
+type=Unified
+size=107520K
+coherency_line_size=64
+number_of_sets=114688
+ways_of_associativity=15
+shared_cpu_list=48-95
+shared_cpu_map=ffffffff,ffff0000,00000000

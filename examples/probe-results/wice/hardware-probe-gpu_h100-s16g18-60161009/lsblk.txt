@@ -1,0 +1,12 @@
+$ lsblk -o NAME,MODEL,SIZE,TYPE,FSTYPE,MOUNTPOINT
+NAME                    MODEL                        SIZE TYPE FSTYPE      MOUNTPOINT
+nvme0n1                 SAMSUNG MZ1L2960HCJR-00A07 894.3G disk             
+├─nvme0n1p1                                          488M part vfat        /boot/efi
+├─nvme0n1p2                                        488.5M part xfs         /boot
+└─nvme0n1p3                                        851.9G part LVM2_member 
+  ├─systemvg-rootlv                                   30G lvm  xfs         /rootlv
+  ├─systemvg-tmplv                                    15G lvm  xfs         /tmp
+  ├─systemvg-varlv                                    10G lvm  xfs         /var
+  ├─systemvg-swaplv                                    2G lvm  swap        [SWAP]
+  ├─systemvg-scratchlv                               600G lvm  ext4        /local_scratch
+  └─systemvg-coredumplv                               10G lvm  xfs         /var/lib/systemd/coredump

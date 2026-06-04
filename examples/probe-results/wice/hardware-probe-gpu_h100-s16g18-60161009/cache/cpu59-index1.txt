@@ -1,0 +1,9 @@
+path=/sys/devices/system/cpu/cpu59/cache/index1
+level=1
+type=Instruction
+size=32K
+coherency_line_size=64
+number_of_sets=64
+ways_of_associativity=8
+shared_cpu_list=59
+shared_cpu_map=08000000,00000000

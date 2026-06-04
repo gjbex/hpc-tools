@@ -1,0 +1,58 @@
+Name:	cp
+Umask:	0027
+State:	R (running)
+Tgid:	345195
+Ngid:	0
+Pid:	345195
+PPid:	325552
+TracerPid:	0
+Uid:	2530140	2530140	2530140	2530140
+Gid:	2530140	2530140	2530140	2530140
+FDSize:	256
+Groups:	2530140 2610029 2610167 2630001 2630004 2630021 2630048 2630049 2630140 2630177 2630178 2630248 2630316 2630475 2630558 2630803 2630874 2630938 2631395 2632107 2640026 2640063 2640266 2640421 2640422 2641095 2730322 
+NStgid:	345195
+NSpid:	345195
+NSpgid:	325552
+NSsid:	325354
+VmPeak:	    8008 kB
+VmSize:	    8008 kB
+VmLck:	       0 kB
+VmPin:	       0 kB
+VmHWM:	    2304 kB
+VmRSS:	    2304 kB
+RssAnon:	       0 kB
+RssFile:	    2304 kB
+RssShmem:	       0 kB
+VmData:	     484 kB
+VmStk:	     140 kB
+VmExe:	     896 kB
+VmLib:	    2244 kB
+VmPTE:	      52 kB
+VmSwap:	       0 kB
+HugetlbPages:	       0 kB
+CoreDumping:	0
+THP_enabled:	1
+untag_mask:	0xffffffffffffffff
+Threads:	1
+SigQ:	0/1029743
+SigPnd:	0000000000000000
+ShdPnd:	0000000000000000
+SigBlk:	0000000000000000
+SigIgn:	0000000000000000
+SigCgt:	0000000000000000
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	000001ffffffffff
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	0
+Seccomp_filters:	0
+Speculation_Store_Bypass:	thread vulnerable
+SpeculationIndirectBranch:	conditional enabled
+Cpus_allowed:	ffffffff,ffffffff,ffffffff
+Cpus_allowed_list:	0-95
+Mems_allowed:	00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,000000ff
+Mems_allowed_list:	0-7
+voluntary_ctxt_switches:	3
+nonvoluntary_ctxt_switches:	0

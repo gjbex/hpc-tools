@@ -1,0 +1,22 @@
+$ df -hT
+Filesystem                                 Type      Size  Used Avail Use% Mounted on
+/dev/mapper/systemvg-rootlv                xfs        30G  9.2G   21G  31% /
+efivarfs                                   efivarfs  128K   32K   92K  26% /sys/firmware/efi/efivars
+devtmpfs                                   devtmpfs  4.0M     0  4.0M   0% /dev
+tmpfs                                      tmpfs     378G     0  378G   0% /dev/shm
+tmpfs                                      tmpfs     152G  972M  151G   1% /run
+/dev/mapper/systemvg-scratchlv             ext4      591G  316K  565G   1% /tmp
+/dev/mapper/systemvg-varlv                 xfs        10G  891M  9.2G   9% /var
+/dev/mapper/systemvg-coredumplv            xfs        10G  105M  9.9G   2% /var/lib/systemd/coredump
+/dev/nvme0n1p2                             xfs       484M  309M  176M  64% /boot
+/dev/nvme0n1p1                             vfat      488M  2.5M  485M   1% /boot/efi
+10.118.240.67:/user                        nfs       7.0T  2.6T  4.5T  36% /vsc-hard-mounts/leuven-user
+10.118.240.67:/data                        nfs       451T  149T  302T  33% /vsc-hard-mounts/leuven-data
+10.118.240.67:/apps/tier2/2018             nfs        18T   14T  4.9T  74% /vsc-hard-mounts/leuven-apps
+10.118.240.88:/hpc_archive                 nfs4      973T  627T  347T  65% /vsc-hard-mounts/leuven-archive
+project                                    gpfs      2.0P   11G  2.0P   1% /gpfs1/project
+scratch                                    gpfs      601T   49T  553T   9% /gpfs1/scratch
+10.112.31.60:/beheer_homes                 nfs       1.3T  994G  235G  81% /.autofs/beheer_homes
+nfshome.gastly.gent.vsc:/user/home/gent    nfs4      135T   64T   71T  48% /vsc-mounts/gent-user
+nfsdata.gastly.gent.vsc:/user/data/gent    nfs4      5.5P  3.5P  2.0P  65% /vsc-mounts/gent-data
+172.23.13.5@o2ib:172.23.13.6@o2ib:/lustre1 lustre     41T   38T  3.9T  91% /lustre1

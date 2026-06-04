@@ -1,0 +1,6 @@
+$ lscpu --cache
+NAME ONE-SIZE ALL-SIZE WAYS TYPE        LEVEL  SETS PHY-LINE COHERENCY-SIZE
+L1d       32K       2M    8 Data            1    64        1             64
+L1i       32K       2M    8 Instruction     1    64        1             64
+L2         1M      64M    8 Unified         2  2048        1             64
+L3        32M     256M   16 Unified         3 32768        1             64
