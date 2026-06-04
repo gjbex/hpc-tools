@@ -153,6 +153,9 @@ configured `hpc-tools` profile:
 
 - [skills/_shared/hpc-tools-remote-access.md](skills/_shared/hpc-tools-remote-access.md)
   contains the shared remote command/profile guidance used by the domain skills.
+- [skills/hpc-cluster-discovery](skills/hpc-cluster-discovery) for discovering
+  cluster hardware, scheduler, storage, and node-class facts from profile
+  references, live commands, and hardware-probe output.
 - [skills/hpc-filesystem-environment](skills/hpc-filesystem-environment) for
   storage, quota, ownership, module, and conda environment inspection.
 - [skills/hpc-deploy-build](skills/hpc-deploy-build) for cloning, building, and
@@ -166,6 +169,7 @@ directories and the shared reference directory, for example:
 ```bash
 mkdir -p ~/.codex/skills
 ln -s /home/gjb/Projects/hpc-tools/skills/_shared ~/.codex/skills/_shared
+ln -s /home/gjb/Projects/hpc-tools/skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
 ln -s /home/gjb/Projects/hpc-tools/skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
 ln -s /home/gjb/Projects/hpc-tools/skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
 ln -s /home/gjb/Projects/hpc-tools/skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs

@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROBE_SCRIPT = ROOT / "examples" / "job-scripts" / "hardware-probe.slurm"
 SHARED_REMOTE_ACCESS = ROOT / "skills" / "_shared" / "hpc-tools-remote-access.md"
 SKILLS = [
+    "hpc-cluster-discovery",
     "hpc-deploy-build",
     "hpc-filesystem-environment",
     "hpc-slurm-jobs",
@@ -95,6 +96,18 @@ class SkillTests(unittest.TestCase):
         self.assertIn("#SBATCH --exclusive", text)
         self.assertIn("--cpus-per-task value equal to the full node core count", text)
         self.assertIn("MLC measurements can take several minutes", text)
+
+    def test_cluster_discovery_skill_uses_probe_artifacts(self) -> None:
+        text = (ROOT / "skills" / "hpc-cluster-discovery" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("examples/job-scripts/hardware-probe.slurm", text)
+        self.assertNotIn("examples/probe-results", text)
+        self.assertIn("summary.env", text)
+        self.assertIn("lscpu.txt", text)
+        self.assertIn("numactl-hardware.txt", text)
+        self.assertIn("intel-mlc-bandwidth.txt", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()
