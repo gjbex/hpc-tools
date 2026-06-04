@@ -195,14 +195,28 @@ def _add_probe_directive_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--qos", help="Add #SBATCH --qos=<qos>")
     parser.add_argument("--time", help="Replace the template #SBATCH --time value")
     parser.add_argument("--cpus-per-task", help="Add #SBATCH --cpus-per-task=<count>")
+    parser.add_argument(
+        "--mail-notifications",
+        action="store_true",
+        help="Add END,FAIL Slurm email notifications using the selected profile email",
+    )
+    parser.add_argument(
+        "--mail-user",
+        help="Add END,FAIL Slurm email notifications for this address",
+    )
 
 
 def _should_parse_without_config(argv: list[str]) -> bool:
     pre_args, remaining = _build_pre_parser().parse_known_args(argv)
-    del pre_args
     if any(arg in ("-h", "--help") for arg in remaining):
         return True
-    return bool(remaining and remaining[0] in LOCAL_COMMANDS)
+    if not remaining:
+        return False
+    if remaining[0] == "paths":
+        return True
+    if remaining[0] == "write-hardware-probe":
+        return not (pre_args.profile or pre_args.config or "--mail-notifications" in remaining)
+    return remaining[0] in LOCAL_COMMANDS
 
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
@@ -269,8 +283,7 @@ def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_write_hardware_probe(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
-    template = _hardware_probe_template(args)
+    template = _hardware_probe_template(args, profile)
     if args.output == "-":
         sys.stdout.write(template)
         return 0
@@ -286,13 +299,13 @@ def cmd_install_hardware_probe(args: argparse.Namespace, profile: Profile) -> in
     command = _install_hardware_probe_command(
         args.directory,
         args.name,
-        _hardware_probe_template(args),
+        _hardware_probe_template(args, profile),
         force=args.force,
     )
     return run_remote(profile, command, dry_run=args.dry_run)
 
 
-def _hardware_probe_template(args: argparse.Namespace | None = None) -> str:
+def _hardware_probe_template(args: argparse.Namespace | None = None, profile: Profile | None = None) -> str:
     template = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm").read_text(
         encoding="utf-8"
     )
@@ -300,6 +313,7 @@ def _hardware_probe_template(args: argparse.Namespace | None = None) -> str:
         return template
 
     insertions = []
+    mail_user = _resolve_mail_user(args, profile)
     for option_name, directive_name in [
         ("account", "account"),
         ("cluster", "clusters"),
@@ -310,6 +324,9 @@ def _hardware_probe_template(args: argparse.Namespace | None = None) -> str:
         value = getattr(args, option_name, None)
         if value:
             insertions.append(f"#SBATCH --{directive_name}={value}")
+    if mail_user:
+        insertions.append(f"#SBATCH --mail-user={mail_user}")
+        insertions.append("#SBATCH --mail-type=END,FAIL")
 
     rendered = []
     inserted = False
@@ -322,6 +339,17 @@ def _hardware_probe_template(args: argparse.Namespace | None = None) -> str:
             rendered.extend(insertions)
             inserted = True
     return "\n".join(rendered) + "\n"
+
+
+def _resolve_mail_user(args: argparse.Namespace, profile: Profile | None) -> str | None:
+    mail_user = getattr(args, "mail_user", None)
+    if mail_user:
+        return mail_user
+    if not getattr(args, "mail_notifications", False):
+        return None
+    if profile is None or profile.email is None:
+        raise ConfigError("--mail-notifications requires a selected profile with an email field")
+    return profile.email
 
 
 def _install_hardware_probe_command(

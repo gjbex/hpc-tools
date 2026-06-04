@@ -109,6 +109,10 @@ Before submitting the probe:
 
 - Adapt site-required `#SBATCH` directives such as account, cluster, partition,
   QoS, reservation, or time limit.
+- If a probe may wait in the queue for a long time and the selected profile
+  defines `email`, offer `--mail-notifications`; this adds only
+  `#SBATCH --mail-type=END,FAIL`, not start notifications. If the user provides
+  a different address, use `--mail-user <address>` instead.
 - For meaningful memory-bandwidth results, request a full node with
   `#SBATCH --exclusive`; if the site enforces CPU cgroups, set
   `#SBATCH --cpus-per-task` to the full node core count.

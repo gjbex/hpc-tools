@@ -96,6 +96,7 @@ class CommandTests(unittest.TestCase):
                 "batch",
                 "--time",
                 "00:30:00",
+                "--mail-notifications",
             ]
         )
 
@@ -105,6 +106,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.cluster, "cluster-a")
         self.assertEqual(args.partition, "batch")
         self.assertEqual(args.time, "00:30:00")
+        self.assertTrue(args.mail_notifications)
 
     def test_write_hardware_probe_to_stdout(self) -> None:
         parser = build_parser()
@@ -123,6 +125,8 @@ class CommandTests(unittest.TestCase):
                 "00:30:00",
                 "--cpus-per-task",
                 "72",
+                "--mail-user",
+                "user@example.org",
             ]
         )
 
@@ -138,7 +142,28 @@ class CommandTests(unittest.TestCase):
         self.assertIn("#SBATCH --qos=normal", stdout.getvalue())
         self.assertIn("#SBATCH --time=00:30:00", stdout.getvalue())
         self.assertIn("#SBATCH --cpus-per-task=72", stdout.getvalue())
+        self.assertIn("#SBATCH --mail-user=user@example.org", stdout.getvalue())
+        self.assertIn("#SBATCH --mail-type=END,FAIL", stdout.getvalue())
         self.assertIn("lscpu --cache", stdout.getvalue())
+
+    def test_write_hardware_probe_uses_profile_email_for_notifications(self) -> None:
+        parser = build_parser(make_profile(email="profile@example.org"))
+        args = parser.parse_args(["write-hardware-probe", "--mail-notifications"])
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = args.handler(args, make_profile(email="profile@example.org"))
+
+        self.assertEqual(result, 0)
+        self.assertIn("#SBATCH --mail-user=profile@example.org", stdout.getvalue())
+        self.assertIn("#SBATCH --mail-type=END,FAIL", stdout.getvalue())
+
+    def test_write_hardware_probe_rejects_profile_notifications_without_email(self) -> None:
+        parser = build_parser(make_profile(email=None))
+        args = parser.parse_args(["write-hardware-probe", "--mail-notifications"])
+
+        with self.assertRaises(ConfigError):
+            args.handler(args, make_profile(email=None))
 
     def test_write_hardware_probe_to_file(self) -> None:
         parser = build_parser()
@@ -284,6 +309,7 @@ def make_profile(
     slurm_url: str | None = "https://example.org/slurm",
     storage_reference: str | None = "examples/references/kuleuven-tier2-storage.md",
     storage_url: str | None = "https://example.org/storage",
+    email: str | None = "gjb@example.org",
 ) -> Profile:
     return Profile(
         name="genius",
@@ -304,6 +330,7 @@ def make_profile(
         storage_reference=storage_reference,
         storage_url=storage_url,
         default_cluster="wice",
+        email=email,
     )
 
 

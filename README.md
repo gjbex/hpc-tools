@@ -62,6 +62,7 @@ slurm_url = "https://docs.vscentrum.be/leuven/slurm_specifics.html"
 storage_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/storage.md"
 storage_url = "https://docs.vscentrum.be/leuven/tier2_hardware/storage.html"
 default_cluster = "wice"
+email = "user@example.org"
 ```
 
 `ssh_target` is passed directly to `ssh`, so it can be a configured SSH alias
@@ -81,6 +82,12 @@ ssh_options = ["-x"]
 
 `projects_dir` is interpreted by the remote shell. Values such as
 `$VSC_DATA/Projects` are intentionally not expanded locally.
+
+`email` is optional. When it is present, `hpc write-hardware-probe` and
+`hpc install-hardware-probe` can add Slurm email notifications with
+`--mail-notifications`. The generated script uses `#SBATCH --mail-type=END,FAIL`
+and never requests start notifications. Use `--mail-user <address>` to add
+notifications with an explicit address instead of a configured profile email.
 
 `quota_command`, `queue_command`, `sam_balance_command`, and
 `sam_statement_command` are optional. If a profile does not define one of them,
@@ -183,12 +190,14 @@ the packaged Slurm probe script locally for inspection or editing:
 
 ```bash
 hpc write-hardware-probe hardware-probe.slurm
+hpc --profile example write-hardware-probe hardware-probe.slurm --mail-notifications
 ```
 
 To install the packaged probe script directly on the remote system, use:
 
 ```bash
 hpc --profile example install-hardware-probe --directory <remote-dir>
+hpc --profile example install-hardware-probe --directory <remote-dir> --mail-notifications
 ```
 
 It records CPU/cache hierarchy, NUMA hints, memory, filesystems, block devices,
@@ -202,6 +211,8 @@ Adapt site-required `#SBATCH` directives such as `--account`, `--clusters`, or
 `#SBATCH --exclusive`, and on sites that enforce CPU cgroups add a
 partition-specific `#SBATCH --cpus-per-task=<full-node-core-count>`. Also adjust
 `#SBATCH --time` if Intel MLC or other probes take longer on the target node.
+When the profile defines `email`, add `--mail-notifications` for long-queued
+probe jobs if the user wants completion/failure notifications.
 Then submit with:
 
 ```bash
@@ -303,7 +314,8 @@ Then collect information in this order:
 
    ```bash
    hpc --profile example install-hardware-probe --directory <remote-dir> \
-       --account <account> --cluster <cluster> --partition <partition>
+       --account <account> --cluster <cluster> --partition <partition> \
+       --mail-notifications
    hpc --profile example submit --test-only hardware-probe.slurm --directory <remote-dir>
    hpc --profile example submit hardware-probe.slurm --directory <remote-dir>
    ```

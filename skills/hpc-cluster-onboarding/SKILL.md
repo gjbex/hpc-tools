@@ -103,6 +103,8 @@ Ask for or infer:
 - login shell, normally `["bash", "-l", "-c"]`;
 - default Slurm cluster name, if the site uses Slurm federation or multiple
   clusters.
+- optional notification email for Slurm jobs that may wait a long time in the
+  queue.
 
 Create or update the user's hpc-tools config outside this skill only when the
 user asks. Otherwise, provide the TOML snippet they should review.
@@ -114,6 +116,7 @@ When adding reference paths to the profile, point them at durable files under
 hardware_reference = "~/.config/hpc-tools/profiles/<profile>/hardware.md"
 slurm_reference = "~/.config/hpc-tools/profiles/<profile>/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/<profile>/storage.md"
+email = "user@example.org"
 ```
 
 Verify:
@@ -194,6 +197,11 @@ Pass common required directives directly when known:
 hpc --profile <profile> install-hardware-probe --directory <remote-dir> \
     --account <account> --cluster <cluster> --partition <partition> --time 00:30:00
 ```
+
+If the profile defines `email` and the user wants notification for long-queued
+probe jobs, add `--mail-notifications`. This adds `#SBATCH --mail-type=END,FAIL`
+only; do not add start notifications. If the user wants a different address, use
+`--mail-user <address>`.
 
 For custom edits, generate a local copy with
 `hpc write-hardware-probe hardware-probe.slurm`, edit it, and transfer it to the

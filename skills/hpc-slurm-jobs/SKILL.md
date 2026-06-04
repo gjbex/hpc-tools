@@ -76,7 +76,9 @@ bandwidth and latency information. MLC can take several minutes, so increase
 the probe script's `#SBATCH --time` when needed. For meaningful MLC results,
 request an entire node with `#SBATCH --exclusive` and, when the site enforces
 CPU cgroups, set partition-specific `#SBATCH --cpus-per-task` to the full node
-core count.
+core count. For long-queued probe jobs, if the profile defines `email`, offer
+`--mail-notifications`; this adds `#SBATCH --mail-type=END,FAIL` only. Use
+`--mail-user <address>` when the user provides a different notification address.
 
 ## Accounts and Credits
 
@@ -118,6 +120,9 @@ is optional:
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:10:00
 #SBATCH --output=%x-%j.out
+# Optional when the user wants completion/failure email:
+#SBATCH --mail-user=<email>
+#SBATCH --mail-type=END,FAIL
 
 set -euo pipefail
 

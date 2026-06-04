@@ -27,6 +27,7 @@ class ConfigTests(unittest.TestCase):
             storage_reference = "/tmp/storage.md"
             storage_url = "https://example.org/storage"
             default_cluster = "wice"
+            email = "gjb@example.org"
             """
         )
 
@@ -50,6 +51,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(profile.storage_reference, "/tmp/storage.md")
         self.assertEqual(profile.storage_url, "https://example.org/storage")
         self.assertEqual(profile.default_cluster, "wice")
+        self.assertEqual(profile.email, "gjb@example.org")
 
     def test_loads_ssh_config_alias_profile(self) -> None:
         path = self._write_config(

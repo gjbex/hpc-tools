@@ -35,6 +35,7 @@ class Profile:
     storage_reference: str | None
     storage_url: str | None
     default_cluster: str | None
+    email: str | None
 
     @property
     def ssh_target(self) -> str:
@@ -123,6 +124,7 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         storage_reference=_optional_string(raw_profile, "storage_reference", profile=name),
         storage_url=_optional_string(raw_profile, "storage_url", profile=name),
         default_cluster=_optional_string(raw_profile, "default_cluster", profile=name),
+        email=_optional_string(raw_profile, "email", profile=name),
     )
 
 
