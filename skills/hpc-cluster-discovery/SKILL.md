@@ -93,11 +93,17 @@ and array tasks differently for policy purposes.
 
 ## Hardware Probe
 
-Use `examples/job-scripts/hardware-probe.slurm` when documentation is missing,
-ambiguous, stale, or too coarse for performance-sensitive decisions. The probe
-collects CPU/cache topology, NUMA layout, memory, mounted filesystems, block
-devices, GPU inventory when available, Intel MLC bandwidth/latency when
-available, and relevant Slurm environment variables.
+Use the packaged hardware probe when documentation is missing, ambiguous, stale,
+or too coarse for performance-sensitive decisions. Install it into the remote
+working directory:
+
+```bash
+hpc --profile <profile> install-hardware-probe --directory <remote-dir>
+```
+
+The probe collects CPU/cache topology, NUMA layout, memory, mounted
+filesystems, block devices, GPU inventory when available, Intel MLC
+bandwidth/latency when available, and relevant Slurm environment variables.
 
 Before submitting the probe:
 

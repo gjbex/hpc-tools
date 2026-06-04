@@ -181,9 +181,23 @@ For specific tools, use `hpc module-spider <tool>` when Lmod is available.
 
 ### 6. Probe Compute Hardware
 
-Use `examples/job-scripts/hardware-probe.slurm` when documentation is missing,
-stale, or too coarse. Adapt required account, cluster, partition, QoS, and time
-directives before submission.
+Install the packaged hardware probe script on the remote system when
+documentation is missing, stale, or too coarse:
+
+```bash
+hpc --profile <profile> install-hardware-probe --directory <remote-dir>
+```
+
+Pass common required directives directly when known:
+
+```bash
+hpc --profile <profile> install-hardware-probe --directory <remote-dir> \
+    --account <account> --cluster <cluster> --partition <partition> --time 00:30:00
+```
+
+For custom edits, generate a local copy with
+`hpc write-hardware-probe hardware-probe.slurm`, edit it, and transfer it to the
+remote working directory with the user's normal file-transfer method.
 
 Submit one probe per representative node class or partition, not one per node.
 Prefer short, low-impact probes first; increase walltime only when Intel MLC or

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+from importlib import resources
+from pathlib import Path
 import shlex
 import sys
 
@@ -9,6 +11,9 @@ from hpc_tools.config import ConfigError, Profile, load_config, resolve_profile
 from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
 from hpc_tools.ssh import run_remote
 from hpc_tools import slurm
+
+
+LOCAL_COMMANDS = {"write-hardware-probe"}
 
 
 def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
@@ -29,6 +34,47 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run a command on the remote host")
     run_parser.add_argument("remote_command", help="Command to run through the configured login shell")
     run_parser.set_defaults(handler=cmd_run)
+
+    probe_parser = subparsers.add_parser(
+        "write-hardware-probe",
+        help="Write the packaged Slurm hardware probe script",
+    )
+    probe_parser.add_argument(
+        "output",
+        nargs="?",
+        default="-",
+        help="Output path, or '-' for stdout. Defaults to stdout.",
+    )
+    probe_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite output path if it already exists",
+    )
+    _add_probe_directive_options(probe_parser)
+    probe_parser.set_defaults(handler=cmd_write_hardware_probe)
+
+    install_probe_parser = subparsers.add_parser(
+        "install-hardware-probe",
+        help="Install the packaged Slurm hardware probe script on the remote host",
+    )
+    install_probe_parser.add_argument(
+        "--directory",
+        "-C",
+        default=".",
+        help="Remote directory where the probe script should be written",
+    )
+    install_probe_parser.add_argument(
+        "--name",
+        default="hardware-probe.slurm",
+        help="Remote script filename",
+    )
+    install_probe_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite remote script if it already exists",
+    )
+    _add_probe_directive_options(install_probe_parser)
+    install_probe_parser.set_defaults(handler=cmd_install_hardware_probe)
 
     if profile is None or profile.quota_command:
         quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
@@ -115,6 +161,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         pre_args, _ = _build_pre_parser().parse_known_args(argv)
+        if _should_parse_without_config(argv):
+            parser = build_parser()
+            args = parser.parse_args(argv)
+            return args.handler(args, None)
         config = load_config(pre_args.config)
         profile = resolve_profile(config, pre_args.profile)
         parser = build_parser(profile)
@@ -130,6 +180,23 @@ def _build_pre_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile")
     parser.add_argument("--config")
     return parser
+
+
+def _add_probe_directive_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--account", help="Add #SBATCH --account=<account>")
+    parser.add_argument("--cluster", "--clusters", dest="cluster", help="Add #SBATCH --clusters=<cluster>")
+    parser.add_argument("--partition", help="Add #SBATCH --partition=<partition>")
+    parser.add_argument("--qos", help="Add #SBATCH --qos=<qos>")
+    parser.add_argument("--time", help="Replace the template #SBATCH --time value")
+    parser.add_argument("--cpus-per-task", help="Add #SBATCH --cpus-per-task=<count>")
+
+
+def _should_parse_without_config(argv: list[str]) -> bool:
+    pre_args, remaining = _build_pre_parser().parse_known_args(argv)
+    del pre_args
+    if any(arg in ("-h", "--help") for arg in remaining):
+        return True
+    return bool(remaining and remaining[0] in LOCAL_COMMANDS)
 
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
@@ -172,6 +239,90 @@ def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
         raise ConfigError("use only one of --source or --path")
     print(render_hardware_context(profile, source_only=args.source, path_only=args.path))
     return 0
+
+
+def cmd_write_hardware_probe(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    template = _hardware_probe_template(args)
+    if args.output == "-":
+        sys.stdout.write(template)
+        return 0
+
+    output_path = Path(args.output).expanduser()
+    if output_path.exists() and not args.force:
+        raise ConfigError(f"output file already exists: {output_path}; use --force to overwrite")
+    output_path.write_text(template, encoding="utf-8")
+    return 0
+
+
+def cmd_install_hardware_probe(args: argparse.Namespace, profile: Profile) -> int:
+    command = _install_hardware_probe_command(
+        args.directory,
+        args.name,
+        _hardware_probe_template(args),
+        force=args.force,
+    )
+    return run_remote(profile, command, dry_run=args.dry_run)
+
+
+def _hardware_probe_template(args: argparse.Namespace | None = None) -> str:
+    template = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm").read_text(
+        encoding="utf-8"
+    )
+    if args is None:
+        return template
+
+    insertions = []
+    for option_name, directive_name in [
+        ("account", "account"),
+        ("cluster", "clusters"),
+        ("partition", "partition"),
+        ("qos", "qos"),
+        ("cpus_per_task", "cpus-per-task"),
+    ]:
+        value = getattr(args, option_name, None)
+        if value:
+            insertions.append(f"#SBATCH --{directive_name}={value}")
+
+    rendered = []
+    inserted = False
+    for line in template.splitlines():
+        if line.startswith("#SBATCH --time=") and getattr(args, "time", None):
+            rendered.append(f"#SBATCH --time={args.time}")
+            continue
+        rendered.append(line)
+        if line.startswith("#SBATCH --output=") and not inserted:
+            rendered.extend(insertions)
+            inserted = True
+    return "\n".join(rendered) + "\n"
+
+
+def _install_hardware_probe_command(
+    directory: str,
+    name: str,
+    contents: str,
+    *,
+    force: bool = False,
+) -> str:
+    remote_dir = slurm._quote_remote_path_expression(directory)
+    remote_name = shlex.quote(name)
+    overwrite_check = ""
+    if not force:
+        overwrite_check = (
+            f"if [ -e {remote_name} ]; then "
+            f"echo 'output file already exists: {name}; use --force to overwrite' >&2; "
+            "exit 1; "
+            "fi\n"
+        )
+    delimiter = "HPC_TOOLS_HARDWARE_PROBE_TEMPLATE"
+    return (
+        f"mkdir -p {remote_dir} && cd {remote_dir} && "
+        f"{overwrite_check}"
+        f"cat > {remote_name} <<'{delimiter}'\n"
+        f"{contents}"
+        f"{delimiter}\n"
+        f"chmod +x {remote_name}"
+    )
 
 
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:

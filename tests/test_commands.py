@@ -2,10 +2,20 @@ from __future__ import annotations
 
 import contextlib
 import io
+import tempfile
 import unittest
+from pathlib import Path
 
 from hpc_tools.config import ConfigError, Profile
-from hpc_tools.cli import _statement_command, build_parser, cmd_clone
+from hpc_tools.cli import (
+    _install_hardware_probe_command,
+    _statement_command,
+    build_parser,
+    cmd_clone,
+    cmd_install_hardware_probe,
+    cmd_write_hardware_probe,
+    main,
+)
 from hpc_tools.hardware import render_hardware_context
 from hpc_tools.ssh import build_ssh_argv
 from hpc_tools import slurm
@@ -43,6 +53,115 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.url, "https://github.com/org/repo.git")
         self.assertEqual(args.branch, "main")
 
+    def test_write_hardware_probe_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["write-hardware-probe", "probe.slurm"])
+
+        self.assertIs(args.handler, cmd_write_hardware_probe)
+        self.assertEqual(args.output, "probe.slurm")
+        self.assertFalse(args.force)
+
+    def test_install_hardware_probe_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "install-hardware-probe",
+                "--directory",
+                "$VSC_DATA/probes",
+                "--account",
+                "proj",
+                "--cluster",
+                "cluster-a",
+                "--partition",
+                "batch",
+                "--time",
+                "00:30:00",
+            ]
+        )
+
+        self.assertIs(args.handler, cmd_install_hardware_probe)
+        self.assertEqual(args.directory, "$VSC_DATA/probes")
+        self.assertEqual(args.account, "proj")
+        self.assertEqual(args.cluster, "cluster-a")
+        self.assertEqual(args.partition, "batch")
+        self.assertEqual(args.time, "00:30:00")
+
+    def test_write_hardware_probe_to_stdout(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "write-hardware-probe",
+                "--account",
+                "proj",
+                "--cluster",
+                "cluster-a",
+                "--partition",
+                "batch",
+                "--qos",
+                "normal",
+                "--time",
+                "00:30:00",
+                "--cpus-per-task",
+                "72",
+            ]
+        )
+
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = args.handler(args, None)
+
+        self.assertEqual(result, 0)
+        self.assertIn("#SBATCH --job-name=hardware-probe", stdout.getvalue())
+        self.assertIn("#SBATCH --account=proj", stdout.getvalue())
+        self.assertIn("#SBATCH --clusters=cluster-a", stdout.getvalue())
+        self.assertIn("#SBATCH --partition=batch", stdout.getvalue())
+        self.assertIn("#SBATCH --qos=normal", stdout.getvalue())
+        self.assertIn("#SBATCH --time=00:30:00", stdout.getvalue())
+        self.assertIn("#SBATCH --cpus-per-task=72", stdout.getvalue())
+        self.assertIn("lscpu --cache", stdout.getvalue())
+
+    def test_write_hardware_probe_to_file(self) -> None:
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "hardware-probe.slurm"
+            args = parser.parse_args(["write-hardware-probe", str(output)])
+
+            result = args.handler(args, None)
+
+            self.assertEqual(result, 0)
+            self.assertIn("Hardware probe output written", output.read_text(encoding="utf-8"))
+
+    def test_write_hardware_probe_rejects_existing_file_without_force(self) -> None:
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "hardware-probe.slurm"
+            output.write_text("existing", encoding="utf-8")
+            args = parser.parse_args(["write-hardware-probe", str(output)])
+
+            with self.assertRaises(ConfigError):
+                args.handler(args, None)
+
+    def test_write_hardware_probe_main_does_not_require_config(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = main(["write-hardware-probe"])
+
+        self.assertEqual(result, 0)
+        self.assertIn("#SBATCH --job-name=hardware-probe", stdout.getvalue())
+
+    def test_install_hardware_probe_command_writes_remote_file(self) -> None:
+        command = _install_hardware_probe_command(
+            "$VSC_DATA/probes",
+            "probe.slurm",
+            "#!/bin/bash\n#SBATCH --job-name=hardware-probe\n",
+        )
+
+        self.assertIn("mkdir -p $VSC_DATA/probes", command)
+        self.assertIn("cd $VSC_DATA/probes", command)
+        self.assertIn("cat > probe.slurm", command)
+        self.assertIn("#SBATCH --job-name=hardware-probe", command)
+        self.assertIn("chmod +x probe.slurm", command)
+
     def test_optional_commands_visible_when_configured(self) -> None:
         parser = build_parser(make_profile())
         help_text = parser.format_help()
@@ -74,7 +193,7 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("queue", help_text)
         self.assertNotIn("balance", help_text)
         self.assertNotIn("statement", help_text)
-        self.assertNotIn("hardware", help_text)
+        self.assertNotIn("hardware           Show profile hardware", help_text)
 
     def test_hidden_optional_command_is_rejected_if_invoked(self) -> None:
         parser = build_parser(make_profile(quota_command=None))

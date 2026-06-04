@@ -107,7 +107,8 @@ class SkillTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("examples/job-scripts/hardware-probe.slurm", text)
+        self.assertIn("install-hardware-probe", text)
+        self.assertNotIn("examples/job-scripts/hardware-probe.slurm", text)
         self.assertNotIn("examples/probe-results", text)
         self.assertIn("summary.env", text)
         self.assertIn("lscpu.txt", text)
@@ -139,7 +140,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("sinfo -a", text)
         self.assertIn("scontrol show partition", text)
         self.assertIn("sacctmgr -n -P show assoc", text)
-        self.assertIn("examples/job-scripts/hardware-probe.slurm", text)
+        self.assertIn("install-hardware-probe", text)
         self.assertIn("Completion Criteria", text)
 
     def test_readme_installs_without_repo_dependency(self) -> None:

@@ -17,6 +17,9 @@ Slurm-based HPC systems.
   `python3 -m pip install --user -e .`
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
+- Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
+  probe scripts after installation; do not require the repository checkout for
+  onboarding a new cluster.
 
 ## Skill Routing
 

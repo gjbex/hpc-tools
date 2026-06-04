@@ -125,6 +125,8 @@ storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
 
 ```bash
 hpc run 'hostname'
+hpc write-hardware-probe hardware-probe.slurm
+hpc install-hardware-probe --directory <remote-dir>
 hpc quota                  # if quota_command is configured
 hpc projects
 hpc clone https://github.com/org/repo.git --branch main
@@ -156,13 +158,24 @@ surface has enough validation and safeguards.
 
 ## Hardware Probing
 
-For clusters where hardware documentation is missing or incomplete, use the
-example Slurm probe script at
-[examples/job-scripts/hardware-probe.slurm](examples/job-scripts/hardware-probe.slurm).
+For clusters where hardware documentation is missing or incomplete, generate
+the packaged Slurm probe script locally for inspection or editing:
+
+```bash
+hpc write-hardware-probe hardware-probe.slurm
+```
+
+To install the packaged probe script directly on the remote system, use:
+
+```bash
+hpc --profile example install-hardware-probe --directory <remote-dir>
+```
+
 It records CPU/cache hierarchy, NUMA hints, memory, filesystems, block devices,
 memory bandwidth/latency through Intel MLC when available, GPU inventory when
 available, and relevant Slurm environment variables from inside a real
-allocation.
+allocation. The repository also keeps a readable copy at
+[examples/job-scripts/hardware-probe.slurm](examples/job-scripts/hardware-probe.slurm).
 
 Adapt site-required `#SBATCH` directives such as `--account`, `--clusters`, or
 `--partition`. For meaningful Intel MLC results, probe an entire node: keep
@@ -264,11 +277,13 @@ Then collect information in this order:
 
 5. Discover representative compute hardware:
 
-   Adapt [examples/job-scripts/hardware-probe.slurm](examples/job-scripts/hardware-probe.slurm)
-   for the site's required account, partition, cluster, QoS, and time
-   directives. Submit one probe per representative node class or partition:
+   Install the packaged probe script on the remote system, adding common
+   site-required directives when needed, and submit one probe per representative
+   node class or partition:
 
    ```bash
+   hpc --profile example install-hardware-probe --directory <remote-dir> \
+       --account <account> --cluster <cluster> --partition <partition>
    hpc --profile example submit --test-only hardware-probe.slurm --directory <remote-dir>
    hpc --profile example submit hardware-probe.slurm --directory <remote-dir>
    ```

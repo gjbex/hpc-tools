@@ -108,6 +108,7 @@ faster CPU node. Use it for capacity-bound workloads.
 Use the hardware probe script from a remote working directory:
 
 ```bash
+hpc --profile <profile> install-hardware-probe --directory <remote-dir>
 hpc --profile <profile> submit --test-only hardware-probe.slurm --directory <remote-dir>
 hpc --profile <profile> submit hardware-probe.slurm --directory <remote-dir>
 ```

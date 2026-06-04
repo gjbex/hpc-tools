@@ -101,6 +101,7 @@ hpc --profile <profile> run 'scontrol -M <cluster> show config | grep -Ei "MaxAr
 Hardware probe, when documentation or Slurm node fields are not enough:
 
 ```bash
+hpc --profile <profile> install-hardware-probe --directory <remote-dir>
 hpc --profile <profile> submit --test-only hardware-probe.slurm --directory <remote-dir>
 hpc --profile <profile> submit hardware-probe.slurm --directory <remote-dir>
 ```
