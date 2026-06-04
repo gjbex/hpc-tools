@@ -9,6 +9,14 @@ Source: https://docs.vscentrum.be/leuven/tier2_hardware.html
 - Recommended batch shell: `#!/bin/bash -l`
 - Accounting commands: `sam-balance`, `sam-statement --account <account>`
 
+## Probe-Derived Context
+
+Measured hardware-probe output is consolidated in
+`examples/references/wice-probe-hardware-report.md`. Use that report for
+observed CPU topology, NUMA layout, local scratch, GPU inventory, and MLC
+measurements from sampled allocated nodes. Keep the facts in this file as
+documentation-derived inventory and policy context.
+
 ## Clusters
 
 ### Mindwell
