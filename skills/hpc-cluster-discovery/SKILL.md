@@ -39,6 +39,58 @@ storage, quota, modules, or conda details, use the filesystem/environment skill.
 For cloning or placing probe scripts on the remote system, use the deploy/build
 skill.
 
+## Partition and Accounting Limits
+
+For scheduler limits, query Slurm live rather than relying only on hardware
+references. Partition properties such as walltime, total nodes, default memory,
+and partition QoS usually come from `scontrol show partition`:
+
+```bash
+hpc --profile <profile> run 'scontrol -M <cluster> show partition <partition>'
+hpc --profile <profile> run 'sinfo -M <cluster> -p <partition> -o "%P|%a|%l|%D|%N"'
+hpc --profile <profile> run 'sinfo -M <cluster> -p <partition> -N -o "%N|%c|%m|%G|%t" | sed -n "1,12p"'
+```
+
+Read these fields carefully:
+
+- `MaxTime`: maximum walltime for a job in the partition.
+- `DefaultTime`: walltime used when the job does not request one.
+- `MaxNodes`: partition-level per-job node cap; `UNLIMITED` still means the
+  request is practically bounded by `TotalNodes`, availability, account policy,
+  and QoS.
+- `TotalNodes` and `TotalCPUs`: current partition capacity known to Slurm.
+- `DefMemPerCPU` and `MaxMemPerCPU`: memory defaults and limits when the site
+  uses per-CPU memory accounting.
+- `QoS` and `DenyQos`: QoS policy attached to, or excluded from, the partition.
+
+Per-user or per-account submit limits are usually not stored on the partition.
+Check QoS and associations:
+
+```bash
+hpc --profile <profile> run 'sacctmgr -n -P show qos <qos> format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall'
+hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES'
+hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER partition=<partition> format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES'
+```
+
+When reporting a submit limit, state whether it came from QoS
+(`MaxSubmitJobsPU`), a user/account association (`MaxSubmitJobs`), or a group
+limit (`GrpSubmitJobs`). If a field is empty, do not infer a limit from it.
+
+## Job Array Limits
+
+Array size is a controller configuration setting, not normally a partition
+field. Query it from Slurm config:
+
+```bash
+hpc --profile <profile> run 'scontrol -M <cluster> show config | grep -Ei "MaxArraySize|MaxJobCount|MaxSubmitJobs|SchedulerParameters"'
+```
+
+Interpret `MaxArraySize` as the configured maximum number of array index values.
+In Slurm, a value of `N` normally means valid array indexes are `0` through
+`N-1`, so the largest simple zero-based array is `--array=0-<N-1>`. Also report
+QoS or association submit limits separately, because sites can count array jobs
+and array tasks differently for policy purposes.
+
 ## Hardware Probe
 
 Use `examples/job-scripts/hardware-probe.slurm` when documentation is missing,

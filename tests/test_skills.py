@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROBE_SCRIPT = ROOT / "examples" / "job-scripts" / "hardware-probe.slurm"
+PARTITION_REPORT = ROOT / "examples" / "reference" / "slurm-partition-discovery-report.md"
 SHARED_REMOTE_ACCESS = ROOT / "skills" / "_shared" / "hpc-tools-remote-access.md"
 SKILLS = [
     "hpc-cluster-discovery",
@@ -108,6 +109,26 @@ class SkillTests(unittest.TestCase):
         self.assertIn("lscpu.txt", text)
         self.assertIn("numactl-hardware.txt", text)
         self.assertIn("intel-mlc-bandwidth.txt", text)
+
+    def test_cluster_discovery_skill_covers_slurm_limits(self) -> None:
+        text = (ROOT / "skills" / "hpc-cluster-discovery" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("scontrol -M <cluster> show partition <partition>", text)
+        self.assertIn("MaxSubmitJobsPU", text)
+        self.assertIn("sacctmgr -n -P show assoc", text)
+        self.assertIn("MaxArraySize", text)
+        self.assertIn("--array=0-<N-1>", text)
+
+    def test_partition_discovery_report_is_reusable(self) -> None:
+        text = PARTITION_REPORT.read_text(encoding="utf-8")
+
+        self.assertIn("Report: wice batch_icelake", text)
+        self.assertIn("MaxSubmitJobsPU", text)
+        self.assertIn("MaxArraySize", text)
+        self.assertIn("hpc --profile <profile> run", text)
+        self.assertIn("Interpretation Checklist", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()
