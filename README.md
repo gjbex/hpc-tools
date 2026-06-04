@@ -9,13 +9,19 @@ commands can target `genius`, another login node, or a local SSH alias.
 From the repository root:
 
 ```bash
-python3 -m pip install --user -e .
+python3 -m pip install --user .
 ```
 
 Make sure the user script directory is on `PATH`:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
+```
+
+Use an editable install only when developing `hpc-tools` itself:
+
+```bash
+python3 -m pip install --user -e .
 ```
 
 ## Configuration
@@ -88,6 +94,33 @@ and Slurm policy without hardcoding those details in the generic skills. Local
 reference files should be concise Markdown summaries of the relevant web
 documentation.
 
+Keep generated profile references outside the repository so the checkout can be
+deleted after installation. The recommended layout is:
+
+```text
+~/.config/hpc-tools/
+├── config.toml
+└── profiles/
+    └── <profile>/
+        ├── hardware.md
+        ├── slurm.md
+        ├── storage.md
+        ├── partition-report.md
+        ├── probe-hardware-report.md
+        └── probe-results/
+```
+
+Point the profile at those durable files:
+
+```toml
+[profiles.example]
+ssh_target = "example"
+login_shell = ["bash", "-l", "-c"]
+hardware_reference = "~/.config/hpc-tools/profiles/example/hardware.md"
+slurm_reference = "~/.config/hpc-tools/profiles/example/slurm.md"
+storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
+```
+
 ## Commands
 
 ```bash
@@ -145,6 +178,113 @@ hpc submit hardware-probe.slurm --directory <remote-dir>
 The script writes a `hardware-probe-<host>-<jobid>` directory in the submission
 directory unless `HPC_PROBE_OUTPUT_DIR` is set.
 
+## Onboarding a New Slurm Cluster
+
+When using `hpc-tools` on a new HPC system, first build a small local profile
+and reference set. The goal is to collect enough site facts that later build,
+filesystem, and Slurm workflows can make site-aware choices without embedding
+site-specific assumptions in the generic skills.
+
+Start with a minimal profile in `~/.config/hpc-tools/config.toml`:
+
+```toml
+[profiles.example]
+ssh_target = "example"
+ssh_options = ["-x"]
+login_shell = ["bash", "-l", "-c"]
+```
+
+If there is no SSH alias, use explicit `user` and `host` fields instead:
+
+```toml
+[profiles.example]
+user = "myuser"
+host = "login.example.edu"
+ssh_options = ["-x"]
+login_shell = ["bash", "-l", "-c"]
+```
+
+Then collect information in this order:
+
+0. Verify local installation:
+
+   ```bash
+   command -v hpc
+   hpc --help
+   ```
+
+   If `hpc` is not found and you are in the `hpc-tools` repository root,
+   install it:
+
+   ```bash
+   python3 -m pip install --user .
+   export PATH="$HOME/.local/bin:$PATH"
+   hpc --help
+   ```
+
+1. Verify access and Slurm commands:
+
+   ```bash
+   hpc --profile example --dry-run run 'hostname'
+   hpc --profile example run 'hostname; whoami; pwd'
+   hpc --profile example run 'command -v sbatch; command -v sinfo; command -v scontrol; command -v sacctmgr || true'
+   ```
+
+2. Discover Slurm partitions and controller limits:
+
+   ```bash
+   hpc --profile example run 'sinfo -a -o "%P|%a|%l|%D|%c|%m|%G|%f"'
+   hpc --profile example run 'scontrol show partition'
+   hpc --profile example run 'scontrol show config | grep -Ei "ClusterName|MaxArraySize|MaxJobCount|MaxSubmitJobs|MaxTasksPerNode|SchedulerParameters"'
+   ```
+
+   If the site uses Slurm federation or multiple clusters, repeat with
+   `-M <cluster>`.
+
+3. Discover account and QoS policy:
+
+   ```bash
+   hpc --profile example run 'sacctmgr -n -P show assoc where user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES 2>/dev/null || true'
+   hpc --profile example run 'sacctmgr -n -P show qos format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall 2>/dev/null || true'
+   ```
+
+   If `sacctmgr` is restricted, use site documentation, example job scripts, and
+   `sbatch --test-only` errors to identify required account or QoS directives.
+
+4. Discover storage and quota commands:
+
+   ```bash
+   hpc --profile example run 'pwd; df -hT .; mount | sed -n "1,80p"'
+   hpc --profile example run 'env | grep -Ei "HOME|DATA|SCRATCH|WORK|PROJECT|TMP|SLURM" | sort'
+   hpc --profile example run 'command -v quota; command -v lfs; command -v beegfs-ctl; command -v mmlsquota; command -v module || true'
+   ```
+
+   Record home, project/data, shared scratch, and node-local scratch separately.
+   Avoid assuming home storage is suitable for parallel I/O.
+
+5. Discover representative compute hardware:
+
+   Adapt [examples/job-scripts/hardware-probe.slurm](examples/job-scripts/hardware-probe.slurm)
+   for the site's required account, partition, cluster, QoS, and time
+   directives. Submit one probe per representative node class or partition:
+
+   ```bash
+   hpc --profile example submit --test-only hardware-probe.slurm --directory <remote-dir>
+   hpc --profile example submit hardware-probe.slurm --directory <remote-dir>
+   ```
+
+Use the collected facts to create concise durable Markdown files under
+`~/.config/hpc-tools/profiles/<profile>/`, then add their paths and source URLs
+to the profile config. Those local references become the context that
+`hpc hardware` and the Codex skills use for future work. The repository's
+`examples/references/` files are templates and examples, not the long-term home
+for user-generated cluster references.
+
+The `hpc-cluster-onboarding` Codex skill can guide this process interactively:
+ask the agent to onboard a new Slurm cluster for `hpc-tools`, provide the SSH
+target or profile name, and let it step through access checks, Slurm discovery,
+account/QoS inspection, storage discovery, and hardware probing.
+
 ## Codex Skills
 
 The repository also includes reusable Codex skills under [skills](skills). They
@@ -153,6 +293,9 @@ configured `hpc-tools` profile:
 
 - [skills/_shared/hpc-tools-remote-access.md](skills/_shared/hpc-tools-remote-access.md)
   contains the shared remote command/profile guidance used by the domain skills.
+- [skills/hpc-cluster-onboarding](skills/hpc-cluster-onboarding) for guiding a
+  first-time setup and information collection process for an arbitrary
+  Slurm-based HPC system.
 - [skills/hpc-cluster-discovery](skills/hpc-cluster-discovery) for discovering
   cluster hardware, scheduler, storage, and node-class facts from profile
   references, live commands, and hardware-probe output.
@@ -163,16 +306,18 @@ configured `hpc-tools` profile:
 - [skills/hpc-slurm-jobs](skills/hpc-slurm-jobs) for queue inspection, Slurm job
   scripts, submission, accounting, and output follow-up.
 
-Install them into a Codex skills directory by copying or symlinking the skill
-directories and the shared reference directory, for example:
+Install them into a Codex skills directory by copying the skill directories and
+the shared reference directory. Copying, rather than symlinking, lets the user
+delete the `hpc-tools` checkout after installation:
 
 ```bash
 mkdir -p ~/.codex/skills
-ln -s /home/gjb/Projects/hpc-tools/skills/_shared ~/.codex/skills/_shared
-ln -s /home/gjb/Projects/hpc-tools/skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
-ln -s /home/gjb/Projects/hpc-tools/skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
-ln -s /home/gjb/Projects/hpc-tools/skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
-ln -s /home/gjb/Projects/hpc-tools/skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
+cp -R skills/_shared ~/.codex/skills/_shared
+cp -R skills/hpc-cluster-onboarding ~/.codex/skills/hpc-cluster-onboarding
+cp -R skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
+cp -R skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
+cp -R skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
+cp -R skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
 ```
 
 Each skill assumes the `hpc` CLI is installed and the relevant profile is

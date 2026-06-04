@@ -6,9 +6,13 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROBE_SCRIPT = ROOT / "examples" / "job-scripts" / "hardware-probe.slurm"
-PARTITION_REPORT = ROOT / "examples" / "reference" / "slurm-partition-discovery-report.md"
+PARTITION_REPORT = ROOT / "examples" / "references" / "slurm-partition-discovery-report.md"
+WICE_HARDWARE_REPORT = ROOT / "examples" / "references" / "wice-probe-hardware-report.md"
 SHARED_REMOTE_ACCESS = ROOT / "skills" / "_shared" / "hpc-tools-remote-access.md"
+README = ROOT / "README.md"
+AGENTS = ROOT / "AGENTS.md"
 SKILLS = [
+    "hpc-cluster-onboarding",
     "hpc-cluster-discovery",
     "hpc-deploy-build",
     "hpc-filesystem-environment",
@@ -121,6 +125,42 @@ class SkillTests(unittest.TestCase):
         self.assertIn("MaxArraySize", text)
         self.assertIn("--array=0-<N-1>", text)
 
+    def test_cluster_onboarding_skill_guides_first_run_collection(self) -> None:
+        text = (ROOT / "skills" / "hpc-cluster-onboarding" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Verify Local Installation", text)
+        self.assertIn("command -v hpc", text)
+        self.assertIn("python3 -m pip install --user .", text)
+        self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
+        self.assertIn("hardware_reference", text)
+        self.assertIn("Establish a Minimal Profile", text)
+        self.assertIn("sinfo -a", text)
+        self.assertIn("scontrol show partition", text)
+        self.assertIn("sacctmgr -n -P show assoc", text)
+        self.assertIn("examples/job-scripts/hardware-probe.slurm", text)
+        self.assertIn("Completion Criteria", text)
+
+    def test_readme_installs_without_repo_dependency(self) -> None:
+        text = README.read_text(encoding="utf-8")
+
+        self.assertIn("python3 -m pip install --user .", text)
+        self.assertIn("Use an editable install only when developing", text)
+        self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
+        self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
+        self.assertNotIn("ln -s /home", text)
+
+    def test_agents_guidance_routes_hpc_workflows(self) -> None:
+        text = AGENTS.read_text(encoding="utf-8")
+
+        self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
+        self.assertIn("python3 -m pip install --user .", text)
+        self.assertIn("not\n  by symlinking", text)
+        self.assertIn("hpc-cluster-onboarding", text)
+        self.assertIn("hpc-cluster-discovery", text)
+        self.assertIn("python3 -m unittest discover -s tests", text)
+
     def test_partition_discovery_report_is_reusable(self) -> None:
         text = PARTITION_REPORT.read_text(encoding="utf-8")
 
@@ -129,6 +169,17 @@ class SkillTests(unittest.TestCase):
         self.assertIn("MaxArraySize", text)
         self.assertIn("hpc --profile <profile> run", text)
         self.assertIn("Interpretation Checklist", text)
+
+    def test_wice_hardware_report_summarizes_probe_results(self) -> None:
+        text = WICE_HARDWARE_REPORT.read_text(encoding="utf-8")
+
+        self.assertIn("wICE Probe Hardware Report", text)
+        self.assertIn("batch_icelake", text)
+        self.assertIn("bigmem", text)
+        self.assertIn("hugemem", text)
+        self.assertIn("Intel Xeon Platinum 8360Y", text)
+        self.assertIn("NUMA", text)
+        self.assertIn("600 GB", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()
