@@ -125,6 +125,7 @@ storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
 
 ```bash
 hpc run 'hostname'
+hpc paths
 hpc write-hardware-probe hardware-probe.slurm
 hpc install-hardware-probe --directory <remote-dir>
 hpc quota                  # if quota_command is configured
@@ -150,11 +151,30 @@ without executing it:
 hpc --profile genius --dry-run run 'cd "$VSC_DATA/Projects/foo" && git status'
 ```
 
+`hpc paths` is a local command that does not require a configured profile. Use
+it to inspect the config location, durable profile-reference location, copied
+Codex skill location, packaged hardware-probe template, and uninstall cleanup
+notes.
+
 ## Scope
 
 The initial implementation deliberately avoids destructive operations. Cleanup,
 job cancellation, and file deletion should remain explicit until the command
 surface has enough validation and safeguards.
+
+## Uninstall
+
+Remove the installed Python package and `hpc` console command with:
+
+```bash
+python3 -m pip uninstall hpc-tools
+```
+
+This does not remove user-managed state such as copied Codex skills, profile
+configuration, generated references, or remote probe output. Run `hpc paths`
+before uninstalling if you want to inspect those locations. The durable local
+state is normally under `~/.config/hpc-tools` and copied skills are normally
+under `~/.codex/skills`.
 
 ## Hardware Probing
 

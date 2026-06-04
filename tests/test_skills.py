@@ -150,6 +150,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Use an editable install only when developing", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
+        self.assertIn("hpc paths", text)
+        self.assertIn("python3 -m pip uninstall hpc-tools", text)
         self.assertNotIn("ln -s /home", text)
 
     def test_agents_guidance_routes_hpc_workflows(self) -> None:
@@ -158,6 +160,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("python3 -m pip install --user .", text)
         self.assertIn("not\n  by symlinking", text)
+        self.assertIn("hpc paths", text)
         self.assertIn("hpc-cluster-onboarding", text)
         self.assertIn("hpc-cluster-discovery", text)
         self.assertIn("python3 -m unittest discover -s tests", text)

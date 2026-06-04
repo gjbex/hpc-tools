@@ -7,13 +7,13 @@ from pathlib import Path
 import shlex
 import sys
 
-from hpc_tools.config import ConfigError, Profile, load_config, resolve_profile
+from hpc_tools.config import ConfigError, Profile, default_config_path, load_config, resolve_profile
 from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
 from hpc_tools.ssh import run_remote
 from hpc_tools import slurm
 
 
-LOCAL_COMMANDS = {"write-hardware-probe"}
+LOCAL_COMMANDS = {"paths", "write-hardware-probe"}
 
 
 def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
@@ -34,6 +34,12 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     run_parser = subparsers.add_parser("run", help="Run a command on the remote host")
     run_parser.add_argument("remote_command", help="Command to run through the configured login shell")
     run_parser.set_defaults(handler=cmd_run)
+
+    paths_parser = subparsers.add_parser(
+        "paths",
+        help="Show hpc-tools config, reference, skill, and package paths",
+    )
+    paths_parser.set_defaults(handler=cmd_paths)
 
     probe_parser = subparsers.add_parser(
         "write-hardware-probe",
@@ -201,6 +207,27 @@ def _should_parse_without_config(argv: list[str]) -> bool:
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
     return run_remote(profile, args.remote_command, dry_run=args.dry_run)
+
+
+def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
+    del args, profile
+    package_probe = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm")
+    print(f"config: {default_config_path()}")
+    print("profile_references: ~/.config/hpc-tools/profiles/<profile>/")
+    print("codex_skills: ~/.codex/skills/")
+    print(f"hardware_probe_template: {package_probe}")
+    print()
+    print("python_uninstall: python3 -m pip uninstall hpc-tools")
+    print("optional_user_state:")
+    print("  ~/.config/hpc-tools")
+    print("optional_copied_skills:")
+    print("  ~/.codex/skills/_shared")
+    print("  ~/.codex/skills/hpc-cluster-onboarding")
+    print("  ~/.codex/skills/hpc-cluster-discovery")
+    print("  ~/.codex/skills/hpc-filesystem-environment")
+    print("  ~/.codex/skills/hpc-deploy-build")
+    print("  ~/.codex/skills/hpc-slurm-jobs")
+    return 0
 
 
 def cmd_quota(args: argparse.Namespace, profile: Profile) -> int:

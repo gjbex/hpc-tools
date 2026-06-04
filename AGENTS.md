@@ -20,6 +20,8 @@ Slurm-based HPC systems.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
   probe scripts after installation; do not require the repository checkout for
   onboarding a new cluster.
+- Use `hpc paths` to show config, durable reference, copied skill, packaged
+  probe-template, and uninstall cleanup locations.
 
 ## Skill Routing
 

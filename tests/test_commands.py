@@ -13,6 +13,7 @@ from hpc_tools.cli import (
     build_parser,
     cmd_clone,
     cmd_install_hardware_probe,
+    cmd_paths,
     cmd_write_hardware_probe,
     main,
 )
@@ -52,6 +53,25 @@ class CommandTests(unittest.TestCase):
         self.assertIs(args.handler, cmd_clone)
         self.assertEqual(args.url, "https://github.com/org/repo.git")
         self.assertEqual(args.branch, "main")
+
+    def test_paths_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["paths"])
+
+        self.assertIs(args.handler, cmd_paths)
+
+    def test_paths_main_does_not_require_config(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = main(["paths"])
+
+        output = stdout.getvalue()
+        self.assertEqual(result, 0)
+        self.assertIn("config:", output)
+        self.assertIn("profile_references: ~/.config/hpc-tools/profiles/<profile>/", output)
+        self.assertIn("codex_skills: ~/.codex/skills/", output)
+        self.assertIn("python_uninstall: python3 -m pip uninstall hpc-tools", output)
+        self.assertIn("hpc-cluster-onboarding", output)
 
     def test_write_hardware_probe_parser(self) -> None:
         parser = build_parser()
