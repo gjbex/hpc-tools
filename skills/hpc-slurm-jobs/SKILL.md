@@ -7,15 +7,15 @@ description: Monitor, create, submit, and follow Slurm jobs on a configured remo
 
 ## Remote Access
 
-Use the installed `hpc` CLI. Prefer `--profile <name>` when the user names a
-cluster/profile; otherwise use the configured default profile:
+Use the installed `hpc` CLI for remote commands:
 
 ```bash
 hpc --profile <profile> run '<command>'
 ```
 
-Commands run through the profile's configured login shell. If SSH prints a
-firewall or login-gate URL, wait for the user to complete it, then retry.
+For profile selection, optional helpers, login-gate handling, `--dry-run`, and
+remote command patterns, read
+[`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
 ## Queue Monitoring
 

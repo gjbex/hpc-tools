@@ -6,6 +6,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROBE_SCRIPT = ROOT / "examples" / "job-scripts" / "hardware-probe.slurm"
+SHARED_REMOTE_ACCESS = ROOT / "skills" / "_shared" / "hpc-tools-remote-access.md"
 SKILLS = [
     "hpc-deploy-build",
     "hpc-filesystem-environment",
@@ -23,6 +24,18 @@ class SkillTests(unittest.TestCase):
                 self.assertEqual(frontmatter.get("name"), skill)
                 self.assertIn("description", frontmatter)
                 self.assertTrue(frontmatter["description"])
+
+    def test_domain_skills_reference_shared_remote_access(self) -> None:
+        self.assertTrue(SHARED_REMOTE_ACCESS.exists(), f"missing {SHARED_REMOTE_ACCESS}")
+        shared = SHARED_REMOTE_ACCESS.read_text(encoding="utf-8")
+        self.assertIn("hpc --profile <profile> run '<command>'", shared)
+        self.assertIn("--dry-run", shared)
+        self.assertIn("login-gate", shared)
+
+        for skill in SKILLS:
+            with self.subTest(skill=skill):
+                text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("../_shared/hpc-tools-remote-access.md", text)
 
     def test_skills_do_not_hardcode_site_specific_commands_or_paths(self) -> None:
         forbidden = [

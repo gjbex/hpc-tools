@@ -1,0 +1,65 @@
+# HPC Tools Remote Access
+
+Use the installed `hpc` CLI for all remote interaction. Prefer
+`--profile <name>` when the user names a cluster/profile; otherwise use the
+configured default profile:
+
+```bash
+hpc --profile <profile> run '<command>'
+```
+
+Commands run through the profile's configured login shell. If SSH prints a
+firewall, browser, or login-gate URL, wait for the user to complete that step,
+then retry the same command.
+
+## Profile Discovery
+
+Check the selected profile before relying on optional helpers:
+
+```bash
+hpc --profile <profile> --help
+hpc --profile <profile> --dry-run run 'hostname'
+```
+
+Use only helpers that appear in help for the selected profile:
+
+- `hpc projects` requires `projects_dir`.
+- `hpc quota` requires `quota_command`.
+- `hpc queue` requires `queue_command`.
+- `hpc balance` requires `sam_balance_command`.
+- `hpc statement` requires `sam_statement_command`.
+- `hpc hardware` appears when hardware, Slurm, or storage references are configured.
+
+If the profile exposes site context, inspect it before making hardware,
+partition, storage, I/O, or scheduler-policy recommendations:
+
+```bash
+hpc --profile <profile> hardware
+hpc --profile <profile> hardware --source
+```
+
+## Command Pattern
+
+Run short inspection commands directly:
+
+```bash
+hpc --profile <profile> run 'pwd; hostname; whoami'
+```
+
+For commands that depend on modules or environment setup, load modules and run
+the work in the same remote command:
+
+```bash
+hpc --profile <profile> run 'module load <module> && cd <remote-dir> && <command>'
+```
+
+Use `--dry-run` when command construction is uncertain or when quoting,
+directory selection, or profile expansion needs to be inspected before
+execution.
+
+## Safety
+
+Do not delete files, cancel jobs, overwrite environments, or mutate remote
+state unless the user explicitly asks for that action. For cleanup requests,
+first report the target path, approximate size, filesystem, and the quota or
+operational pressure the cleanup would address.
