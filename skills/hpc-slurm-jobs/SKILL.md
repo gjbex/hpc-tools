@@ -187,6 +187,13 @@ credits, queue capacity, and diagnostic time. Only skip the pilot when the user
 explicitly accepts the risk or the workload is already known to run unchanged on
 the target system.
 
+On sites with charge accounting, pilot-first does not replace cost checks. Quote
+the pilot before submitting it, then quote the remaining jobs again after the
+pilot succeeds and before submitting the larger batch. If the benchmark size,
+walltime, CPU/GPU count, partition, account, array range, or job count changes,
+the earlier quote is stale. Present the updated maximum cost and get
+confirmation before submitting the remaining jobs.
+
 Use `hpc submit` overrides for pilots and small resource checks, for example:
 
 ```bash
