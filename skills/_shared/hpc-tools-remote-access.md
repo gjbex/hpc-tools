@@ -64,6 +64,11 @@ state unless the user explicitly asks for that action. For cleanup requests,
 first report the target path, approximate size, filesystem, and the quota or
 operational pressure the cleanup would address.
 
+Before submitting jobs on systems with charge accounts, confirm the correct
+account when the user has access to multiple accounts. Do not infer it only
+from prior jobs or available balance; credits may have monetary value and are
+often used for project usage reporting.
+
 Avoid broad recursive searches on HPC filesystems. Do not run `find` from
 top-level shared storage roots such as `VSC_DATA`, `VSC_SCRATCH`, project,
 data, scratch, or archive roots; these trees often contain many files and can

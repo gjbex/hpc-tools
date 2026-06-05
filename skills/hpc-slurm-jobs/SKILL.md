@@ -97,6 +97,13 @@ Use `statement` to inspect transactions for a specific account. If these
 commands are not present in help, the selected profile does not define the
 corresponding accounting commands.
 
+If the user has access to multiple credit accounts, ask which account to charge
+before submitting a job or generating a final submission script. Do not choose
+an account only because it has enough balance or appeared in a previous job.
+Credits can have monetary value, and account usage is often used for project
+reporting, so charging the correct account matters even for small test or probe
+jobs.
+
 When creating a job script, do not assume `#SBATCH --account=...` is required.
 Include it only when the target site/profile requires an account, the user
 provides an account, an existing project template uses one, or accounting
