@@ -99,6 +99,11 @@ hpc --profile <profile> module-spider <tool>
 hpc --profile <profile> module-spider <full-module-name>
 ```
 
+When the user needs compilers, CMake, MPI, or other build tools, recommend
+site modules rather than system image tools unless live checks show the system
+versions are adequate. Prefer explicit module versions in reproducible job
+scripts and build commands.
+
 If a module exists but cannot be loaded, inspect the full module with
 `module spider <full-module-name>` for prerequisite cluster modules or toolchain
 context.

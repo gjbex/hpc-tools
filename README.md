@@ -162,6 +162,8 @@ hpc hardware --path
 hpc jobs
 hpc submit job.slurm
 hpc submit --test-only job.slurm
+hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm
+hpc submit --gpus-per-node 1 --gpu-bind closest gpu-job.slurm
 hpc sacct 123456 --cluster wice
 ```
 

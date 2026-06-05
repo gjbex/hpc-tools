@@ -89,10 +89,16 @@ hpc --profile <profile> module-spider <tool>
 hpc --profile <profile> run 'which <tool>; <tool> --version'
 ```
 
-If the site uses Lmod, load modules in the same command that builds:
+For compiled projects, check the module system before relying on tools from the
+system image. Cluster image compilers and CMake can be older than the project
+requires, so prefer site modules for compilers, CMake, MPI, and related build
+tools. Pin explicit module versions for reproducibility instead of loading
+generic names.
+
+If the site uses Lmod, load the pinned modules in the same command that builds:
 
 ```bash
-hpc --profile <profile> run 'module load <module> && cd <remote-repo-dir> && <build-command>'
+hpc --profile <profile> run 'module load <module/version> && cd <remote-repo-dir> && <build-command>'
 ```
 
 ## Build and Verify

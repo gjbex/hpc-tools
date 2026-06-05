@@ -139,7 +139,7 @@ is optional:
 set -euo pipefail
 
 module purge
-# module load <required modules>
+# module load <required-module/version>
 
 # For local scratch workflows, use the site-provided node-local scratch variable
 # when available, stage inputs in, run there, and stage outputs back to
@@ -150,8 +150,14 @@ module purge
 ```
 
 Prefer `#!/bin/bash -l` so the environment is initialized before module loads.
-Only add explicit cluster modules when testing shows the login shell alone is
-insufficient or the user wants that explicit dependency.
+For compiled-code jobs, do not assume the system image compiler is suitable;
+HPC images often keep `/usr/bin/gcc`, `/usr/bin/g++`, or CMake older than the
+project requires. Use the module system for compilers, CMake, MPI, and similar
+build/runtime tools when the site provides them. Prefer explicit module
+versions, such as `<compiler-module/version>` or `<cmake-module/version>`, over
+generic module names so job scripts remain reproducible. Discover and verify
+candidate versions with `hpc module-spider <tool>` or a remote `module avail`
+query before pinning them.
 
 Validate before submission:
 
@@ -168,6 +174,23 @@ directives as the job script. Show the estimated maximum credit cost to the
 user and get confirmation before submitting the job.
 
 ## Submission and Follow-Up
+
+For workflows that submit multiple similar jobs, use a pilot-first submission
+pattern. Submit one representative job or one array element first, wait for it
+to complete successfully, and inspect its accounting plus output before
+submitting the remaining jobs. This is especially important when many jobs share
+the same script, module setup, repository path, or build step: a single path,
+module, permission, or runtime error can otherwise fail every job and waste
+credits, queue capacity, and diagnostic time. Only skip the pilot when the user
+explicitly accepts the risk or the workload is already known to run unchanged on
+the target system.
+
+Use `hpc submit` overrides for pilots and small resource checks, for example:
+
+```bash
+hpc --profile <profile> submit <jobscript> --directory <remote-dir> \
+    --array 4 --time 00:05:00 --cpus-per-task 4
+```
 
 Submit from the job directory:
 
@@ -188,6 +211,13 @@ in the submission directory:
 ```bash
 hpc --profile <profile> run 'cd <remote-dir> && ls -ltr && tail -n 80 <output-file>'
 ```
+
+For benchmark or sweep results, avoid doing iterative analysis through many
+small remote commands. Once jobs complete, transfer compact result artifacts
+such as CSV, JSON, logs, and metadata to the local workspace, then aggregate,
+plot, and inspect them locally. Remote summarization is useful for a quick
+sanity check or for very large data that should stay on the cluster, but local
+analysis is usually faster and more reproducible for small benchmark outputs.
 
 Summarize state, exit code, elapsed time, node if known, and the key output or
 failure cause.

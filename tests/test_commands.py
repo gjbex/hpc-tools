@@ -16,6 +16,7 @@ from hpc_tools.cli import (
     cmd_clone,
     cmd_install_hardware_probe,
     cmd_paths,
+    cmd_submit,
     cmd_write_hardware_probe,
     main,
 )
@@ -47,6 +48,58 @@ class CommandTests(unittest.TestCase):
         command = slurm.submit_command("job.slurm", directory="$VSC_DATA/Projects/demo", test_only=True)
 
         self.assertEqual(command, "cd $VSC_DATA/Projects/demo && sbatch --test-only job.slurm")
+
+    def test_submit_command_accepts_overrides(self) -> None:
+        command = slurm.submit_command(
+            "job.slurm",
+            directory="$VSC_DATA/Projects/demo",
+            overrides={
+                "account": "proj 123",
+                "array": "4",
+                "cluster": "wice",
+                "cpus_per_task": "4",
+                "gpus_per_node": "1",
+                "job_name": "pilot",
+                "time": "00:05:00",
+            },
+        )
+
+        self.assertEqual(
+            command,
+            "cd $VSC_DATA/Projects/demo && sbatch "
+            "--account 'proj 123' --array 4 --clusters wice "
+            "--cpus-per-task 4 --gpus-per-node 1 --job-name pilot "
+            "--time 00:05:00 job.slurm",
+        )
+
+    def test_submit_parser_accepts_slurm_overrides(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "submit",
+                "--array",
+                "4",
+                "-M",
+                "wice",
+                "-p",
+                "batch",
+                "-c",
+                "36",
+                "--gpus-per-node",
+                "2",
+                "--export",
+                "JULIA_SIZE=16384",
+                "job.slurm",
+            ]
+        )
+
+        self.assertIs(args.handler, cmd_submit)
+        self.assertEqual(args.array, "4")
+        self.assertEqual(args.cluster, "wice")
+        self.assertEqual(args.partition, "batch")
+        self.assertEqual(args.cpus_per_task, "36")
+        self.assertEqual(args.gpus_per_node, "2")
+        self.assertEqual(args.export, "JULIA_SIZE=16384")
 
     def test_clone_command_parser(self) -> None:
         parser = build_parser()

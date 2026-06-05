@@ -160,6 +160,7 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         action="store_true",
         help="Run sbatch --test-only instead of submitting",
     )
+    _add_submit_override_arguments(submit_parser)
     submit_parser.set_defaults(handler=cmd_submit)
 
     sacct_parser = subparsers.add_parser("sacct", help="Show Slurm accounting for a job")
@@ -435,8 +436,42 @@ def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
         args.jobscript,
         directory=args.directory,
         test_only=args.test_only,
+        overrides=_submit_overrides(args),
     )
     return run_remote(profile, command, dry_run=args.dry_run)
+
+
+def _add_submit_override_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--account", "-A", help="Override sbatch --account")
+    parser.add_argument("--array", help="Override sbatch --array")
+    parser.add_argument("--cluster", "-M", help="Override sbatch --clusters")
+    parser.add_argument("--dependency", help="Add sbatch --dependency")
+    parser.add_argument("--error", help="Override sbatch --error")
+    parser.add_argument("--export", dest="export", help="Override sbatch --export")
+    parser.add_argument("--job-name", help="Override sbatch --job-name")
+    parser.add_argument("--output", help="Override sbatch --output")
+    parser.add_argument("--partition", "-p", help="Override sbatch --partition")
+    parser.add_argument("--time", "-t", help="Override sbatch --time")
+
+    parser.add_argument("--nodes", "-N", help="Override sbatch --nodes")
+    parser.add_argument("--ntasks", "-n", help="Override sbatch --ntasks")
+    parser.add_argument("--ntasks-per-node", help="Override sbatch --ntasks-per-node")
+    parser.add_argument("--cpus-per-task", "-c", help="Override sbatch --cpus-per-task")
+    parser.add_argument("--mem", help="Override sbatch --mem")
+    parser.add_argument("--mem-per-cpu", help="Override sbatch --mem-per-cpu")
+
+    parser.add_argument("--gres", help="Override sbatch --gres")
+    parser.add_argument("--gpus", help="Override sbatch --gpus")
+    parser.add_argument("--gpus-per-node", help="Override sbatch --gpus-per-node")
+    parser.add_argument("--gpus-per-task", help="Override sbatch --gpus-per-task")
+    parser.add_argument("--gpu-bind", help="Override sbatch --gpu-bind")
+
+
+def _submit_overrides(args: argparse.Namespace) -> dict[str, str | None]:
+    return {
+        name: getattr(args, name)
+        for name in slurm.SUBMIT_OPTION_NAMES
+    }
 
 
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:

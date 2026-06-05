@@ -19,10 +19,47 @@ def squeue_user_command(cluster: str | None = None) -> str:
     return _quote_command_preserving_user(parts)
 
 
-def submit_command(jobscript: str, *, directory: str = ".", test_only: bool = False) -> str:
+SUBMIT_OPTION_NAMES = {
+    "account": "--account",
+    "array": "--array",
+    "cluster": "--clusters",
+    "cpus_per_task": "--cpus-per-task",
+    "dependency": "--dependency",
+    "error": "--error",
+    "export": "--export",
+    "gpu_bind": "--gpu-bind",
+    "gpus": "--gpus",
+    "gpus_per_node": "--gpus-per-node",
+    "gpus_per_task": "--gpus-per-task",
+    "gres": "--gres",
+    "job_name": "--job-name",
+    "mem": "--mem",
+    "mem_per_cpu": "--mem-per-cpu",
+    "nodes": "--nodes",
+    "ntasks": "--ntasks",
+    "ntasks_per_node": "--ntasks-per-node",
+    "output": "--output",
+    "partition": "--partition",
+    "time": "--time",
+}
+
+
+def submit_command(
+    jobscript: str,
+    *,
+    directory: str = ".",
+    test_only: bool = False,
+    overrides: dict[str, str | None] | None = None,
+) -> str:
     sbatch_parts = ["sbatch"]
     if test_only:
         sbatch_parts.append("--test-only")
+    if overrides:
+        for name, value in overrides.items():
+            if value is None:
+                continue
+            option = SUBMIT_OPTION_NAMES[name]
+            sbatch_parts.extend([option, value])
     sbatch_parts.append(jobscript)
     return f"cd {_quote_remote_path_expression(directory)} && {_quote_command(sbatch_parts)}"
 
