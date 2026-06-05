@@ -150,6 +150,13 @@ new probe. The probe writes a directory named like
   memory bandwidth/latency when MLC ran successfully.
 - `hwloc.txt` and `cache/`: detailed topology and shared-cache relationships.
 
+When downloading remote probe results for inspection, stage the raw result
+directories in `${TMP_DIR}` when that variable is set, otherwise in `/tmp`.
+Do not download or store raw probe directories under the profile `.config`
+reference directory; raw probe output can be large. Only durable consolidated
+reports, such as `probe-hardware-report.md`, should live under
+`~/.config/hpc-tools/profiles/<profile>/`.
+
 Summarize results by node class or partition, not only by hostname. Include the
 evidence source for each claim, especially when comparing CPU generation,
 memory capacity, NUMA layout, local storage, GPUs, or measured memory bandwidth.
