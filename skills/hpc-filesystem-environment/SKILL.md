@@ -78,6 +78,14 @@ hpc --profile <profile> run 'df -h <path> 2>/dev/null || true'
 hpc --profile <profile> run 'du -sh <path> 2>/dev/null || true'
 ```
 
+Do not run blind `find` searches from top-level HPC filesystem roots such as
+`VSC_DATA`, `VSC_SCRATCH`, project, data, scratch, or archive directories.
+These shared filesystems can have very large directory trees, and recursive
+metadata walks can create unnecessary load. `VSC_HOME` is less risky because
+the quota is usually smaller, but avoid blind recursive searches there too when
+possible. Ask the user for a narrower path or pattern first; if a search is
+necessary, bound it to a specific directory and shallow `-maxdepth`.
+
 Do not delete files or environments unless the user explicitly asks. For cleanup
 requests, first report the target path, approximate size, filesystem, and any
 quota pressure it appears to address.

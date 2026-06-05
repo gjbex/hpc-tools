@@ -63,3 +63,13 @@ Do not delete files, cancel jobs, overwrite environments, or mutate remote
 state unless the user explicitly asks for that action. For cleanup requests,
 first report the target path, approximate size, filesystem, and the quota or
 operational pressure the cleanup would address.
+
+Avoid broad recursive searches on HPC filesystems. Do not run `find` from
+top-level shared storage roots such as `VSC_DATA`, `VSC_SCRATCH`, project,
+data, scratch, or archive roots; these trees often contain many files and can
+create heavy metadata load on shared filesystems. `VSC_HOME` is usually smaller
+but should still not be searched blindly. Prefer asking the user for a more
+specific path, job ID, directory name, or filename pattern before searching. If
+a search is truly necessary, constrain it to a known narrow directory and use
+cheap checks such as `ls`, `test -e`, `du -sh <specific-path>`, or a bounded
+`find <specific-path> -maxdepth <N> ...`.
