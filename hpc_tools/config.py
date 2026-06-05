@@ -29,6 +29,7 @@ class Profile:
     queue_command: str | None
     sam_balance_command: str | None
     sam_statement_command: str | None
+    sam_quote_command: str | None
     hardware_reference: str | None
     hardware_url: str | None
     slurm_reference: str | None
@@ -127,6 +128,7 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         queue_command=_optional_string(raw_profile, "queue_command", profile=name),
         sam_balance_command=_optional_string(raw_profile, "sam_balance_command", profile=name),
         sam_statement_command=_optional_string(raw_profile, "sam_statement_command", profile=name),
+        sam_quote_command=_optional_string(raw_profile, "sam_quote_command", profile=name),
         hardware_reference=_optional_string(raw_profile, "hardware_reference", profile=name),
         hardware_url=_optional_string(raw_profile, "hardware_url", profile=name),
         slurm_reference=_optional_string(raw_profile, "slurm_reference", profile=name),

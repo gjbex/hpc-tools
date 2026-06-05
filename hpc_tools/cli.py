@@ -134,6 +134,15 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
         statement_parser.set_defaults(handler=cmd_statement)
 
+    if profile is None or profile.sam_quote_command:
+        quote_parser = subparsers.add_parser("quote", help="Estimate Slurm credits for a job")
+        quote_parser.add_argument(
+            "quote_args",
+            nargs=argparse.REMAINDER,
+            help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
+        )
+        quote_parser.set_defaults(handler=cmd_quote)
+
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
     jobs_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
     jobs_parser.set_defaults(handler=cmd_jobs)
@@ -409,6 +418,13 @@ def cmd_statement(args: argparse.Namespace, profile: Profile) -> int:
     return run_remote(profile, command, dry_run=args.dry_run)
 
 
+def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
+    if not profile.sam_quote_command:
+        raise ConfigError(f"profile '{profile.name}' does not define sam_quote_command")
+    command = _quote_command(profile.sam_quote_command, args.quote_args)
+    return run_remote(profile, command, dry_run=args.dry_run)
+
+
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster
     return run_remote(profile, slurm.squeue_user_command(cluster), dry_run=args.dry_run)
@@ -443,6 +459,31 @@ def _statement_command(
         _validate_date(end, "end")
         parts.extend(["--end", shlex.quote(end)])
     return " ".join(parts)
+
+
+def _quote_command(base_command: str, quote_args: list[str]) -> str:
+    if not quote_args:
+        raise ConfigError("quote requires a submit command: sbatch, srun, or salloc")
+
+    submit_command = quote_args[0]
+    if submit_command not in {"sbatch", "srun", "salloc"}:
+        raise ConfigError("quote first argument must be one of: sbatch, srun, salloc")
+
+    if not _quote_args_have_account(quote_args[1:]):
+        raise ConfigError("quote requires a Slurm account option: -A <account> or --account <account>")
+
+    return " ".join([base_command, *(shlex.quote(part) for part in quote_args)])
+
+
+def _quote_args_have_account(args: list[str]) -> bool:
+    for index, arg in enumerate(args):
+        if arg in {"-A", "--account"}:
+            return index + 1 < len(args) and bool(args[index + 1])
+        if arg.startswith("--account=") and arg != "--account=":
+            return True
+        if arg.startswith("-A") and arg != "-A":
+            return True
+    return False
 
 
 def _validate_date(value: str, name: str) -> None:

@@ -28,6 +28,7 @@ Use only helpers that appear in help for the selected profile:
 - `hpc queue` requires `queue_command`.
 - `hpc balance` requires `sam_balance_command`.
 - `hpc statement` requires `sam_statement_command`.
+- `hpc quote` requires `sam_quote_command`.
 - `hpc hardware` appears when hardware, Slurm, or storage references are configured.
 
 If the profile exposes site context, inspect it before making hardware,

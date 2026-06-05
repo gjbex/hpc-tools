@@ -65,6 +65,7 @@ quota_command = "myquota"
 queue_command = "slurm_queuestate"
 sam_balance_command = "sam-balance"
 sam_statement_command = "sam-statement"
+sam_quote_command = "sam-quote"
 hardware_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/hardware.md"
 hardware_url = "https://docs.vscentrum.be/leuven/tier2_hardware.html"
 slurm_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/slurm.md"
@@ -99,10 +100,11 @@ ssh_options = ["-x"]
 and never requests start notifications. Use `--mail-user <address>` to add
 notifications with an explicit address instead of a configured profile email.
 
-`quota_command`, `queue_command`, `sam_balance_command`, and
-`sam_statement_command` are optional. If a profile does not define one of them,
-the corresponding `quota`, `queue`, `balance`, or `statement` subcommand is
-hidden from help for that profile and rejected if invoked anyway.
+`quota_command`, `queue_command`, `sam_balance_command`,
+`sam_statement_command`, and `sam_quote_command` are optional. If a profile does
+not define one of them, the corresponding `quota`, `queue`, `balance`,
+`statement`, or `quote` subcommand is hidden from help for that profile and
+rejected if invoked anyway.
 
 `hardware_reference`, `hardware_url`, `slurm_reference`, `slurm_url`,
 `storage_reference`, and `storage_url` are optional metadata fields. They let
@@ -153,6 +155,7 @@ hpc module-spider Rust
 hpc queue                  # if queue_command is configured
 hpc balance                # if sam_balance_command is configured
 hpc statement --account <account> --start 2026-01-01 --end 2026-01-31
+hpc quote srun -M wice -p gpu_a100 -N 1 --gpus=2 -t 02:00:00 -A <account>
 hpc hardware               # if hardware or Slurm reference metadata is configured
 hpc hardware --source
 hpc hardware --path

@@ -10,6 +10,7 @@ from unittest import mock
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
     _install_hardware_probe_command,
+    _quote_command,
     _statement_command,
     build_parser,
     cmd_clone,
@@ -216,6 +217,7 @@ class CommandTests(unittest.TestCase):
         self.assertIn("queue", help_text)
         self.assertIn("balance", help_text)
         self.assertIn("statement", help_text)
+        self.assertIn("quote", help_text)
         self.assertIn("hardware", help_text)
 
     def test_optional_commands_hidden_when_unconfigured(self) -> None:
@@ -225,6 +227,7 @@ class CommandTests(unittest.TestCase):
                 queue_command=None,
                 sam_balance_command=None,
                 sam_statement_command=None,
+                sam_quote_command=None,
                 hardware_reference=None,
                 hardware_url=None,
                 slurm_reference=None,
@@ -239,6 +242,7 @@ class CommandTests(unittest.TestCase):
         self.assertNotIn("queue", help_text)
         self.assertNotIn("balance", help_text)
         self.assertNotIn("statement", help_text)
+        self.assertNotIn("quote", help_text)
         self.assertNotIn("hardware           Show profile hardware", help_text)
 
     def test_hidden_optional_command_is_rejected_if_invoked(self) -> None:
@@ -283,6 +287,48 @@ class CommandTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             _statement_command("sam-statement", account="proj-123", start="01-01-2026")
 
+    def test_quote_command_accepts_slurm_options(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "quote",
+                "srun",
+                "-M",
+                "wice",
+                "-p",
+                "gpu_a100",
+                "-N",
+                "1",
+                "--gpus=2",
+                "-t",
+                "02:00:00",
+                "-A",
+                "proj-123",
+            ]
+        )
+
+        self.assertEqual(args.quote_args[0], "srun")
+        self.assertIn("--gpus=2", args.quote_args)
+
+    def test_quote_command_builds_remote_command(self) -> None:
+        command = _quote_command(
+            "sam-quote",
+            ["srun", "-M", "wice", "-p", "gpu_a100", "-A", "proj 123"],
+        )
+
+        self.assertEqual(
+            command,
+            "sam-quote srun -M wice -p gpu_a100 -A 'proj 123'",
+        )
+
+    def test_quote_command_rejects_missing_account(self) -> None:
+        with self.assertRaises(ConfigError):
+            _quote_command("sam-quote", ["srun", "-M", "wice", "-p", "gpu_a100"])
+
+    def test_quote_command_rejects_missing_submit_command(self) -> None:
+        with self.assertRaises(ConfigError):
+            _quote_command("sam-quote", [])
+
     def test_hardware_context_renders_sources(self) -> None:
         profile = make_profile(
             hardware_url="https://example.org/hardware",
@@ -304,6 +350,7 @@ def make_profile(
     queue_command: str | None = "slurm_queuestate",
     sam_balance_command: str | None = "sam-balance",
     sam_statement_command: str | None = "sam-statement",
+    sam_quote_command: str | None = "sam-quote",
     hardware_reference: str | None = "examples/references/kuleuven-tier2-hardware.md",
     hardware_url: str | None = "https://example.org/hardware",
     slurm_reference: str | None = "examples/references/kuleuven-tier2-slurm.md",
@@ -324,6 +371,7 @@ def make_profile(
         queue_command=queue_command,
         sam_balance_command=sam_balance_command,
         sam_statement_command=sam_statement_command,
+        sam_quote_command=sam_quote_command,
         hardware_reference=hardware_reference,
         hardware_url=hardware_url,
         slurm_reference=slurm_reference,

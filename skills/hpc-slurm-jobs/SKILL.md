@@ -90,12 +90,16 @@ jobs that use `#SBATCH --account=<account>`:
 hpc --profile <profile> balance
 hpc --profile <profile> statement --account <account>
 hpc --profile <profile> statement --account <account> --start <YYYY-mm-dd> --end <YYYY-mm-dd>
+hpc --profile <profile> quote srun -M <cluster> -p <partition> -A <account> -t <HH:MM:SS> <resource-options>
 ```
 
 Use `balance` to identify accessible accounts and available or reserved credits.
-Use `statement` to inspect transactions for a specific account. If these
-commands are not present in help, the selected profile does not define the
-corresponding accounting commands.
+Use `statement` to inspect transactions for a specific account. Use `quote` to
+estimate the maximum credit cost before submitting a job when the site provides
+a quote command. Include the same Slurm resource options that will be used for
+submission, such as cluster, partition, walltime, node count, CPU count, memory,
+and GPU requests. If these commands are not present in help, the selected
+profile does not define the corresponding accounting commands.
 
 If the user has access to multiple credit accounts, ask which account to charge
 before submitting a job or generating a final submission script. Do not choose
