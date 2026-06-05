@@ -166,6 +166,11 @@ hpc submit --test-only job.slurm
 hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm
 hpc submit --gpus-per-node 1 --gpu-bind closest gpu-job.slurm
 hpc sacct 123456 --cluster wice
+hpc submissions list
+hpc submissions observe
+hpc submissions mark-collected <run-id> --path results/
+hpc submissions mark-analysed <run-id> --path reports/benchmark.md
+hpc submissions close <run-id> --reason done
 ```
 
 Use `--profile` to select a profile and `--dry-run` to print the SSH command
@@ -179,6 +184,13 @@ hpc --profile genius --dry-run run 'cd "$VSC_DATA/Projects/foo" && git status'
 it to inspect the config location, durable profile-reference location, copied
 Codex skill location, packaged hardware-probe template, and uninstall cleanup
 notes.
+
+`hpc submit` records successful real Slurm submissions in an append-only local
+event log at `~/.config/hpc-tools/submissions.jsonl`. Use
+`hpc submissions list` to show active submissions, `hpc submissions observe` to
+append current Slurm accounting observations for active jobs, and
+`hpc submissions close <run-id>` to hide handled runs from the default active
+view. The log remains append-only; current state is derived by replaying events.
 
 ## Scope
 

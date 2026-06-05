@@ -207,6 +207,22 @@ hpc --profile <profile> sacct <jobid>
 hpc --profile <profile> sacct <jobid> --cluster <cluster>
 ```
 
+`hpc submit` appends successful real submissions to the local append-only
+submission event log. Use it to resume after long queue waits or after restarting
+the Codex session:
+
+```bash
+hpc --profile <profile> submissions list
+hpc --profile <profile> submissions observe
+hpc submissions mark-collected <run-id> --path <results-path>
+hpc submissions mark-analysed <run-id> --path <report-path>
+hpc submissions close <run-id> --reason done
+```
+
+The default `submissions list` view hides runs with a `closed` event and shows
+active work that still needs observation, result collection, analysis, or
+triage. Use `hpc submissions list --all` to replay the full history.
+
 If a job leaves the queue quickly, check accounting and inspect the output file
 in the submission directory:
 

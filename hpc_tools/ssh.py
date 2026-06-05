@@ -33,3 +33,17 @@ def run_remote(profile: Profile, command: str, *, dry_run: bool = False) -> int:
 
     completed = subprocess.run(argv, check=False)
     return completed.returncode
+
+
+def run_remote_capture(
+    profile: Profile,
+    command: str,
+    *,
+    dry_run: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    argv = build_ssh_argv(profile, command)
+    if dry_run:
+        print(format_command(argv))
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    return subprocess.run(argv, check=False, capture_output=True, text=True)

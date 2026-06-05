@@ -10,6 +10,7 @@ from unittest import mock
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
     _install_hardware_probe_command,
+    _log_submission,
     _quote_command,
     _statement_command,
     build_parser,
@@ -115,6 +116,37 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.gpus_per_node, "2")
         self.assertEqual(args.export, "JULIA_SIZE=16384")
 
+    def test_log_submission_appends_submitted_event(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(
+            [
+                "submit",
+                "--directory",
+                "$VSC_DATA/Projects/demo",
+                "--array",
+                "4",
+                "job.slurm",
+            ]
+        )
+
+        with mock.patch("hpc_tools.cli.submissions.append_event") as append_event:
+            _log_submission(
+                profile=profile,
+                args=args,
+                command="cd $VSC_DATA/Projects/demo && sbatch --array 4 job.slurm",
+                overrides={"array": "4"},
+                sbatch_output="Submitted batch job 60351238 on cluster wice\n",
+            )
+
+        event = append_event.call_args.args[0]
+        self.assertEqual(event["event"], "submitted")
+        self.assertEqual(event["job_id"], "60351238")
+        self.assertEqual(event["cluster"], "wice")
+        self.assertEqual(event["remote_directory"], "$VSC_DATA/Projects/demo")
+        self.assertEqual(event["jobscript"], "job.slurm")
+        self.assertEqual(event["slurm_overrides"], {"array": "4"})
+
     def test_clone_command_parser(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["--dry-run", "clone", "https://github.com/org/repo.git", "--branch", "main"])
@@ -128,6 +160,14 @@ class CommandTests(unittest.TestCase):
         args = parser.parse_args(["paths"])
 
         self.assertIs(args.handler, cmd_paths)
+
+    def test_submissions_list_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["submissions", "--log", "/tmp/log.jsonl", "list"])
+
+        self.assertEqual(args.command, "submissions")
+        self.assertEqual(args.submissions_command, "list")
+        self.assertEqual(str(args.log), "/tmp/log.jsonl")
 
     def test_paths_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()

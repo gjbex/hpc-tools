@@ -9,11 +9,11 @@ import sys
 
 from hpc_tools.config import ConfigError, Profile, default_config_dir, default_config_path, load_config, resolve_profile
 from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
-from hpc_tools.ssh import run_remote
-from hpc_tools import slurm
+from hpc_tools.ssh import run_remote, run_remote_capture
+from hpc_tools import slurm, submissions
 
 
-LOCAL_COMMANDS = {"paths", "write-hardware-probe"}
+LOCAL_COMMANDS = {"paths", "write-hardware-probe", "submissions"}
 
 
 def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
@@ -173,6 +173,71 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     sacct_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
     sacct_parser.set_defaults(handler=cmd_sacct)
 
+    submissions_parser = subparsers.add_parser(
+        "submissions",
+        help="Inspect and update the local Slurm submission event log",
+    )
+    submissions_parser.add_argument(
+        "--log",
+        type=Path,
+        help="Submission JSONL log path; defaults to the hpc-tools config directory",
+    )
+    submissions_subparsers = submissions_parser.add_subparsers(
+        dest="submissions_command",
+        metavar="<subcommand>",
+        required=True,
+    )
+
+    submissions_list_parser = submissions_subparsers.add_parser(
+        "list",
+        help="List active submissions by replaying the event log",
+    )
+    submissions_list_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Include closed submissions",
+    )
+    submissions_list_parser.set_defaults(handler=cmd_submissions_list)
+
+    submissions_observe_parser = submissions_subparsers.add_parser(
+        "observe",
+        help="Query Slurm accounting for active submissions and append observed events",
+    )
+    submissions_observe_parser.add_argument(
+        "run_id",
+        nargs="?",
+        help="Run ID to observe; defaults to all active runs",
+    )
+    submissions_observe_parser.set_defaults(handler=cmd_submissions_observe)
+
+    submissions_collect_parser = submissions_subparsers.add_parser(
+        "mark-collected",
+        help="Append a results_collected event for a run",
+    )
+    submissions_collect_parser.add_argument("run_id", help="Run ID")
+    submissions_collect_parser.add_argument(
+        "--path",
+        required=True,
+        help="Local or remote result path",
+    )
+    submissions_collect_parser.set_defaults(handler=cmd_submissions_mark_collected)
+
+    submissions_analyse_parser = submissions_subparsers.add_parser(
+        "mark-analysed",
+        help="Append an analysed event for a run",
+    )
+    submissions_analyse_parser.add_argument("run_id", help="Run ID")
+    submissions_analyse_parser.add_argument("--path", required=True, help="Report or notebook path")
+    submissions_analyse_parser.set_defaults(handler=cmd_submissions_mark_analysed)
+
+    submissions_close_parser = submissions_subparsers.add_parser(
+        "close",
+        help="Append a closed event for a run",
+    )
+    submissions_close_parser.add_argument("run_id", help="Run ID")
+    submissions_close_parser.add_argument("--reason", help="Reason for closing this run")
+    submissions_close_parser.set_defaults(handler=cmd_submissions_close)
+
     return parser
 
 
@@ -231,7 +296,25 @@ def _should_parse_without_config(argv: list[str]) -> bool:
         return True
     if remaining[0] == "write-hardware-probe":
         return not (pre_args.profile or pre_args.config or "--mail-notifications" in remaining)
+    if remaining[0] == "submissions":
+        return not _submissions_needs_profile(remaining)
     return remaining[0] in LOCAL_COMMANDS
+
+
+def _submissions_needs_profile(remaining: list[str]) -> bool:
+    skip_next = False
+    for arg in remaining[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in {"-h", "--help"}:
+            return False
+        if arg == "--log":
+            skip_next = True
+            continue
+        if not arg.startswith("-"):
+            return arg == "observe"
+    return False
 
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
@@ -436,12 +519,30 @@ def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
+    overrides = _submit_overrides(args)
     command = slurm.submit_command(
         args.jobscript,
         directory=args.directory,
         test_only=args.test_only,
-        overrides=_submit_overrides(args),
+        overrides=overrides,
     )
+    if args.dry_run or args.test_only:
+        return run_remote(profile, command, dry_run=args.dry_run)
+
+    completed = run_remote_capture(profile, command)
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.stderr:
+        print(completed.stderr, end="", file=sys.stderr)
+    if completed.returncode == 0:
+        _log_submission(
+            profile=profile,
+            args=args,
+            command=command,
+            overrides=overrides,
+            sbatch_output=completed.stdout + completed.stderr,
+        )
+    return completed.returncode
     return run_remote(profile, command, dry_run=args.dry_run)
 
 
@@ -476,6 +577,118 @@ def _submit_overrides(args: argparse.Namespace) -> dict[str, str | None]:
         name: getattr(args, name)
         for name in slurm.SUBMIT_OPTION_NAMES
     }
+
+
+def _log_submission(
+    *,
+    profile: Profile,
+    args: argparse.Namespace,
+    command: str,
+    overrides: dict[str, str | None],
+    sbatch_output: str,
+) -> None:
+    try:
+        job_id, cluster = submissions.parse_sbatch_submission(sbatch_output)
+    except ValueError as error:
+        print(f"hpc: warning: {error}; submission was not logged", file=sys.stderr)
+        return
+    event = submissions.submitted_event(
+        profile=profile.name,
+        job_id=job_id,
+        cluster=cluster or args.cluster or profile.default_cluster,
+        remote_directory=args.directory,
+        jobscript=args.jobscript,
+        submit_command=command,
+        overrides=overrides,
+    )
+    submissions.append_event(event)
+
+
+def cmd_submissions_list(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    events = submissions.read_events(args.log)
+    records = (
+        submissions.records_from_events(events)
+        if args.all
+        else submissions.active_records(events)
+    )
+    print(submissions.format_records(records))
+    return 0
+
+
+def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
+    events = submissions.read_events(args.log)
+    records = submissions.active_records(events)
+    if args.run_id:
+        records = [record for record in records if record.run_id == args.run_id]
+    records = [record for record in records if record.profile == profile.name]
+    if not records:
+        print("No active submissions to observe.")
+        return 0
+
+    observed_records = []
+    for record in records:
+        command = submissions.sacct_observe_command(record.job_id, record.cluster)
+        completed = run_remote_capture(profile, command, dry_run=args.dry_run)
+        if args.dry_run:
+            continue
+        if completed.returncode != 0:
+            if completed.stderr:
+                print(completed.stderr, end="", file=sys.stderr)
+            continue
+        raw_output = completed.stdout
+        state, exit_code, elapsed = submissions.parse_sacct_observation(raw_output, record.job_id)
+        submissions.append_event(
+            submissions.observed_event(
+                record,
+                state=state,
+                exit_code=exit_code,
+                elapsed=elapsed,
+                raw_output=raw_output,
+            ),
+            path=args.log,
+        )
+        observed_records.append(record)
+
+    if args.dry_run:
+        print("Dry run; no observations appended.")
+        return 0
+
+    refreshed_events = submissions.read_events(args.log)
+    observed_run_ids = {record.run_id for record in observed_records}
+    refreshed_records = [
+        record for record in submissions.records_from_events(refreshed_events)
+        if record.run_id in observed_run_ids
+    ]
+    print(submissions.format_records(refreshed_records))
+    return 0
+
+
+def cmd_submissions_mark_collected(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    submissions.append_event(
+        submissions.mark_event(args.run_id, "results_collected", path=args.path),
+        path=args.log,
+    )
+    return 0
+
+
+def cmd_submissions_mark_analysed(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    submissions.append_event(
+        submissions.mark_event(args.run_id, "analysed", path=args.path),
+        path=args.log,
+    )
+    return 0
+
+
+def cmd_submissions_close(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    submissions.append_event(
+        submissions.mark_event(args.run_id, "closed", reason=args.reason),
+        path=args.log,
+    )
+    return 0
 
 
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:
