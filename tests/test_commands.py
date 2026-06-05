@@ -44,6 +44,20 @@ class CommandTests(unittest.TestCase):
         self.assertIn("-u $USER", command)
         self.assertIn("-o", command)
 
+    def test_jobs_parser_defaults_to_all_clusters(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["jobs"])
+
+        self.assertEqual(args.cluster, "all")
+        self.assertIn("-M all", slurm.squeue_user_command(args.cluster))
+
+    def test_jobs_parser_accepts_cluster_override(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["jobs", "--cluster", "wice"])
+
+        self.assertEqual(args.cluster, "wice")
+        self.assertIn("-M wice", slurm.squeue_user_command(args.cluster))
+
     def test_submit_test_only_command(self) -> None:
         command = slurm.submit_command("job.slurm", directory="$VSC_DATA/Projects/demo", test_only=True)
 

@@ -144,7 +144,12 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         quote_parser.set_defaults(handler=cmd_quote)
 
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
-    jobs_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
+    jobs_parser.add_argument(
+        "--cluster",
+        "-M",
+        default="all",
+        help="Slurm cluster name; defaults to all visible clusters",
+    )
     jobs_parser.set_defaults(handler=cmd_jobs)
 
     submit_parser = subparsers.add_parser("submit", help="Submit a Slurm job script")
@@ -427,8 +432,7 @@ def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
-    cluster = args.cluster or profile.default_cluster
-    return run_remote(profile, slurm.squeue_user_command(cluster), dry_run=args.dry_run)
+    return run_remote(profile, slurm.squeue_user_command(args.cluster), dry_run=args.dry_run)
 
 
 def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:

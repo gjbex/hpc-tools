@@ -159,7 +159,8 @@ hpc quote srun -M wice -p gpu_a100 -N 1 --gpus=2 -t 02:00:00 -A <account>
 hpc hardware               # if hardware or Slurm reference metadata is configured
 hpc hardware --source
 hpc hardware --path
-hpc jobs
+hpc jobs                  # defaults to --cluster all
+hpc jobs --cluster wice
 hpc submit job.slurm
 hpc submit --test-only job.slurm
 hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm

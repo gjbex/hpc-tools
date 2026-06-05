@@ -36,7 +36,9 @@ Use `hpc jobs` for the user's jobs:
 hpc --profile <profile> jobs
 ```
 
-For cluster-specific jobs, include `--cluster` when needed:
+`hpc jobs` defaults to `--cluster all` so federated Slurm profiles show jobs
+across all visible clusters. For cluster-specific jobs, include `--cluster`
+when needed:
 
 ```bash
 hpc --profile <profile> jobs --cluster <cluster>
