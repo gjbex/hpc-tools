@@ -70,6 +70,10 @@ account when the user has access to multiple accounts. Do not infer it only
 from prior jobs or available balance; credits may have monetary value and are
 often used for project usage reporting.
 
+When a configured quote helper is available, get a credit-cost quote using the
+same account and Slurm resource options that will be used for submission.
+Present the estimated maximum cost to the user before submitting the job.
+
 Avoid broad recursive searches on HPC filesystems. Do not run `find` from
 top-level shared storage roots such as `VSC_DATA`, `VSC_SCRATCH`, project,
 data, scratch, or archive roots; these trees often contain many files and can

@@ -98,8 +98,9 @@ Use `statement` to inspect transactions for a specific account. Use `quote` to
 estimate the maximum credit cost before submitting a job when the site provides
 a quote command. Include the same Slurm resource options that will be used for
 submission, such as cluster, partition, walltime, node count, CPU count, memory,
-and GPU requests. If these commands are not present in help, the selected
-profile does not define the corresponding accounting commands.
+and GPU requests. Present the quote to the user before submitting, because
+credits can have monetary value. If these commands are not present in help, the
+selected profile does not define the corresponding accounting commands.
 
 If the user has access to multiple credit accounts, ask which account to charge
 before submitting a job or generating a final submission script. Do not choose
@@ -160,6 +161,11 @@ hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir>
 
 `sbatch --test-only` validates submission parsing; it does not prove that module
 loads or runtime commands work on the allocated node.
+
+Before actual submission on a site with credit accounting, run `hpc quote` when
+the profile defines `sam_quote_command`, using the same account and resource
+directives as the job script. Show the estimated maximum credit cost to the
+user and get confirmation before submitting the job.
 
 ## Submission and Follow-Up
 
