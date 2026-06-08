@@ -244,3 +244,7 @@ runs, or first-run build costs excluded from timing.
 - Slurm validation reports an unavailable node configuration: check live
   partition state, reservations, QoS/account association, memory limits, and
   whether a reservation or constraint is required.
+- A CUDA device-property probe fails before producing `device-properties.txt`:
+  inspect `cmake-version.txt`, `nvcc-version.txt`, `cmake-configure.txt`, and
+  `cmake-build.txt`, then load explicit CMake/CUDA modules or rerun with a
+  corrected submit environment before launching the remaining GPU classes.

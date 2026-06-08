@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+from importlib import resources
 import subprocess
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ from unittest import mock
 
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
+    _install_cuda_device_properties_command,
     _install_hardware_probe_command,
     _log_submission,
     _quote_command,
@@ -17,9 +19,11 @@ from hpc_tools.cli import (
     build_parser,
     cmd_clone,
     cmd_install_hardware_probe,
+    cmd_install_probe,
     cmd_paths,
     cmd_submit,
     cmd_write_hardware_probe,
+    cmd_write_probe,
     main,
 )
 from hpc_tools.hardware import render_hardware_context
@@ -260,6 +264,8 @@ class CommandTests(unittest.TestCase):
         self.assertIn("config: /tmp/xdg/hpc-tools/config.toml", output)
         self.assertIn("profile_references: /tmp/xdg/hpc-tools/profiles/<profile>", output)
         self.assertIn("codex_skills: ~/.codex/skills/", output)
+        self.assertIn("cuda_device_properties_template:", output)
+        self.assertIn("cuda_device_properties_source:", output)
         self.assertIn("package_uninstall: pipx uninstall hpc-tools", output)
         self.assertIn("hpc-cluster-onboarding", output)
 
@@ -270,6 +276,30 @@ class CommandTests(unittest.TestCase):
         self.assertIs(args.handler, cmd_write_hardware_probe)
         self.assertEqual(args.output, "probe.slurm")
         self.assertFalse(args.force)
+
+    def test_write_probe_parser_accepts_kind(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["write-probe", "--kind", "cuda-device-properties", "out"])
+
+        self.assertIs(args.handler, cmd_write_probe)
+        self.assertEqual(args.kind, "cuda-device-properties")
+        self.assertEqual(args.output, "out")
+
+    def test_install_probe_parser_accepts_kind(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "install-probe",
+                "--kind",
+                "cuda-device-properties",
+                "--directory",
+                "$VSC_DATA/probes",
+            ]
+        )
+
+        self.assertIs(args.handler, cmd_install_probe)
+        self.assertEqual(args.kind, "cuda-device-properties")
+        self.assertEqual(args.directory, "$VSC_DATA/probes")
 
     def test_install_hardware_probe_parser(self) -> None:
         parser = build_parser()
@@ -384,6 +414,43 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("#SBATCH --job-name=hardware-probe", stdout.getvalue())
 
+    def test_write_probe_hardware_main_does_not_require_config(self) -> None:
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = main(["write-probe", "--kind", "hardware"])
+
+        self.assertEqual(result, 0)
+        self.assertIn("#SBATCH --job-name=hardware-probe", stdout.getvalue())
+
+    def test_write_probe_cuda_device_properties_bundle(self) -> None:
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "cuda-probe"
+            args = parser.parse_args(["write-probe", "--kind", "cuda-device-properties", str(output)])
+
+            result = args.handler(args, None)
+
+            self.assertEqual(result, 0)
+            self.assertIn(
+                "cuda-device-properties",
+                (output / "cuda-device-properties.slurm").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "cudaGetDeviceProperties",
+                (output / "cuda" / "device_properties.cu").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "device_properties.cu",
+                (output / "cuda" / "CMakeLists.txt").read_text(encoding="utf-8"),
+            )
+
+    def test_write_probe_cuda_device_properties_rejects_stdout(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["write-probe", "--kind", "cuda-device-properties"])
+
+        with self.assertRaises(ConfigError):
+            args.handler(args, None)
+
     def test_install_hardware_probe_command_writes_remote_file(self) -> None:
         command = _install_hardware_probe_command(
             "$VSC_DATA/probes",
@@ -396,6 +463,35 @@ class CommandTests(unittest.TestCase):
         self.assertIn("cat > probe.slurm", command)
         self.assertIn("#SBATCH --job-name=hardware-probe", command)
         self.assertIn("chmod +x probe.slurm", command)
+
+    def test_install_cuda_device_properties_command_writes_remote_bundle(self) -> None:
+        command = _install_cuda_device_properties_command(
+            "$VSC_DATA/probes",
+            "cuda-device-properties.slurm",
+        )
+
+        self.assertIn("mkdir -p $VSC_DATA/probes", command)
+        self.assertIn("cd $VSC_DATA/probes", command)
+        self.assertIn("mkdir -p cuda", command)
+        self.assertIn("cat > cuda-device-properties.slurm", command)
+        self.assertIn("cat > cuda/CMakeLists.txt", command)
+        self.assertIn("cat > cuda/device_properties.cu", command)
+        self.assertIn("cudaGetDeviceProperties", command)
+        self.assertIn("chmod +x cuda-device-properties.slurm", command)
+
+    def test_cuda_device_properties_files_are_packaged(self) -> None:
+        data = resources.files("hpc_tools.data")
+
+        slurm_template = data.joinpath("cuda-device-properties.slurm")
+        cuda_source = data.joinpath("cuda", "device_properties.cu")
+        cmake_project = data.joinpath("cuda", "CMakeLists.txt")
+
+        self.assertTrue(slurm_template.is_file())
+        self.assertTrue(cuda_source.is_file())
+        self.assertTrue(cmake_project.is_file())
+        self.assertIn("cuda-device-properties", slurm_template.read_text(encoding="utf-8"))
+        self.assertIn("cudaGetDeviceProperties", cuda_source.read_text(encoding="utf-8"))
+        self.assertIn("device_properties.cu", cmake_project.read_text(encoding="utf-8"))
 
     def test_optional_commands_visible_when_configured(self) -> None:
         parser = build_parser(make_profile())

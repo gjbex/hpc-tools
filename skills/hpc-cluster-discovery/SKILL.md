@@ -99,6 +99,7 @@ working directory:
 
 ```bash
 hpc --profile <profile> install-hardware-probe --directory <remote-dir>
+hpc --profile <profile> install-probe --kind hardware --directory <remote-dir>
 ```
 
 The probe collects CPU/cache topology, NUMA layout, memory, mounted
@@ -130,6 +131,74 @@ hpc --profile <profile> submit hardware-probe.slurm --directory <remote-dir>
 After submission, follow the job with `hpc sacct` and inspect the output
 directory named like `hardware-probe-<host>-<jobid>`.
 
+## CUDA Device-Property Probe
+
+For GPU partitions, complement the full hardware probe with a small CUDA
+device-property probe when cache sizes, shared-memory limits, register limits,
+compute capability, launch dimensions, or runtime-visible memory bandwidth
+matter. `nvidia-smi` is useful for inventory, driver version, MIG state, and
+allocated devices, but it does not expose all CUDA programming limits.
+
+Use the packaged or repository CUDA example from a remote working directory
+that contains `cuda-device-properties.slurm`, `cuda/CMakeLists.txt`, and
+`cuda/device_properties.cu`. Prefer installing the packaged bundle with:
+
+```bash
+hpc --profile <profile> install-probe --kind cuda-device-properties --directory <remote-dir>
+```
+
+`hpc paths` shows the packaged template and source locations after installation.
+If the source exists only locally, stage those small files to a remote project
+directory before submitting.
+
+Quote the exact GPU job before submitting on charge-accounting systems, using
+the same cluster, partition, account, reservation, walltime, and GPU count:
+
+```bash
+hpc --profile <profile> quote srun -M <cluster> -p <partition> \
+    -A <account> --reservation=<reservation> -N 1 --ntasks=1 \
+    --gpus-per-node=1 -t 00:10:00 true
+```
+
+Omit `--reservation` when the target partition does not require one. Validate
+and submit through `hpc submit` so the local submission log can track the run:
+
+```bash
+hpc --profile <profile> submit --validate-first \
+    cuda-device-properties.slurm \
+    --directory <remote-dir> \
+    --cluster <cluster> --partition <partition> --account <account> \
+    --reservation <reservation> --gpus-per-node 1 --time 00:10:00 \
+    --job-name cuda-props-<gpu-class>
+```
+
+Use a pilot-first workflow when probing several GPU classes: run one known
+short job first, confirm it builds and writes `device-properties.txt`, then
+submit the remaining classes. If the job fails because `cmake`, `nvcc`, or
+CUDA runtime libraries are missing, inspect the captured `cmake-version.txt`,
+`nvcc-version.txt`, and build logs, then load explicit site modules in the job
+script or submit environment before rerunning.
+
+The CUDA probe writes a directory named like
+`cuda-device-properties-<host>-<jobid>` unless
+`CUDA_DEVICE_PROPERTIES_OUTPUT_DIR` is set. Useful files include:
+
+- `summary.env`: generation time, hostname, job ID, cluster, partition, node
+  list, GPU allocation hints, submit directory, source directory, build
+  directory, and node-local scratch variable.
+- `cmake-version.txt`, `nvcc-version.txt`, `cmake-configure.txt`, and
+  `cmake-build.txt`: build environment and diagnostics.
+- `nvidia-smi.txt`: runtime GPU inventory and driver state when available.
+- `device-properties.txt`: CUDA runtime and driver versions, visible CUDA
+  device count, device name, compute capability, SM count, global memory, L2
+  cache, persisting L2 limit, shared-memory limits, register limits, memory
+  clock and bus width, theoretical bandwidth, maximum threads per block, block
+  dimensions, grid dimensions, and resident thread/block limits per SM.
+
+Treat these CUDA results as allocation-visible device properties. They usually
+describe one allocated GPU, not every GPU in the node, and they complement the
+full hardware probe's host CPU, NUMA, filesystem, and full-node GPU inventory.
+
 ## Probe Result Interpretation
 
 When saved probe output exists, inspect the output directory before proposing a
@@ -149,6 +218,9 @@ new probe. The probe writes a directory named like
 - `intel-mlc-bandwidth.txt` and `intel-mlc-latency.txt`: local and remote NUMA
   memory bandwidth/latency when MLC ran successfully.
 - `hwloc.txt` and `cache/`: detailed topology and shared-cache relationships.
+- `cuda-device-properties-<host>-<jobid>/device-properties.txt`: CUDA
+  programming limits for allocated GPUs, such as L2 cache, shared memory,
+  registers, compute capability, and launch dimensions.
 
 When downloading remote probe results for inspection, stage the raw result
 directories in `${TMP_DIR}` when that variable is set, otherwise in `/tmp`.
@@ -159,7 +231,10 @@ reports, such as `probe-hardware-report.md`, should live under
 
 Summarize results by node class or partition, not only by hostname. Include the
 evidence source for each claim, especially when comparing CPU generation,
-memory capacity, NUMA layout, local storage, GPUs, or measured memory bandwidth.
+memory capacity, NUMA layout, local storage, GPUs, CUDA cache/shared-memory
+properties, or measured memory bandwidth. After CUDA device-property results
+have been folded into the durable report, mark the matching submission as
+collected and analysed in the local submission log.
 
 ## Output Style
 

@@ -189,13 +189,14 @@ Install the packaged hardware probe script on the remote system when
 documentation is missing, stale, or too coarse:
 
 ```bash
+hpc --profile <profile> install-probe --kind hardware --directory <remote-dir>
 hpc --profile <profile> install-hardware-probe --directory <remote-dir>
 ```
 
 Pass common required directives directly when known:
 
 ```bash
-hpc --profile <profile> install-hardware-probe --directory <remote-dir> \
+hpc --profile <profile> install-probe --kind hardware --directory <remote-dir> \
     --account <account> --cluster <cluster> --partition <partition> --time 00:30:00
 ```
 
@@ -205,15 +206,29 @@ only; do not add start notifications. If the user wants a different address, use
 `--mail-user <address>`.
 
 For custom edits, generate a local copy with
-`hpc write-hardware-probe hardware-probe.slurm`, edit it, and transfer it to the
-remote working directory with the user's normal file-transfer method.
+`hpc write-probe --kind hardware hardware-probe.slurm`, edit it, and transfer it
+to the remote working directory with the user's normal file-transfer method.
 
 Submit one probe per representative node class or partition, not one per node.
 Prefer short, low-impact probes first; increase walltime only when Intel MLC or
 site tools need more time.
 
+For GPU node classes, also run the packaged CUDA device-property probe when
+CUDA cache sizes, shared-memory limits, register limits, compute capability, or
+launch dimensions matter. Use `hpc paths` to locate
+`cuda-device-properties.slurm` and the packaged CUDA source after installation.
+Install the remote bundle with
+`hpc --profile <profile> install-probe --kind cuda-device-properties --directory <remote-dir>`.
+Quote the same cluster, partition, account, reservation, walltime, and GPU
+request before submission, use a pilot-first workflow when probing multiple GPU
+classes, and keep the resulting `cuda-device-properties-<host>-<jobid>`
+directories as raw artifacts outside the durable `.config` reference directory.
+
 After jobs finish, summarize probe output into the hardware reference. Keep
-probe-derived facts separate from documentation-derived facts.
+probe-derived facts separate from documentation-derived facts. Consolidate both
+full hardware-probe and CUDA device-property findings into the profile hardware
+report under `~/.config/hpc-tools/profiles/<profile>/`, and mark the matching
+submissions collected and analysed after the report is updated.
 
 ## Handoff
 

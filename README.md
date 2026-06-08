@@ -146,6 +146,10 @@ storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
 ```bash
 hpc run 'hostname'
 hpc paths
+hpc write-probe --kind hardware hardware-probe.slurm
+hpc write-probe --kind cuda-device-properties cuda-probe/
+hpc install-probe --kind hardware --directory <remote-dir>
+hpc install-probe --kind cuda-device-properties --directory <remote-dir>
 hpc write-hardware-probe hardware-probe.slurm
 hpc install-hardware-probe --directory <remote-dir>
 hpc quota                  # if quota_command is configured
@@ -184,8 +188,8 @@ hpc --profile genius --dry-run run 'cd "$VSC_DATA/Projects/foo" && git status'
 
 `hpc paths` is a local command that does not require a configured profile. Use
 it to inspect the config location, durable profile-reference location, copied
-Codex skill location, packaged hardware-probe template, and uninstall cleanup
-notes.
+Codex skill location, packaged hardware-probe template, packaged CUDA
+device-property template/source, and uninstall cleanup notes.
 
 `hpc submit --validate-first` runs `sbatch --test-only` with the same options
 and submits only if validation succeeds. `hpc submit` records successful real
@@ -222,6 +226,7 @@ For clusters where hardware documentation is missing or incomplete, generate
 the packaged Slurm probe script locally for inspection or editing:
 
 ```bash
+hpc write-probe --kind hardware hardware-probe.slurm
 hpc write-hardware-probe hardware-probe.slurm
 hpc --profile example write-hardware-probe hardware-probe.slurm --mail-notifications
 ```
@@ -229,6 +234,7 @@ hpc --profile example write-hardware-probe hardware-probe.slurm --mail-notificat
 To install the packaged probe script directly on the remote system, use:
 
 ```bash
+hpc --profile example install-probe --kind hardware --directory <remote-dir>
 hpc --profile example install-hardware-probe --directory <remote-dir>
 hpc --profile example install-hardware-probe --directory <remote-dir> --mail-notifications
 ```
@@ -254,6 +260,18 @@ hpc submit hardware-probe.slurm --directory <remote-dir>
 
 The script writes a `hardware-probe-<host>-<jobid>` directory in the submission
 directory unless `HPC_PROBE_OUTPUT_DIR` is set.
+
+For GPU programming limits that `nvidia-smi` does not report, such as CUDA L2
+cache size, shared-memory limits, register limits, compute capability, and
+launch dimensions, the package also includes a CUDA device-property example:
+`hpc_tools/data/cuda-device-properties.slurm` plus the buildable source under
+`hpc_tools/data/cuda/`. Use `hpc paths` to locate these packaged assets after
+installation, or write/install the bundle directly:
+
+```bash
+hpc write-probe --kind cuda-device-properties cuda-device-properties/
+hpc --profile example install-probe --kind cuda-device-properties --directory <remote-dir>
+```
 
 ## Onboarding a New Slurm Cluster
 

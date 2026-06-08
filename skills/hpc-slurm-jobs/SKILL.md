@@ -208,6 +208,10 @@ Use `hpc submit` overrides for pilots and small resource checks, for example:
 ```bash
 hpc --profile <profile> submit <jobscript> --directory <remote-dir> \
     --array 4 --time 00:05:00 --cpus-per-task 4
+hpc --profile <profile> submit cuda-device-properties.slurm \
+    --directory <remote-dir> \
+    --cluster <cluster> --partition <gpu-partition> --account <account> \
+    --reservation <reservation> --gpus-per-node 1 --time 00:10:00
 ```
 
 Submit from the job directory:
@@ -234,6 +238,10 @@ hpc submissions mark-collected <run-id> --path <results-path>
 hpc submissions mark-analysed <run-id> --path <report-path>
 hpc submissions close <run-id> --reason done
 ```
+
+For CUDA device-property probes, treat `device-properties.txt` as the result
+artifact and the consolidated profile hardware report as the analysis artifact
+after cache, shared-memory, register, and launch-limit data are summarized.
 
 The default `submissions list` view hides runs with a `closed` event and shows
 active work that still needs observation, result collection, analysis, or

@@ -13,7 +13,8 @@ from hpc_tools.ssh import run_remote, run_remote_capture
 from hpc_tools import slurm, submissions
 
 
-LOCAL_COMMANDS = {"paths", "write-hardware-probe", "submissions"}
+LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions"}
+PROBE_KINDS = {"hardware", "cuda-device-properties"}
 
 
 def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
@@ -41,6 +42,30 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     )
     paths_parser.set_defaults(handler=cmd_paths)
 
+    generic_probe_parser = subparsers.add_parser(
+        "write-probe",
+        help="Write a packaged probe script or probe asset bundle",
+    )
+    generic_probe_parser.add_argument(
+        "--kind",
+        choices=sorted(PROBE_KINDS),
+        default="hardware",
+        help="Packaged probe kind to write",
+    )
+    generic_probe_parser.add_argument(
+        "output",
+        nargs="?",
+        default="-",
+        help="Output file for hardware, output directory for bundle probes, or '-' for hardware stdout.",
+    )
+    generic_probe_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite output path if it already exists",
+    )
+    _add_probe_directive_options(generic_probe_parser)
+    generic_probe_parser.set_defaults(handler=cmd_write_probe)
+
     probe_parser = subparsers.add_parser(
         "write-hardware-probe",
         help="Write the packaged Slurm hardware probe script",
@@ -58,6 +83,34 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     )
     _add_probe_directive_options(probe_parser)
     probe_parser.set_defaults(handler=cmd_write_hardware_probe)
+
+    generic_install_probe_parser = subparsers.add_parser(
+        "install-probe",
+        help="Install a packaged probe script or probe asset bundle on the remote host",
+    )
+    generic_install_probe_parser.add_argument(
+        "--kind",
+        choices=sorted(PROBE_KINDS),
+        default="hardware",
+        help="Packaged probe kind to install",
+    )
+    generic_install_probe_parser.add_argument(
+        "--directory",
+        "-C",
+        default=".",
+        help="Remote directory where the probe assets should be written",
+    )
+    generic_install_probe_parser.add_argument(
+        "--name",
+        help="Remote script filename; defaults depend on --kind",
+    )
+    generic_install_probe_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite remote files if they already exist",
+    )
+    _add_probe_directive_options(generic_install_probe_parser)
+    generic_install_probe_parser.set_defaults(handler=cmd_install_probe)
 
     install_probe_parser = subparsers.add_parser(
         "install-hardware-probe",
@@ -299,7 +352,7 @@ def _should_parse_without_config(argv: list[str]) -> bool:
         return False
     if remaining[0] == "paths":
         return True
-    if remaining[0] == "write-hardware-probe":
+    if remaining[0] in {"write-hardware-probe", "write-probe"}:
         return not (pre_args.profile or pre_args.config or "--mail-notifications" in remaining)
     if remaining[0] == "submissions":
         return not _submissions_needs_profile(remaining)
@@ -329,11 +382,15 @@ def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     del args, profile
     package_probe = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm")
+    package_cuda_probe = resources.files("hpc_tools.data").joinpath("cuda-device-properties.slurm")
+    package_cuda_source = resources.files("hpc_tools.data").joinpath("cuda")
     config_dir = default_config_dir()
     print(f"config: {default_config_path()}")
     print(f"profile_references: {config_dir / 'profiles' / '<profile>'}")
     print("codex_skills: ~/.codex/skills/")
     print(f"hardware_probe_template: {package_probe}")
+    print(f"cuda_device_properties_template: {package_cuda_probe}")
+    print(f"cuda_device_properties_source: {package_cuda_source}")
     print()
     print("package_uninstall: pipx uninstall hpc-tools")
     print("optional_user_state:")
@@ -387,25 +444,55 @@ def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_write_hardware_probe(args: argparse.Namespace, profile: Profile | None) -> int:
-    template = _hardware_probe_template(args, profile)
-    if args.output == "-":
-        sys.stdout.write(template)
-        return 0
-
-    output_path = Path(args.output).expanduser()
-    if output_path.exists() and not args.force:
-        raise ConfigError(f"output file already exists: {output_path}; use --force to overwrite")
-    output_path.write_text(template, encoding="utf-8")
-    return 0
+    args.kind = "hardware"
+    return cmd_write_probe(args, profile)
 
 
 def cmd_install_hardware_probe(args: argparse.Namespace, profile: Profile) -> int:
-    command = _install_hardware_probe_command(
-        args.directory,
-        args.name,
-        _hardware_probe_template(args, profile),
-        force=args.force,
-    )
+    args.kind = "hardware"
+    if not getattr(args, "name", None):
+        args.name = "hardware-probe.slurm"
+    return cmd_install_probe(args, profile)
+
+
+def cmd_write_probe(args: argparse.Namespace, profile: Profile | None) -> int:
+    if args.kind == "hardware":
+        template = _hardware_probe_template(args, profile)
+        if args.output == "-":
+            sys.stdout.write(template)
+            return 0
+
+        output_path = Path(args.output).expanduser()
+        if output_path.exists() and not args.force:
+            raise ConfigError(f"output file already exists: {output_path}; use --force to overwrite")
+        output_path.write_text(template, encoding="utf-8")
+        return 0
+
+    if args.kind == "cuda-device-properties":
+        if args.output == "-":
+            raise ConfigError("write-probe --kind cuda-device-properties requires an output directory")
+        _write_cuda_device_properties_bundle(Path(args.output).expanduser(), force=args.force)
+        return 0
+
+    raise ConfigError(f"unsupported probe kind: {args.kind}")
+
+
+def cmd_install_probe(args: argparse.Namespace, profile: Profile) -> int:
+    if args.kind == "hardware":
+        command = _install_hardware_probe_command(
+            args.directory,
+            args.name or "hardware-probe.slurm",
+            _hardware_probe_template(args, profile),
+            force=args.force,
+        )
+    elif args.kind == "cuda-device-properties":
+        command = _install_cuda_device_properties_command(
+            args.directory,
+            args.name or "cuda-device-properties.slurm",
+            force=args.force,
+        )
+    else:
+        raise ConfigError(f"unsupported probe kind: {args.kind}")
     return run_remote(profile, command, dry_run=args.dry_run)
 
 
@@ -482,6 +569,75 @@ def _install_hardware_probe_command(
         f"{delimiter}\n"
         f"chmod +x {remote_name}"
     )
+
+
+def _cuda_device_properties_bundle() -> dict[str, str]:
+    data = resources.files("hpc_tools.data")
+    return {
+        "cuda-device-properties.slurm": data.joinpath("cuda-device-properties.slurm").read_text(
+            encoding="utf-8"
+        ),
+        "cuda/CMakeLists.txt": data.joinpath("cuda", "CMakeLists.txt").read_text(
+            encoding="utf-8"
+        ),
+        "cuda/device_properties.cu": data.joinpath("cuda", "device_properties.cu").read_text(
+            encoding="utf-8"
+        ),
+    }
+
+
+def _write_cuda_device_properties_bundle(output_dir: Path, *, force: bool = False) -> None:
+    bundle = _cuda_device_properties_bundle()
+    for relative_path in bundle:
+        destination = output_dir / relative_path
+        if destination.exists() and not force:
+            raise ConfigError(f"output file already exists: {destination}; use --force to overwrite")
+
+    for relative_path, contents in bundle.items():
+        destination = output_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(contents, encoding="utf-8")
+    (output_dir / "cuda-device-properties.slurm").chmod(0o755)
+
+
+def _install_cuda_device_properties_command(
+    directory: str,
+    script_name: str,
+    *,
+    force: bool = False,
+) -> str:
+    bundle = _cuda_device_properties_bundle()
+    remote_dir = slurm._quote_remote_path_expression(directory)
+    script_path = shlex.quote(script_name)
+    file_map = {
+        script_name: bundle["cuda-device-properties.slurm"],
+        "cuda/CMakeLists.txt": bundle["cuda/CMakeLists.txt"],
+        "cuda/device_properties.cu": bundle["cuda/device_properties.cu"],
+    }
+
+    overwrite_checks = []
+    if not force:
+        for relative_path in file_map:
+            quoted_path = shlex.quote(relative_path)
+            overwrite_checks.append(
+                f"if [ -e {quoted_path} ]; then "
+                f"echo 'output file already exists: {relative_path}; use --force to overwrite' >&2; "
+                "exit 1; "
+                "fi"
+            )
+
+    commands = [f"mkdir -p {remote_dir} && cd {remote_dir} && mkdir -p cuda"]
+    commands.extend(overwrite_checks)
+    for index, (relative_path, contents) in enumerate(file_map.items()):
+        quoted_path = shlex.quote(relative_path)
+        delimiter = f"HPC_TOOLS_CUDA_DEVICE_PROPERTIES_{index}"
+        commands.append(
+            f"cat > {quoted_path} <<'{delimiter}'\n"
+            f"{contents}"
+            f"{delimiter}\n"
+        )
+    commands.append(f"chmod +x {script_path}")
+    return "\n".join(commands)
 
 
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:

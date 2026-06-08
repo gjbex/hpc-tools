@@ -64,6 +64,9 @@ class SkillTests(unittest.TestCase):
 
         self.assertIn("do not assume `#SBATCH --account=...` is required", text)
         self.assertIn("omit unless the site requires an account", text)
+        self.assertIn("cuda-device-properties.slurm", text)
+        self.assertIn("device-properties.txt", text)
+        self.assertIn("mark-collected", text)
 
     def test_slurm_benchmark_skill_covers_quote_and_efficiency(self) -> None:
         text = (ROOT / "skills" / "hpc-slurm-benchmark" / "SKILL.md").read_text(
@@ -80,6 +83,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("--validate-first", text)
         self.assertIn("hpc submissions list", text)
         self.assertIn("superseded benchmark attempts", text)
+        self.assertIn("CUDA device-property probe fails", text)
+        self.assertIn("cmake-build.txt", text)
 
     def test_storage_reference_warns_about_nfs_for_parallel_io(self) -> None:
         text = (ROOT / "examples" / "references" / "kuleuven-tier2-storage.md").read_text(
@@ -125,12 +130,20 @@ class SkillTests(unittest.TestCase):
         )
 
         self.assertIn("install-hardware-probe", text)
+        self.assertIn("install-probe --kind hardware", text)
+        self.assertIn("install-probe --kind cuda-device-properties", text)
         self.assertNotIn("examples/job-scripts/hardware-probe.slurm", text)
         self.assertNotIn("examples/probe-results", text)
         self.assertIn("summary.env", text)
         self.assertIn("lscpu.txt", text)
         self.assertIn("numactl-hardware.txt", text)
         self.assertIn("intel-mlc-bandwidth.txt", text)
+        self.assertIn("CUDA Device-Property Probe", text)
+        self.assertIn("cuda-device-properties-<host>-<jobid>", text)
+        self.assertIn("device-properties.txt", text)
+        self.assertIn("L2 cache", text)
+        self.assertIn("shared-memory limits", text)
+        self.assertIn("mark the matching submission as", text)
 
     def test_cluster_discovery_skill_covers_slurm_limits(self) -> None:
         text = (ROOT / "skills" / "hpc-cluster-discovery" / "SKILL.md").read_text(
@@ -159,6 +172,12 @@ class SkillTests(unittest.TestCase):
         self.assertIn("scontrol show partition", text)
         self.assertIn("sacctmgr -n -P show assoc", text)
         self.assertIn("install-hardware-probe", text)
+        self.assertIn("install-probe --kind hardware", text)
+        self.assertIn("write-probe --kind hardware", text)
+        self.assertIn("install-probe --kind cuda-device-properties", text)
+        self.assertIn("cuda-device-properties-<host>-<jobid>", text)
+        self.assertIn("CUDA cache sizes", text)
+        self.assertIn("mark the matching\nsubmissions collected and analysed", text)
         self.assertIn("Completion Criteria", text)
 
     def test_readme_installs_without_repo_dependency(self) -> None:
@@ -171,6 +190,10 @@ class SkillTests(unittest.TestCase):
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
         self.assertIn("hpc submit --validate-first", text)
         self.assertIn("hpc paths", text)
+        self.assertIn("hpc write-probe --kind hardware", text)
+        self.assertIn("hpc install-probe --kind cuda-device-properties", text)
+        self.assertIn("hpc_tools/data/cuda-device-properties.slurm", text)
+        self.assertIn("hpc_tools/data/cuda/", text)
         self.assertIn("pipx uninstall hpc-tools", text)
         self.assertNotIn("ln -s /home", text)
 
