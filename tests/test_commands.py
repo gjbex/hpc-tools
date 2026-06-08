@@ -76,6 +76,7 @@ class CommandTests(unittest.TestCase):
                 "cpus_per_task": "4",
                 "gpus_per_node": "1",
                 "job_name": "pilot",
+                "reservation": "pilot",
                 "time": "00:05:00",
             },
         )
@@ -85,7 +86,7 @@ class CommandTests(unittest.TestCase):
             "cd $VSC_DATA/Projects/demo && sbatch "
             "--account 'proj 123' --array 4 --clusters wice "
             "--cpus-per-task 4 --gpus-per-node 1 --job-name pilot "
-            "--time 00:05:00 job.slurm",
+            "--reservation pilot --time 00:05:00 job.slurm",
         )
 
     def test_submit_parser_accepts_slurm_overrides(self) -> None:
@@ -103,6 +104,8 @@ class CommandTests(unittest.TestCase):
                 "36",
                 "--gpus-per-node",
                 "2",
+                "--reservation",
+                "pilot",
                 "--export",
                 "JULIA_SIZE=16384",
                 "job.slurm",
@@ -115,6 +118,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.partition, "batch")
         self.assertEqual(args.cpus_per_task, "36")
         self.assertEqual(args.gpus_per_node, "2")
+        self.assertEqual(args.reservation, "pilot")
         self.assertEqual(args.export, "JULIA_SIZE=16384")
 
     def test_submit_parser_accepts_validate_first(self) -> None:
@@ -201,6 +205,8 @@ class CommandTests(unittest.TestCase):
                 "$VSC_DATA/Projects/demo",
                 "--array",
                 "4",
+                "--reservation",
+                "pilot",
                 "job.slurm",
             ]
         )
@@ -209,8 +215,8 @@ class CommandTests(unittest.TestCase):
             _log_submission(
                 profile=profile,
                 args=args,
-                command="cd $VSC_DATA/Projects/demo && sbatch --array 4 job.slurm",
-                overrides={"array": "4"},
+                command="cd $VSC_DATA/Projects/demo && sbatch --array 4 --reservation pilot job.slurm",
+                overrides={"array": "4", "reservation": "pilot"},
                 sbatch_output="Submitted batch job 60351238 on cluster wice\n",
             )
 
@@ -220,7 +226,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(event["cluster"], "wice")
         self.assertEqual(event["remote_directory"], "$VSC_DATA/Projects/demo")
         self.assertEqual(event["jobscript"], "job.slurm")
-        self.assertEqual(event["slurm_overrides"], {"array": "4"})
+        self.assertEqual(event["slurm_overrides"], {"array": "4", "reservation": "pilot"})
 
     def test_clone_command_parser(self) -> None:
         parser = build_parser()

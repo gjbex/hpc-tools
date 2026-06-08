@@ -166,6 +166,7 @@ hpc submit --test-only job.slurm
 hpc submit --validate-first job.slurm
 hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm
 hpc submit --gpus-per-node 1 --gpu-bind closest gpu-job.slurm
+hpc submit --cluster mindwell --partition gpu_b200 --reservation pilot --gpus-per-node 1 gpu-job.slurm
 hpc sacct 123456 --cluster wice
 hpc submissions list
 hpc submissions observe

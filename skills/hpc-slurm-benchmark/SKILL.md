@@ -141,6 +141,8 @@ Validate Slurm parsing before submission:
 
 ```bash
 hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir>
+hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir> \
+    --cluster <cluster> --partition <partition> --reservation <reservation>
 ```
 
 For real benchmark submissions, prefer the streamlined preflight path when the

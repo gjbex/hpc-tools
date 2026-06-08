@@ -40,6 +40,7 @@ SUBMIT_OPTION_NAMES = {
     "ntasks_per_node": "--ntasks-per-node",
     "output": "--output",
     "partition": "--partition",
+    "reservation": "--reservation",
     "time": "--time",
 }
 

@@ -579,6 +579,7 @@ def _add_submit_override_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--job-name", help="Override sbatch --job-name")
     parser.add_argument("--output", help="Override sbatch --output")
     parser.add_argument("--partition", "-p", help="Override sbatch --partition")
+    parser.add_argument("--reservation", help="Override sbatch --reservation")
     parser.add_argument("--time", "-t", help="Override sbatch --time")
 
     parser.add_argument("--nodes", "-N", help="Override sbatch --nodes")

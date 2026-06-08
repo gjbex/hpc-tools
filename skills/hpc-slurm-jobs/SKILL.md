@@ -120,8 +120,8 @@ credits/accounts, omit the account directive.
 ## Job Scripts
 
 Use this generic single-node batch template, adapting account, cluster,
-partition, resources, modules, and commands to the target site. The account line
-is optional:
+partition, reservation, resources, modules, and commands to the target site.
+The account and reservation lines are optional:
 
 ```bash
 #!/bin/bash -l
@@ -129,6 +129,7 @@ is optional:
 #SBATCH --account=<account>  # omit unless the site requires an account
 #SBATCH --clusters=<cluster>
 #SBATCH --partition=<partition>
+#SBATCH --reservation=<reservation>  # omit unless a reservation is required
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -165,6 +166,8 @@ Validate before submission:
 
 ```bash
 hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir>
+hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir> \
+    --cluster <cluster> --partition <partition> --reservation <reservation>
 ```
 
 For real submissions where this preflight should be part of the command, use:
