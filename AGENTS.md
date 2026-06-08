@@ -31,6 +31,8 @@ Slurm-based HPC systems.
   limits, and hardware probe interpretation.
 - Use `hpc-filesystem-environment` for storage, quotas, modules, and conda.
 - Use `hpc-slurm-jobs` for job scripts, submission, queue state, and accounting.
+- Use `hpc-slurm-benchmark` for remote Slurm benchmarks, scaling runs,
+  pilot-first benchmark sweeps, artifact collection, and local analysis.
 - Use `hpc-deploy-build` for remote clone/build/test workflows.
 
 ## Validation

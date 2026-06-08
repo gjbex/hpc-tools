@@ -392,6 +392,8 @@ configured `hpc-tools` profile:
   verifying software on a remote HPC profile.
 - [skills/hpc-slurm-jobs](skills/hpc-slurm-jobs) for queue inspection, Slurm job
   scripts, submission, accounting, and output follow-up.
+- [skills/hpc-slurm-benchmark](skills/hpc-slurm-benchmark) for Slurm-backed
+  benchmark runs, pilot-first sweeps, result collection, and local analysis.
 
 Install them into a Codex skills directory by copying the skill directories and
 the shared reference directory. Copying, rather than symlinking, lets the user
@@ -405,6 +407,7 @@ cp -R skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
 cp -R skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
 cp -R skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
 cp -R skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
+cp -R skills/hpc-slurm-benchmark ~/.codex/skills/hpc-slurm-benchmark
 ```
 
 Each skill assumes the `hpc` CLI is installed and the relevant profile is

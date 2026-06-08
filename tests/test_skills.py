@@ -17,6 +17,7 @@ SKILLS = [
     "hpc-deploy-build",
     "hpc-filesystem-environment",
     "hpc-slurm-jobs",
+    "hpc-slurm-benchmark",
 ]
 
 
@@ -63,6 +64,19 @@ class SkillTests(unittest.TestCase):
 
         self.assertIn("do not assume `#SBATCH --account=...` is required", text)
         self.assertIn("omit unless the site requires an account", text)
+
+    def test_slurm_benchmark_skill_covers_quote_and_efficiency(self) -> None:
+        text = (ROOT / "skills" / "hpc-slurm-benchmark" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("parallel efficiency", text)
+        self.assertIn("quote the exact job", text)
+        self.assertIn("A quote becomes stale", text)
+        self.assertIn("pilot-first", text)
+        self.assertIn("OMP_NUM_THREADS=1", text)
+        self.assertIn("speedup(p) = T1 / Tp", text)
+        self.assertIn("transfer compact artifacts locally", text)
 
     def test_storage_reference_warns_about_nfs_for_parallel_io(self) -> None:
         text = (ROOT / "examples" / "references" / "kuleuven-tier2-storage.md").read_text(
@@ -166,6 +180,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc paths", text)
         self.assertIn("hpc-cluster-onboarding", text)
         self.assertIn("hpc-cluster-discovery", text)
+        self.assertIn("hpc-slurm-benchmark", text)
         self.assertIn("python3 -m unittest discover -s tests", text)
 
     def test_partition_discovery_report_is_reusable(self) -> None:
