@@ -77,6 +77,9 @@ class SkillTests(unittest.TestCase):
         self.assertIn("OMP_NUM_THREADS=1", text)
         self.assertIn("speedup(p) = T1 / Tp", text)
         self.assertIn("transfer compact artifacts locally", text)
+        self.assertIn("--validate-first", text)
+        self.assertIn("hpc submissions list", text)
+        self.assertIn("superseded benchmark attempts", text)
 
     def test_storage_reference_warns_about_nfs_for_parallel_io(self) -> None:
         text = (ROOT / "examples" / "references" / "kuleuven-tier2-storage.md").read_text(
@@ -166,6 +169,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Use an editable install only when developing", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
+        self.assertIn("hpc submit --validate-first", text)
         self.assertIn("hpc paths", text)
         self.assertIn("pipx uninstall hpc-tools", text)
         self.assertNotIn("ln -s /home", text)

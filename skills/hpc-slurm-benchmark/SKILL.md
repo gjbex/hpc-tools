@@ -143,10 +143,19 @@ Validate Slurm parsing before submission:
 hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir>
 ```
 
-If `--test-only` fails without enough detail, capture the remote `sbatch` output
-explicitly through `hpc run`. Treat allocation failures as resource, partition,
-account, QoS, reservation, memory, or availability problems to diagnose, not as
-benchmark failures.
+For real benchmark submissions, prefer the streamlined preflight path when the
+job shape is final:
+
+```bash
+hpc --profile <profile> submit --validate-first <jobscript> --directory <remote-dir>
+```
+
+`--validate-first` runs `sbatch --test-only` with the same options, stops if the
+validation fails, and submits only after validation succeeds. If validation fails
+without enough detail, capture the remote `sbatch` output explicitly through
+`hpc run`. Treat allocation failures as resource, partition, account, QoS,
+reservation, memory, or availability problems to diagnose, not as benchmark
+failures.
 
 ## Submission Strategy
 
@@ -187,14 +196,19 @@ memory, maximum RSS, node list, loaded modules, and the recorded runtime
 environment.
 
 After completion, transfer compact artifacts locally. Prefer CSV/JSON timing
-files plus Slurm output logs. Mark submissions collected and analysed when using
-the hpc-tools submission log:
+files plus Slurm output logs. When using the hpc-tools submission log, update the
+submission lifecycle after collection and analysis, or propose doing so when the
+user may want to keep the active log clean:
 
 ```bash
 hpc submissions mark-collected <run-id> --path <results-path>
 hpc submissions mark-analysed <run-id> --path <analysis-path>
 hpc submissions close <run-id> --reason done
 ```
+
+Close failed, invalid, or superseded benchmark attempts with a reason once their
+status is understood, so `hpc submissions list` reflects only work that still
+needs action.
 
 ## Analysis
 

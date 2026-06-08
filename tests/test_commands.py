@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -115,6 +116,80 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.cpus_per_task, "36")
         self.assertEqual(args.gpus_per_node, "2")
         self.assertEqual(args.export, "JULIA_SIZE=16384")
+
+    def test_submit_parser_accepts_validate_first(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["submit", "--validate-first", "job.slurm"])
+
+        self.assertIs(args.handler, cmd_submit)
+        self.assertTrue(args.validate_first)
+        self.assertFalse(args.test_only)
+
+    def test_submit_validate_first_runs_test_then_submit(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(
+            [
+                "submit",
+                "--validate-first",
+                "--directory",
+                "$VSC_DATA/Projects/demo",
+                "--array",
+                "4",
+                "job.slurm",
+            ]
+        )
+        validation = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="sbatch: Job 1 to start later\n",
+            stderr="",
+        )
+        submitted = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="Submitted batch job 60351238 on cluster wice\n",
+            stderr="",
+        )
+
+        stdout = io.StringIO()
+        with mock.patch("hpc_tools.cli.run_remote_capture", side_effect=[validation, submitted]) as run_remote_capture, \
+             mock.patch("hpc_tools.cli.submissions.append_event") as append_event, \
+             contextlib.redirect_stdout(stdout):
+            result = cmd_submit(args, profile)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(
+            run_remote_capture.call_args_list[0].args[1],
+            "cd $VSC_DATA/Projects/demo && sbatch --test-only --array 4 job.slurm",
+        )
+        self.assertEqual(
+            run_remote_capture.call_args_list[1].args[1],
+            "cd $VSC_DATA/Projects/demo && sbatch --array 4 job.slurm",
+        )
+        self.assertEqual(append_event.call_args.args[0]["job_id"], "60351238")
+
+    def test_submit_validate_first_stops_on_validation_failure(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["submit", "--validate-first", "job.slurm"])
+        validation = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="allocation failure: Requested node configuration is not available\n",
+        )
+
+        stderr = io.StringIO()
+        with mock.patch("hpc_tools.cli.run_remote_capture", return_value=validation) as run_remote_capture, \
+             mock.patch("hpc_tools.cli.submissions.append_event") as append_event, \
+             contextlib.redirect_stderr(stderr):
+            result = cmd_submit(args, profile)
+
+        self.assertEqual(result, 1)
+        self.assertEqual(len(run_remote_capture.call_args_list), 1)
+        self.assertIn("--test-only", run_remote_capture.call_args.args[1])
+        append_event.assert_not_called()
 
     def test_log_submission_appends_submitted_event(self) -> None:
         profile = make_profile()

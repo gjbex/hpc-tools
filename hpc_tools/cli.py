@@ -165,6 +165,11 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         action="store_true",
         help="Run sbatch --test-only instead of submitting",
     )
+    submit_parser.add_argument(
+        "--validate-first",
+        action="store_true",
+        help="Run sbatch --test-only with the same options before submitting",
+    )
     _add_submit_override_arguments(submit_parser)
     submit_parser.set_defaults(handler=cmd_submit)
 
@@ -526,8 +531,27 @@ def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
         test_only=args.test_only,
         overrides=overrides,
     )
-    if args.dry_run or args.test_only:
-        return run_remote(profile, command, dry_run=args.dry_run)
+    validation_command = slurm.submit_command(
+        args.jobscript,
+        directory=args.directory,
+        test_only=True,
+        overrides=overrides,
+    )
+    if args.dry_run:
+        if args.validate_first and not args.test_only:
+            run_remote(profile, validation_command, dry_run=True)
+        return run_remote(profile, command, dry_run=True)
+    if args.test_only:
+        return run_remote(profile, command, dry_run=False)
+
+    if args.validate_first:
+        validation = run_remote_capture(profile, validation_command)
+        if validation.stdout:
+            print(validation.stdout, end="")
+        if validation.stderr:
+            print(validation.stderr, end="", file=sys.stderr)
+        if validation.returncode != 0:
+            return validation.returncode
 
     completed = run_remote_capture(profile, command)
     if completed.stdout:
@@ -543,7 +567,6 @@ def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
             sbatch_output=completed.stdout + completed.stderr,
         )
     return completed.returncode
-    return run_remote(profile, command, dry_run=args.dry_run)
 
 
 def _add_submit_override_arguments(parser: argparse.ArgumentParser) -> None:

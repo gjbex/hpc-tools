@@ -167,6 +167,12 @@ Validate before submission:
 hpc --profile <profile> submit --test-only <jobscript> --directory <remote-dir>
 ```
 
+For real submissions where this preflight should be part of the command, use:
+
+```bash
+hpc --profile <profile> submit --validate-first <jobscript> --directory <remote-dir>
+```
+
 `sbatch --test-only` validates submission parsing; it does not prove that module
 loads or runtime commands work on the allocated node.
 

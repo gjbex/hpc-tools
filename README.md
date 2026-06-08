@@ -163,6 +163,7 @@ hpc jobs                  # defaults to --cluster all
 hpc jobs --cluster wice
 hpc submit job.slurm
 hpc submit --test-only job.slurm
+hpc submit --validate-first job.slurm
 hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm
 hpc submit --gpus-per-node 1 --gpu-bind closest gpu-job.slurm
 hpc sacct 123456 --cluster wice
@@ -185,8 +186,10 @@ it to inspect the config location, durable profile-reference location, copied
 Codex skill location, packaged hardware-probe template, and uninstall cleanup
 notes.
 
-`hpc submit` records successful real Slurm submissions in an append-only local
-event log at `~/.config/hpc-tools/submissions.jsonl`. Use
+`hpc submit --validate-first` runs `sbatch --test-only` with the same options
+and submits only if validation succeeds. `hpc submit` records successful real
+Slurm submissions in an append-only local event log at
+`~/.config/hpc-tools/submissions.jsonl`. Use
 `hpc submissions list` to show active submissions, `hpc submissions observe` to
 append current Slurm accounting observations for active jobs, and
 `hpc submissions close <run-id>` to hide handled runs from the default active
