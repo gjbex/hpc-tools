@@ -7,13 +7,22 @@ from pathlib import Path
 import shlex
 import sys
 
-from hpc_tools.config import ConfigError, Profile, default_config_dir, default_config_path, load_config, resolve_profile
+from hpc_tools.config import (
+    ConfigError,
+    Profile,
+    default_config_dir,
+    default_config_path,
+    default_reference_sets_dir,
+    load_config,
+    resolve_profile,
+)
 from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
+from hpc_tools import references
 from hpc_tools.ssh import run_remote, run_remote_capture
 from hpc_tools import slurm, submissions
 
 
-LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions"}
+LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions", "references"}
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
 
 
@@ -41,6 +50,90 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         help="Show hpc-tools config, reference, skill, and package paths",
     )
     paths_parser.set_defaults(handler=cmd_paths)
+
+    references_parser = subparsers.add_parser(
+        "references",
+        help="Manage shared cluster reference sets",
+    )
+    references_subparsers = references_parser.add_subparsers(
+        dest="references_command",
+        metavar="<subcommand>",
+        required=True,
+    )
+
+    references_list_parser = references_subparsers.add_parser(
+        "list",
+        help="List installed shared reference sets",
+    )
+    references_list_parser.set_defaults(handler=cmd_references_list)
+
+    references_show_parser = references_subparsers.add_parser(
+        "show",
+        help="Show one shared reference set",
+    )
+    references_show_parser.add_argument("name", help="Reference set name")
+    references_show_parser.set_defaults(handler=cmd_references_show)
+
+    references_validate_parser = references_subparsers.add_parser(
+        "validate",
+        help="Validate one shared reference set",
+    )
+    references_validate_parser.add_argument("name", help="Reference set name")
+    references_validate_parser.set_defaults(handler=cmd_references_validate)
+
+    references_create_parser = references_subparsers.add_parser(
+        "create",
+        help="Create a shared reference set from the selected profile",
+    )
+    references_create_parser.add_argument("name", help="Reference set name")
+    references_create_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the destination reference set if it already exists",
+    )
+    references_create_parser.set_defaults(handler=cmd_references_create)
+
+    references_export_parser = references_subparsers.add_parser(
+        "export",
+        help="Export one shared reference set as a tar.gz archive",
+    )
+    references_export_parser.add_argument("name", help="Reference set name")
+    references_export_parser.add_argument(
+        "--output",
+        type=Path,
+        help="Archive output path; defaults to ./<name>-reference-set.tar.gz",
+    )
+    references_export_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the archive if it already exists",
+    )
+    references_export_parser.set_defaults(handler=cmd_references_export)
+
+    references_import_parser = references_subparsers.add_parser(
+        "import",
+        help="Import a shared reference set archive",
+    )
+    references_import_parser.add_argument("archive", type=Path, help="Reference set archive path")
+    references_import_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing installed reference set",
+    )
+    references_import_parser.set_defaults(handler=cmd_references_import)
+
+    references_attach_parser = references_subparsers.add_parser(
+        "attach",
+        help="Attach a shared reference set to the selected profile",
+    )
+    references_attach_parser.add_argument("name", help="Reference set name")
+    references_attach_parser.set_defaults(handler=cmd_references_attach)
+
+    references_detach_parser = references_subparsers.add_parser(
+        "detach",
+        help="Detach any shared reference set from the selected profile",
+    )
+    references_detach_parser.set_defaults(handler=cmd_references_detach)
 
     generic_probe_parser = subparsers.add_parser(
         "write-probe",
@@ -356,6 +449,8 @@ def _should_parse_without_config(argv: list[str]) -> bool:
         return not (pre_args.profile or pre_args.config or "--mail-notifications" in remaining)
     if remaining[0] == "submissions":
         return not _submissions_needs_profile(remaining)
+    if remaining[0] == "references":
+        return not _references_needs_profile(remaining)
     return remaining[0] in LOCAL_COMMANDS
 
 
@@ -375,6 +470,22 @@ def _submissions_needs_profile(remaining: list[str]) -> bool:
     return False
 
 
+def _references_needs_profile(remaining: list[str]) -> bool:
+    skip_next = False
+    for arg in remaining[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in {"-h", "--help"}:
+            return False
+        if arg == "--output":
+            skip_next = True
+            continue
+        if not arg.startswith("-"):
+            return arg in {"create", "attach", "detach"}
+    return False
+
+
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
     return run_remote(profile, args.remote_command, dry_run=args.dry_run)
 
@@ -387,6 +498,7 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     config_dir = default_config_dir()
     print(f"config: {default_config_path()}")
     print(f"profile_references: {config_dir / 'profiles' / '<profile>'}")
+    print(f"reference_sets: {default_reference_sets_dir()}")
     print("codex_skills: ~/.codex/skills/")
     print(f"hardware_probe_template: {package_probe}")
     print(f"cuda_device_properties_template: {package_cuda_probe}")
@@ -395,6 +507,7 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print("package_uninstall: pipx uninstall hpc-tools")
     print("optional_user_state:")
     print(f"  {config_dir}")
+    print(f"  {default_reference_sets_dir()}")
     print("optional_copied_skills:")
     print("  ~/.codex/skills/_shared")
     print("  ~/.codex/skills/hpc-cluster-onboarding")
@@ -402,6 +515,70 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print("  ~/.codex/skills/hpc-filesystem-environment")
     print("  ~/.codex/skills/hpc-deploy-build")
     print("  ~/.codex/skills/hpc-slurm-jobs")
+    return 0
+
+
+def cmd_references_list(args: argparse.Namespace, profile: Profile | None) -> int:
+    del args, profile
+    print(references.format_reference_set_list(references.list_reference_sets()))
+    return 0
+
+
+def cmd_references_show(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    print(references.format_reference_set(references.load_reference_set(args.name)))
+    return 0
+
+
+def cmd_references_validate(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    reference_set = references.validate_reference_set(args.name)
+    print(f"Reference set '{reference_set.name}' is valid: {reference_set.path}")
+    return 0
+
+
+def cmd_references_create(args: argparse.Namespace, profile: Profile) -> int:
+    reference_set = references.create_reference_set(args.name, profile, force=args.force)
+    print(f"Reference set created: {reference_set.path}")
+    return 0
+
+
+def cmd_references_export(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    archive_path = references.export_reference_set(
+        args.name,
+        output=args.output,
+        force=args.force,
+    )
+    print(f"Reference set archive written: {archive_path}")
+    return 0
+
+
+def cmd_references_import(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    reference_set = references.import_reference_set(args.archive, force=args.force)
+    print(f"Reference set imported: {reference_set.path}")
+    return 0
+
+
+def cmd_references_attach(args: argparse.Namespace, profile: Profile) -> int:
+    references.load_reference_set(args.name)
+    references.set_profile_reference_set(
+        Path(args.config).expanduser() if args.config else default_config_path(),
+        profile.name,
+        args.name,
+    )
+    print(f"Attached reference set '{args.name}' to profile '{profile.name}'.")
+    return 0
+
+
+def cmd_references_detach(args: argparse.Namespace, profile: Profile) -> int:
+    references.set_profile_reference_set(
+        Path(args.config).expanduser() if args.config else default_config_path(),
+        profile.name,
+        None,
+    )
+    print(f"Detached any reference set from profile '{profile.name}'.")
     return 0
 
 

@@ -11,6 +11,8 @@ Slurm-based HPC systems.
 - Treat `examples/` as templates and sample data.
 - Do not store durable user-generated cluster references in this repository.
 - Store user profile references under `~/.config/hpc-tools/profiles/<profile>/`.
+- Store shared cluster reference sets under
+  `~/.config/hpc-tools/reference-sets/<name>/`.
 - Install the released CLI with pipx for normal use:
   `pipx install hpc-tools`
 - Use `pipx install .` only for release-style testing from this checkout.

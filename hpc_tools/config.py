@@ -14,6 +14,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
 
 CONFIG_DIR_NAME = "hpc-tools"
 CONFIG_FILE_NAME = "config.toml"
+REFERENCE_SETS_DIR_NAME = "reference-sets"
 
 
 @dataclass(frozen=True)
@@ -36,6 +37,7 @@ class Profile:
     slurm_url: str | None
     storage_reference: str | None
     storage_url: str | None
+    reference_set: str | None
     default_cluster: str | None
     email: str | None
 
@@ -65,6 +67,10 @@ def default_config_dir() -> Path:
     if xdg_config_home:
         return Path(xdg_config_home).expanduser() / CONFIG_DIR_NAME
     return Path("~/.config").expanduser() / CONFIG_DIR_NAME
+
+
+def default_reference_sets_dir() -> Path:
+    return default_config_dir() / REFERENCE_SETS_DIR_NAME
 
 
 def load_config(path: str | None = None) -> Config:
@@ -135,6 +141,7 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         slurm_url=_optional_string(raw_profile, "slurm_url", profile=name),
         storage_reference=_optional_string(raw_profile, "storage_reference", profile=name),
         storage_url=_optional_string(raw_profile, "storage_url", profile=name),
+        reference_set=_optional_string(raw_profile, "reference_set", profile=name),
         default_cluster=_optional_string(raw_profile, "default_cluster", profile=name),
         email=_optional_string(raw_profile, "email", profile=name),
     )

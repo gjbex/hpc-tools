@@ -44,6 +44,7 @@ class ConfigTests(unittest.TestCase):
             slurm_url = "https://example.org/slurm"
             storage_reference = "/tmp/storage.md"
             storage_url = "https://example.org/storage"
+            reference_set = "kuleuven-tier2"
             default_cluster = "wice"
             email = "gjb@example.org"
             """
@@ -69,6 +70,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(profile.slurm_url, "https://example.org/slurm")
         self.assertEqual(profile.storage_reference, "/tmp/storage.md")
         self.assertEqual(profile.storage_url, "https://example.org/storage")
+        self.assertEqual(profile.reference_set, "kuleuven-tier2")
         self.assertEqual(profile.default_cluster, "wice")
         self.assertEqual(profile.email, "gjb@example.org")
 

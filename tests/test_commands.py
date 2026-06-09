@@ -254,6 +254,13 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.submissions_command, "list")
         self.assertEqual(str(args.log), "/tmp/log.jsonl")
 
+    def test_references_list_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["references", "list"])
+
+        self.assertEqual(args.command, "references")
+        self.assertEqual(args.references_command, "list")
+
     def test_paths_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()
         with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": "/tmp/xdg"}, clear=True), contextlib.redirect_stdout(stdout):
@@ -263,11 +270,20 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("config: /tmp/xdg/hpc-tools/config.toml", output)
         self.assertIn("profile_references: /tmp/xdg/hpc-tools/profiles/<profile>", output)
+        self.assertIn("reference_sets: /tmp/xdg/hpc-tools/reference-sets", output)
         self.assertIn("codex_skills: ~/.codex/skills/", output)
         self.assertIn("cuda_device_properties_template:", output)
         self.assertIn("cuda_device_properties_source:", output)
         self.assertIn("package_uninstall: pipx uninstall hpc-tools", output)
         self.assertIn("hpc-cluster-onboarding", output)
+
+    def test_references_list_main_does_not_require_config(self) -> None:
+        stdout = io.StringIO()
+        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": "/tmp/xdg"}, clear=True), contextlib.redirect_stdout(stdout):
+            result = main(["references", "list"])
+
+        self.assertEqual(result, 0)
+        self.assertIn("No reference sets.", stdout.getvalue())
 
     def test_write_hardware_probe_parser(self) -> None:
         parser = build_parser()
@@ -641,6 +657,7 @@ def make_profile(
     slurm_url: str | None = "https://example.org/slurm",
     storage_reference: str | None = "examples/references/kuleuven-tier2-storage.md",
     storage_url: str | None = "https://example.org/storage",
+    reference_set: str | None = None,
     email: str | None = "gjb@example.org",
 ) -> Profile:
     return Profile(
@@ -662,6 +679,7 @@ def make_profile(
         slurm_url=slurm_url,
         storage_reference=storage_reference,
         storage_url=storage_url,
+        reference_set=reference_set,
         default_cluster="wice",
         email=email,
     )

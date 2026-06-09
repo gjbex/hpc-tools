@@ -248,6 +248,11 @@ problem and a corrected rerun later succeeded, close the failed run with a
 superseded reason through `hpc submissions close` so it does not remain as
 active triage work.
 
+If the resulting reference notes are meant to be reused across multiple users
+of the same cluster, package them with `hpc references create <name>` and
+`hpc references export <name>` instead of keeping them only under one user's
+profile-local reference directory.
+
 ## Output Style
 
 For cluster discovery reports, keep the result operational:

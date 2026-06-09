@@ -113,6 +113,12 @@ and Slurm policy without hardcoding those details in the generic skills. Local
 reference files should be concise Markdown summaries of the relevant web
 documentation.
 
+`reference_set` is optional. When it is set, `hpc hardware` resolves hardware,
+Slurm, and storage references from the shared reference set under
+`~/.config/hpc-tools/reference-sets/<name>/` before falling back to any
+profile-local reference paths. This is the preferred way to reuse one
+cluster-wide reference bundle across multiple users.
+
 Keep generated profile references outside the repository so the checkout can be
 deleted after installation. The recommended layout is under the hpc-tools config
 directory, normally `$XDG_CONFIG_HOME/hpc-tools` or `~/.config/hpc-tools`:
@@ -120,6 +126,13 @@ directory, normally `$XDG_CONFIG_HOME/hpc-tools` or `~/.config/hpc-tools`:
 ```text
 <hpc-tools-config-dir>/
 ├── config.toml
+├── reference-sets/
+│   └── <name>/
+│       ├── manifest.toml
+│       ├── hardware.md
+│       ├── slurm.md
+│       ├── storage.md
+│       └── probe-hardware-report.md
 └── profiles/
     └── <profile>/
         ├── hardware.md
@@ -141,11 +154,26 @@ slurm_reference = "~/.config/hpc-tools/profiles/example/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
 ```
 
+Or attach a shared reference set:
+
+```toml
+[profiles.example]
+ssh_target = "example"
+login_shell = ["bash", "-l", "-c"]
+reference_set = "kuleuven-tier2"
+```
+
 ## Commands
 
 ```bash
 hpc run 'hostname'
 hpc paths
+hpc references list
+hpc references create kuleuven-tier2
+hpc references export kuleuven-tier2 --output kuleuven-tier2-reference-set.tar.gz
+hpc references import kuleuven-tier2-reference-set.tar.gz
+hpc references attach kuleuven-tier2
+hpc references detach
 hpc write-probe --kind hardware hardware-probe.slurm
 hpc write-probe --kind cuda-device-properties cuda-probe/
 hpc install-probe --kind hardware --directory <remote-dir>
@@ -188,8 +216,22 @@ hpc --profile genius --dry-run run 'cd "$VSC_DATA/Projects/foo" && git status'
 
 `hpc paths` is a local command that does not require a configured profile. Use
 it to inspect the config location, durable profile-reference location, copied
-Codex skill location, packaged hardware-probe template, packaged CUDA
-device-property template/source, and uninstall cleanup notes.
+Codex skill location, shared reference-set location, packaged hardware-probe
+template, packaged CUDA device-property template/source, and uninstall cleanup
+notes.
+
+`hpc references` manages shareable cluster reference bundles:
+
+- `hpc references create <name>` copies the selected profile's effective
+  hardware, Slurm, storage, and probe-hardware references into
+  `~/.config/hpc-tools/reference-sets/<name>/`.
+- `hpc references export <name>` writes a `.tar.gz` archive that another user
+  can import with `hpc references import`.
+- `hpc references attach <name>` writes `reference_set = "<name>"` into the
+  selected profile so `hpc hardware` resolves the shared bundle.
+
+The detailed workflow and follow-on implementation plan live in
+[docs/reference-sets.md](docs/reference-sets.md).
 
 `hpc submit --validate-first` runs `sbatch --test-only` with the same options
 and submits only if validation succeeds. `hpc submit` records successful real

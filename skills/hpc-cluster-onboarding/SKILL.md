@@ -85,6 +85,12 @@ Treat repository files under `examples/` as templates and examples. Do not store
 user-generated cluster references only inside the `hpc-tools` checkout, because
 the user should be able to delete the checkout after installation.
 
+When the resulting hardware, Slurm, and storage references are stable enough to
+share with other users of the same system, package them as a shared reference
+set with `hpc references create <name>` and `hpc references export <name>`.
+Other users can then `hpc references import <archive>` and
+`hpc references attach <name>` instead of regenerating the same reference notes.
+
 ## Guided Process
 
 Work in phases and stop after each phase if required access, local installation,
