@@ -277,6 +277,8 @@ Slurm submissions in an append-only local event log at
 append current Slurm accounting observations for active jobs, and
 `hpc submissions close <run-id>` to hide handled runs from the default active
 view. The log remains append-only; current state is derived by replaying events.
+Detailed semantics for the `STATE` and `ACTION` columns, plus a state-transition
+diagram, are documented in [docs/submissions.md](docs/submissions.md).
 
 ## Scope
 

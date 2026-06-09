@@ -11,6 +11,7 @@ WICE_HARDWARE_REPORT = ROOT / "examples" / "references" / "wice-probe-hardware-r
 SHARED_REMOTE_ACCESS = ROOT / "skills" / "_shared" / "hpc-tools-remote-access.md"
 README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
+SUBMISSIONS_DOC = ROOT / "docs" / "submissions.md"
 SKILLS = [
     "hpc-cluster-onboarding",
     "hpc-cluster-discovery",
@@ -201,6 +202,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc --profile genius r check", text)
         self.assertIn("hpc submit --validate-first", text)
         self.assertIn("hpc paths", text)
+        self.assertIn("docs/submissions.md", text)
         self.assertIn("hpc write-probe --kind hardware", text)
         self.assertIn("hpc install-probe --kind cuda-device-properties", text)
         self.assertIn("hpc_tools/data/cuda-device-properties.slurm", text)
@@ -285,6 +287,19 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Intel Xeon Platinum 8360Y", text)
         self.assertIn("NUMA", text)
         self.assertIn("600 GB", text)
+
+    def test_submissions_doc_covers_action_semantics_and_diagram(self) -> None:
+        text = SUBMISSIONS_DOC.read_text(encoding="utf-8")
+
+        self.assertIn("Submission Log Workflow", text)
+        self.assertIn("STATE", text)
+        self.assertIn("ACTION", text)
+        self.assertIn("triage", text)
+        self.assertIn("collect", text)
+        self.assertIn("analyse", text)
+        self.assertIn("closed", text)
+        self.assertIn("stateDiagram-v2", text)
+        self.assertIn("append-only", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()
