@@ -78,6 +78,28 @@ class SubmissionLogTests(unittest.TestCase):
         record = submissions.records_from_events(events)[0]
         self.assertEqual(record.action, "analyse")
 
+    def test_closed_run_stays_hidden_even_if_later_metadata_events_exist(self) -> None:
+        events = [
+            {
+                "event": "submitted",
+                "run_id": "run-1",
+                "profile": "genius",
+                "job_id": "1",
+                "cluster": "wice",
+                "jobscript": "job.slurm",
+                "remote_directory": "$VSC_DATA/Projects/demo",
+            },
+            {"event": "observed", "run_id": "run-1", "state": "COMPLETED"},
+            {"event": "results_collected", "run_id": "run-1"},
+            {"event": "analysed", "run_id": "run-1"},
+            {"event": "closed", "run_id": "run-1", "reason": "done"},
+            {"event": "analysed", "run_id": "run-1", "path": "job.out"},
+        ]
+
+        record = submissions.records_from_events(events)[0]
+        self.assertEqual(record.action, "closed")
+        self.assertEqual(submissions.active_records(events), [])
+
     def test_append_and_read_events(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             log_path = Path(directory) / "submissions.jsonl"

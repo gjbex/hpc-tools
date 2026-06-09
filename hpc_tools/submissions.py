@@ -111,7 +111,7 @@ def records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
 def active_records(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
     return [
         record for record in records_from_events(events)
-        if record.latest_event != "closed"
+        if record.action != "closed"
     ]
 
 
