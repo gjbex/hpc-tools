@@ -219,6 +219,17 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc-slurm-benchmark", text)
         self.assertIn("python3 -m unittest discover -s tests", text)
 
+    def test_r_packages_skill_uses_architecture_aware_library_guidance(self) -> None:
+        text = (ROOT / "skills" / "hpc-r-packages" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("${VSC_DATA}/Rlibs/${VSC_OS_LOCAL}/${VSC_ARCH_LOCAL}/R-${EBVERSIONR}", text)
+        self.assertIn("compiled dependencies", text)
+        self.assertIn("same node class", text)
+        self.assertIn("exact R module and bundle modules used for verification", text)
+        self.assertIn("Do not suggest a generic `R_LIBS_USER` path", text)
+
     def test_r_packages_skill_checks_bundle_modules_before_installing(self) -> None:
         text = (ROOT / "skills" / "hpc-r-packages" / "SKILL.md").read_text(
             encoding="utf-8"

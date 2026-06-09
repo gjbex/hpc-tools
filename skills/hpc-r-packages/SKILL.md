@@ -30,6 +30,8 @@ The deliverable is a concrete package status summary:
 
 - packages satisfied by the selected R and bundle modules;
 - packages still missing after the best available bundle combination is loaded;
+- the architecture-specific user library location that should be used if local
+  package installation is still required;
 - any ambiguous package names or dynamic dependency logic that need manual
   review.
 
@@ -70,6 +72,26 @@ hpc --profile <profile> run 'module load <R-module> <cran-bundle> <bioc-bundle> 
 hpc --profile <profile> run 'module load <R-module> <cran-bundle> <bioc-bundle> && Rscript -e "sessionInfo()"'
 ```
 
+When the site publishes architecture-aware guidance for local R libraries, use
+it. On VSC systems, user-installed packages should be segregated by OS version,
+CPU microarchitecture, and R version:
+
+```bash
+${VSC_DATA}/Rlibs/${VSC_OS_LOCAL}/${VSC_ARCH_LOCAL}/R-${EBVERSIONR}
+```
+
+That matters because many R package installs pull in compiled dependencies, and
+those extensions are often built with host-specific optimization flags. A
+package library built on one CPU class may be suboptimal or unusable on
+another. Therefore:
+
+- report package availability under the exact module stack the user intends to
+  run;
+- when installation is needed, recommend an architecture-aware user library
+  path rather than a single shared per-version directory;
+- tell the user to install from an interactive session on the same node class
+  they expect to use for jobs when compiled dependencies are involved.
+
 ## Verify Package Availability
 
 For the candidate package set, test whether each package is visible to R after
@@ -85,6 +107,13 @@ whether a different bundle version, a different R version, or an additional
 bundle module would satisfy it. Only after that should the package be listed as
 an extra user install requirement.
 
+When you move from verification to installation guidance, also inspect whether
+the package or its hard dependencies require compilation. For CRAN packages,
+`NeedsCompilation` is a useful first signal, but do not stop there; a pure-R
+top-level package can still depend on compiled packages underneath. If the
+site-specific R library layout depends on architecture, installation advice
+must follow that layout.
+
 ## Output
 
 Summarize the result in three groups:
@@ -94,10 +123,18 @@ Summarize the result in three groups:
 - uncertain because the dependency is conditional, dynamically named, or not
   directly importable from the inspected script.
 
+When local installation is required, also report:
+
+- the exact R module and bundle modules used for verification;
+- the recommended user library root for the target site, if known;
+- whether the installation should be done on a compute node of the intended CPU
+  class because compiled dependencies are likely.
+
 When packages are missing, list only the missing package names unless the user
 asks for installation commands. If the user does ask for installation guidance,
 separate CRAN-style installs from Bioconductor-style installs and keep the
-commands consistent with the selected R module version.
+commands consistent with the selected R module version and library path
+convention.
 
 ## Limits
 
@@ -108,3 +145,6 @@ chosen module loads can resolve `requireNamespace("<pkg>", quietly = TRUE)`.
 Do not assume that because one bundle module exists, it contains every common R
 package. The bundles reduce installation work, but verification must still be
 package-specific.
+
+Do not suggest a generic `R_LIBS_USER` path on sites that document
+architecture-aware library layouts. Prefer the site guidance when it is known.
