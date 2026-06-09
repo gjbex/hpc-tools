@@ -32,6 +32,9 @@ Slurm-based HPC systems.
 - Use `hpc-cluster-discovery` for partition limits, QoS/account limits, array
   limits, and hardware probe interpretation.
 - Use `hpc-filesystem-environment` for storage, quotas, modules, and conda.
+- Use `hpc-r-packages` for checking whether an R script's CRAN or
+  Bioconductor dependencies are already satisfied by site R modules or bundle
+  modules, and for listing only the packages that still need installation.
 - Use `hpc-slurm-jobs` for job scripts, submission, queue state, and accounting.
 - Use `hpc-slurm-benchmark` for remote Slurm benchmarks, scaling runs,
   pilot-first benchmark sweeps, artifact collection, and local analysis.

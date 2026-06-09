@@ -16,6 +16,7 @@ SKILLS = [
     "hpc-cluster-discovery",
     "hpc-deploy-build",
     "hpc-filesystem-environment",
+    "hpc-r-packages",
     "hpc-slurm-jobs",
     "hpc-slurm-benchmark",
 ]
@@ -214,8 +215,23 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc paths", text)
         self.assertIn("hpc-cluster-onboarding", text)
         self.assertIn("hpc-cluster-discovery", text)
+        self.assertIn("hpc-r-packages", text)
         self.assertIn("hpc-slurm-benchmark", text)
         self.assertIn("python3 -m unittest discover -s tests", text)
+
+    def test_r_packages_skill_checks_bundle_modules_before_installing(self) -> None:
+        text = (ROOT / "skills" / "hpc-r-packages" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("R-bundle-CRAN", text)
+        self.assertIn("R-bundle-Bioconductor", text)
+        self.assertIn("requireNamespace()", text)
+        self.assertIn("module-spider R", text)
+        self.assertIn("module-spider R-bundle-CRAN", text)
+        self.assertIn("module-spider R-bundle-Bioconductor", text)
+        self.assertIn("rg -n 'library\\\\(|require\\\\(|requireNamespace\\\\('", text)
+        self.assertIn("missing and likely requiring user installation", text)
 
     def test_partition_discovery_report_is_reusable(self) -> None:
         text = PARTITION_REPORT.read_text(encoding="utf-8")
