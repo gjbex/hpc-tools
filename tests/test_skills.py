@@ -244,6 +244,21 @@ class SkillTests(unittest.TestCase):
         self.assertIn("rg -n 'library\\\\(|require\\\\(|requireNamespace\\\\('", text)
         self.assertIn("missing and likely requiring user installation", text)
 
+    def test_r_packages_skill_covers_compute_node_install_workflow(self) -> None:
+        text = (ROOT / "skills" / "hpc-r-packages" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Compute-Node Install Workflow", text)
+        self.assertIn("pilot-first", text)
+        self.assertIn("hpc submit --validate-first", text)
+        self.assertIn("VSC_ARCH_LOCAL", text)
+        self.assertIn(".libPaths()", text)
+        self.assertIn("sessionInfo()", text)
+        self.assertIn("archive-only", text)
+        self.assertIn("archived tarball", text)
+        self.assertIn("requireNamespace()", text)
+
     def test_partition_discovery_report_is_reusable(self) -> None:
         text = PARTITION_REPORT.read_text(encoding="utf-8")
 

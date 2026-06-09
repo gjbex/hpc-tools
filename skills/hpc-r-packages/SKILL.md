@@ -130,6 +130,51 @@ When local installation is required, also report:
 - whether the installation should be done on a compute node of the intended CPU
   class because compiled dependencies are likely.
 
+## Compute-Node Install Workflow
+
+When package installation should be architecture-specific, prefer a short Slurm
+install job on the target partition over a login-node install. This is the
+recommended workflow on sites such as VSC when the package stack may compile
+native extensions with host-specific optimization flags.
+
+Use a pilot-first process:
+
+1. write a small install job script for the intended partition and CPU class;
+2. load the exact `R`, `R-bundle-CRAN`, and `R-bundle-Bioconductor` modules
+   chosen during verification;
+3. set `R_LIBS_USER` to the architecture-aware library root;
+4. install only the packages still missing after bundle checks;
+5. end the job with an explicit `requireNamespace()` verification block;
+6. quote the pilot job when the site uses credits;
+7. submit with validation first;
+8. after completion, inspect the job output and confirm that the packages
+   resolve from the intended library path.
+
+A good install script should:
+
+- fail fast if it lands on the wrong architecture, for example by checking
+  `VSC_ARCH_LOCAL`;
+- use temporary build space such as `${VSC_SCRATCH_NODE}`, `${TMPDIR}`, or
+  `/tmp` for downloaded tarballs and build artifacts;
+- print the final `.libPaths()` and `sessionInfo()` so the completed job log
+  records exactly which library tree and module stack were used;
+- verify the target package set explicitly, for example `PrevMap`, `INLA`, and
+  `dlnm`, rather than assuming a successful `install.packages()` call is enough.
+
+Use `hpc submit --validate-first` for the pilot install job so `sbatch
+--test-only` runs before the real submission. After the job finishes, prefer
+verification in this order:
+
+- the package status lines printed by the job's final `requireNamespace()`
+  block;
+- the architecture-qualified `.libPaths()` recorded in the job output;
+- optional package-directory existence checks in the user library root.
+
+If the package source is not available from the current CRAN index, do not stop
+at “package is unavailable.” Check whether the required version is archive-only
+and install from the archived tarball explicitly. This commonly applies to
+older research code that expects pinned package versions.
+
 When packages are missing, list only the missing package names unless the user
 asks for installation commands. If the user does ask for installation guidance,
 separate CRAN-style installs from Bioconductor-style installs and keep the
