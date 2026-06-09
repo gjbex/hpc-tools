@@ -38,7 +38,24 @@ The deliverable is a concrete package status summary:
 ## Discovery Order
 
 Start by identifying dependencies locally from the script or project files. Use
-fast text searches first:
+the bundled `hpc r scan` plugin command when it is available:
+
+```bash
+hpc r scan <script-or-project-dir>
+```
+
+For profile-aware workflows, prefer the plugin commands when they cover the
+task:
+
+```bash
+hpc --profile <profile> r check <script-or-project-dir> --module <R-module>
+hpc --profile <profile> r plan-install <script-or-project-dir> --module <R-module> --partition <partition> --output install-r-packages.slurm
+hpc --profile <profile> r submit-install install-r-packages.slurm --directory <remote-dir> --account <account>
+hpc --profile <profile> r verify-install --job-output <remote-job-output> --package <pkg>
+```
+
+If the plugin is unavailable or the scan needs manual confirmation, fall back to
+fast text searches:
 
 ```bash
 rg -n 'library\\(|require\\(|requireNamespace\\(' <script-or-project-dir>

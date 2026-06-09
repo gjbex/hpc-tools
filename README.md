@@ -27,6 +27,35 @@ Use an editable install only when developing `hpc-tools` itself:
 python3 -m pip install --user -e .
 ```
 
+## Plugins
+
+`hpc-tools` now supports plugin commands. The core CLI keeps generic SSH,
+reference, and Slurm functionality, while language- or workflow-specific
+helpers can live in plugins.
+
+The repository currently ships a bundled `r` plugin, so after installation you
+can use:
+
+```bash
+hpc plugins list
+hpc plugins info r
+hpc r scan path/to/script-or-project
+hpc --profile <profile> r check path/to/script-or-project --module R/<version>
+hpc --profile <profile> r plan-install path/to/script-or-project --module R/<version> --partition <partition> --output install-r-packages.slurm
+hpc --profile <profile> r submit-install install-r-packages.slurm --directory <remote-dir> --account <account>
+hpc --profile <profile> r verify-install --job-output <remote-job-output> --package <pkg>
+```
+
+Future external plugins can be installed into the same `pipx` environment with
+`pipx inject`, for example:
+
+```bash
+pipx inject hpc-tools hpc-tools-r
+```
+
+The first-slice plugin design and follow-on work are documented in
+[docs/plugins.md](docs/plugins.md).
+
 ## Configuration
 
 By default, `hpc` reads:
@@ -168,6 +197,13 @@ reference_set = "kuleuven-tier2"
 ```bash
 hpc run 'hostname'
 hpc paths
+hpc plugins list
+hpc plugins info r
+hpc r scan Script/Main_casestudy1.R
+hpc --profile genius r check Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2
+hpc --profile genius r plan-install Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2 --partition batch_icelake --output install-r-packages.slurm
+hpc --profile genius r submit-install install-r-packages.slurm --directory $VSC_DATA/Projects/demo/Script --account <account>
+hpc --profile genius r verify-install --job-output /path/to/job.out --package PrevMap --package INLA --package dlnm
 hpc references list
 hpc references create kuleuven-tier2
 hpc references export kuleuven-tier2 --output kuleuven-tier2-reference-set.tar.gz

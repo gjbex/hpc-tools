@@ -261,6 +261,104 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.command, "references")
         self.assertEqual(args.references_command, "list")
 
+    def test_plugins_list_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["plugins", "list"])
+
+        self.assertEqual(args.command, "plugins")
+        self.assertEqual(args.plugins_command, "list")
+
+    def test_r_scan_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["r", "scan", "Script/Main.R"])
+
+        self.assertEqual(args.command, "r")
+        self.assertEqual(args.r_command, "scan")
+
+    def test_r_check_parser(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "r",
+                "check",
+                "Script/Main.R",
+                "--module",
+                "R/4.4.2",
+                "--cran-bundle",
+                "R-bundle-CRAN/2024.11",
+            ]
+        )
+
+        self.assertEqual(args.command, "r")
+        self.assertEqual(args.r_command, "check")
+        self.assertEqual(args.module, "R/4.4.2")
+        self.assertEqual(args.cran_bundle, "R-bundle-CRAN/2024.11")
+
+    def test_r_plan_install_parser(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "r",
+                "plan-install",
+                "Script/Main.R",
+                "--module",
+                "R/4.4.2",
+                "--partition",
+                "batch_icelake",
+                "--output",
+                "install.slurm",
+                "--archive-package",
+                "PrevMap=https://example.org/PrevMap.tar.gz",
+            ]
+        )
+
+        self.assertEqual(args.command, "r")
+        self.assertEqual(args.r_command, "plan-install")
+        self.assertEqual(args.partition, "batch_icelake")
+        self.assertEqual(str(args.output), "install.slurm")
+
+    def test_r_verify_install_parser(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "r",
+                "verify-install",
+                "--job-output",
+                "/tmp/job.out",
+                "--package",
+                "PrevMap",
+                "--package",
+                "INLA",
+            ]
+        )
+
+        self.assertEqual(args.command, "r")
+        self.assertEqual(args.r_command, "verify-install")
+        self.assertEqual(args.packages, ["PrevMap", "INLA"])
+
+    def test_r_submit_install_parser(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "r",
+                "submit-install",
+                "install.slurm",
+                "--directory",
+                "$VSC_DATA/Projects/demo",
+                "--account",
+                "proj123",
+                "--cluster",
+                "wice",
+                "--partition",
+                "batch_icelake",
+            ]
+        )
+
+        self.assertEqual(args.command, "r")
+        self.assertEqual(args.r_command, "submit-install")
+        self.assertEqual(str(args.jobscript), "install.slurm")
+        self.assertEqual(args.account, "proj123")
+
     def test_paths_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()
         with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": "/tmp/xdg"}, clear=True), contextlib.redirect_stdout(stdout):

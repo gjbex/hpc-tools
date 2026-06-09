@@ -18,6 +18,8 @@ Slurm-based HPC systems.
 - Use `pipx install .` only for release-style testing from this checkout.
 - Use editable installs only for development:
   `python3 -m pip install --user -e .`
+- Register CLI extensions through the `hpc_tools.plugins` entry-point group
+  instead of hardcoding every workflow into the core CLI.
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
@@ -34,7 +36,9 @@ Slurm-based HPC systems.
 - Use `hpc-filesystem-environment` for storage, quotas, modules, and conda.
 - Use `hpc-r-packages` for checking whether an R script's CRAN or
   Bioconductor dependencies are already satisfied by site R modules or bundle
-  modules, and for listing only the packages that still need installation.
+  modules, and for listing only the packages that still need installation. When
+  available, prefer the bundled `hpc r ...` plugin commands for reusable local
+  dependency scanning.
 - Use `hpc-slurm-jobs` for job scripts, submission, queue state, and accounting.
 - Use `hpc-slurm-benchmark` for remote Slurm benchmarks, scaling runs,
   pilot-first benchmark sweeps, artifact collection, and local analysis.

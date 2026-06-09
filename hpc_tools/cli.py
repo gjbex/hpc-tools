@@ -17,12 +17,13 @@ from hpc_tools.config import (
     resolve_profile,
 )
 from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
+from hpc_tools import plugin_system
 from hpc_tools import references
 from hpc_tools.ssh import run_remote, run_remote_capture
 from hpc_tools import slurm, submissions
 
 
-LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions", "references"}
+LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions", "references", "plugins"}
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
 
 
@@ -50,6 +51,29 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         help="Show hpc-tools config, reference, skill, and package paths",
     )
     paths_parser.set_defaults(handler=cmd_paths)
+
+    plugins_parser = subparsers.add_parser(
+        "plugins",
+        help="Inspect installed hpc-tools plugins",
+    )
+    plugins_subparsers = plugins_parser.add_subparsers(
+        dest="plugins_command",
+        metavar="<subcommand>",
+        required=True,
+    )
+
+    plugins_list_parser = plugins_subparsers.add_parser(
+        "list",
+        help="List installed core and external plugins",
+    )
+    plugins_list_parser.set_defaults(handler=cmd_plugins_list)
+
+    plugins_info_parser = plugins_subparsers.add_parser(
+        "info",
+        help="Show one installed plugin",
+    )
+    plugins_info_parser.add_argument("name", help="Plugin name")
+    plugins_info_parser.set_defaults(handler=cmd_plugins_info)
 
     references_parser = subparsers.add_parser(
         "references",
@@ -389,6 +413,8 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     submissions_close_parser.add_argument("--reason", help="Reason for closing this run")
     submissions_close_parser.set_defaults(handler=cmd_submissions_close)
 
+    plugin_system.register_plugin_commands(subparsers, profile)
+
     return parser
 
 
@@ -451,6 +477,9 @@ def _should_parse_without_config(argv: list[str]) -> bool:
         return not _submissions_needs_profile(remaining)
     if remaining[0] == "references":
         return not _references_needs_profile(remaining)
+    plugin_requires_profile = plugin_system.plugin_needs_profile(remaining[0], remaining[1:])
+    if plugin_requires_profile is not None:
+        return not plugin_requires_profile
     return remaining[0] in LOCAL_COMMANDS
 
 
@@ -1044,6 +1073,31 @@ def cmd_submissions_close(args: argparse.Namespace, profile: Profile | None) -> 
     submissions.append_event(
         submissions.mark_event(args.run_id, "closed", reason=args.reason),
         path=args.log,
+    )
+    return 0
+
+
+def cmd_plugins_list(args: argparse.Namespace, profile: Profile | None) -> int:
+    del args, profile
+    print(plugin_system.format_plugins(plugin_system.load_plugins()))
+    return 0
+
+
+def cmd_plugins_info(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    plugin = plugin_system.get_plugin(args.name)
+    if plugin is None:
+        raise ConfigError(f"unknown plugin: {args.name}")
+
+    print(
+        "\n".join(
+            [
+                f"name: {plugin.name}",
+                f"version: {plugin.version}",
+                f"source: {plugin.source}",
+                f"description: {plugin.description}",
+            ]
+        )
     )
     return 0
 
