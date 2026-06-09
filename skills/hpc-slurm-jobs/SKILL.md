@@ -229,7 +229,8 @@ hpc --profile <profile> sacct <jobid> --cluster <cluster>
 
 `hpc submit` appends successful real submissions to the local append-only
 submission event log. Use it to resume after long queue waits or after restarting
-the Codex session:
+the Codex session. Update the log through `hpc submissions`; do not edit
+`submissions.jsonl` directly unless the CLI is unavailable or broken:
 
 ```bash
 hpc --profile <profile> submissions list
@@ -241,7 +242,12 @@ hpc submissions close <run-id> --reason done
 
 For CUDA device-property probes, treat `device-properties.txt` as the result
 artifact and the consolidated profile hardware report as the analysis artifact
-after cache, shared-memory, register, and launch-limit data are summarized.
+after cache, shared-memory, register, and launch-limit data are summarized. Once
+the durable report is updated, mark the run collected, mark it analysed, and
+close it so `hpc submissions list` reflects only remaining work. If a failed or
+invalid run was only used to diagnose the cause before a corrected rerun
+succeeded, close the failed run with a superseded reason instead of leaving it
+in triage.
 
 The default `submissions list` view hides runs with a `closed` event and shows
 active work that still needs observation, result collection, analysis, or

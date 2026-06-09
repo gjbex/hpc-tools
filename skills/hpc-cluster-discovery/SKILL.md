@@ -233,8 +233,20 @@ Summarize results by node class or partition, not only by hostname. Include the
 evidence source for each claim, especially when comparing CPU generation,
 memory capacity, NUMA layout, local storage, GPUs, CUDA cache/shared-memory
 properties, or measured memory bandwidth. After CUDA device-property results
-have been folded into the durable report, mark the matching submission as
-collected and analysed in the local submission log.
+have been folded into the durable report, use `hpc submissions` to update the
+append-only local submission log. Do not edit `submissions.jsonl` directly
+unless the CLI is unavailable or broken:
+
+```bash
+hpc submissions mark-collected <run-id> --path <remote-result-path>
+hpc submissions mark-analysed <run-id> --path ~/.config/hpc-tools/profiles/<profile>/probe-hardware-report.md
+hpc submissions close <run-id> --reason "<GPU class> CUDA device properties collected and consolidated into probe hardware report"
+```
+
+If an earlier probe submission failed but its logs were enough to identify the
+problem and a corrected rerun later succeeded, close the failed run with a
+superseded reason through `hpc submissions close` so it does not remain as
+active triage work.
 
 ## Output Style
 

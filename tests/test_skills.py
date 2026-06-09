@@ -143,7 +143,11 @@ class SkillTests(unittest.TestCase):
         self.assertIn("device-properties.txt", text)
         self.assertIn("L2 cache", text)
         self.assertIn("shared-memory limits", text)
-        self.assertIn("mark the matching submission as", text)
+        self.assertIn("hpc submissions mark-collected", text)
+        self.assertIn("hpc submissions mark-analysed", text)
+        self.assertIn("hpc submissions close", text)
+        self.assertIn("Do not edit `submissions.jsonl` directly", text)
+        self.assertIn("superseded reason", text)
 
     def test_cluster_discovery_skill_covers_slurm_limits(self) -> None:
         text = (ROOT / "skills" / "hpc-cluster-discovery" / "SKILL.md").read_text(
@@ -177,7 +181,10 @@ class SkillTests(unittest.TestCase):
         self.assertIn("install-probe --kind cuda-device-properties", text)
         self.assertIn("cuda-device-properties-<host>-<jobid>", text)
         self.assertIn("CUDA cache sizes", text)
-        self.assertIn("mark the matching\nsubmissions collected and analysed", text)
+        self.assertIn("hpc submissions mark-collected", text)
+        self.assertIn("hpc submissions close", text)
+        self.assertIn("do not update the local JSONL\nsubmission log by hand", text)
+        self.assertIn("superseded reason", text)
         self.assertIn("Completion Criteria", text)
 
     def test_readme_installs_without_repo_dependency(self) -> None:
