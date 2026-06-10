@@ -46,9 +46,7 @@ references. Partition properties such as walltime, total nodes, default memory,
 and partition QoS usually come from `scontrol show partition`:
 
 ```bash
-hpc --profile <profile> run 'scontrol -M <cluster> show partition <partition>'
-hpc --profile <profile> run 'sinfo -M <cluster> -p <partition> -o "%P|%a|%l|%D|%N"'
-hpc --profile <profile> run 'sinfo -M <cluster> -p <partition> -N -o "%N|%c|%m|%G|%t" | sed -n "1,12p"'
+hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition>
 ```
 
 Read these fields carefully:
@@ -67,9 +65,8 @@ Per-user or per-account submit limits are usually not stored on the partition.
 Check QoS and associations:
 
 ```bash
-hpc --profile <profile> run 'sacctmgr -n -P show qos <qos> format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall'
-hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES'
-hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER partition=<partition> format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES'
+hpc --profile <profile> slurm-limits --cluster <cluster>
+hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition> --qos <qos>
 ```
 
 When reporting a submit limit, state whether it came from QoS
@@ -82,7 +79,7 @@ Array size is a controller configuration setting, not normally a partition
 field. Query it from Slurm config:
 
 ```bash
-hpc --profile <profile> run 'scontrol -M <cluster> show config | grep -Ei "MaxArraySize|MaxJobCount|MaxSubmitJobs|SchedulerParameters"'
+hpc --profile <profile> slurm-limits --cluster <cluster>
 ```
 
 Interpret `MaxArraySize` as the configured maximum number of array index values.

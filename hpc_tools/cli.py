@@ -358,6 +358,15 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     sacct_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
     sacct_parser.set_defaults(handler=cmd_sacct)
 
+    limits_parser = subparsers.add_parser(
+        "slurm-limits",
+        help="Show Slurm partition, controller, QoS, and association limits",
+    )
+    limits_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
+    limits_parser.add_argument("--partition", "-p", help="Slurm partition name")
+    limits_parser.add_argument("--qos", help="Limit QoS output to one QoS name")
+    limits_parser.set_defaults(handler=cmd_slurm_limits)
+
     submissions_parser = subparsers.add_parser(
         "submissions",
         help="Inspect and update the local Slurm submission event log",
@@ -1121,6 +1130,19 @@ def cmd_plugins_info(args: argparse.Namespace, profile: Profile | None) -> int:
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster
     return run_remote(profile, slurm.sacct_command(args.jobid, cluster), dry_run=args.dry_run)
+
+
+def cmd_slurm_limits(args: argparse.Namespace, profile: Profile) -> int:
+    cluster = args.cluster or profile.default_cluster
+    return run_remote(
+        profile,
+        slurm.slurm_limits_command(
+            cluster=cluster,
+            partition=args.partition,
+            qos=args.qos,
+        ),
+        dry_run=args.dry_run,
+    )
 
 
 def _statement_command(

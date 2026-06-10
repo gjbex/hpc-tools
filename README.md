@@ -230,6 +230,7 @@ hpc hardware --path
 hpc jobs                  # defaults to --cluster all
 hpc jobs --cluster wice
 hpc job 123456 --cluster wice
+hpc slurm-limits --cluster wice --partition batch
 hpc submit job.slurm
 hpc submit --test-only job.slurm
 hpc submit --validate-first job.slurm
@@ -418,9 +419,8 @@ Then collect information in this order:
 2. Discover Slurm partitions and controller limits:
 
    ```bash
-   hpc --profile example run 'sinfo -a -o "%P|%a|%l|%D|%c|%m|%G|%f"'
-   hpc --profile example run 'scontrol show partition'
-   hpc --profile example run 'scontrol show config | grep -Ei "ClusterName|MaxArraySize|MaxJobCount|MaxSubmitJobs|MaxTasksPerNode|SchedulerParameters"'
+   hpc --profile example slurm-limits
+   hpc --profile example slurm-limits --cluster <cluster> --partition <partition>
    ```
 
    If the site uses Slurm federation or multiple clusters, repeat with
@@ -429,8 +429,7 @@ Then collect information in this order:
 3. Discover account and QoS policy:
 
    ```bash
-   hpc --profile example run 'sacctmgr -n -P show assoc where user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES 2>/dev/null || true'
-   hpc --profile example run 'sacctmgr -n -P show qos format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall 2>/dev/null || true'
+   hpc --profile example slurm-limits
    ```
 
    If `sacctmgr` is restricted, use site documentation, example job scripts, and

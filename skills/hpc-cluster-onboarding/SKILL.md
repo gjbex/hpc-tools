@@ -139,9 +139,8 @@ hpc --profile <profile> run 'command -v sbatch; command -v sinfo; command -v sco
 Collect partition and controller-level information:
 
 ```bash
-hpc --profile <profile> run 'sinfo -a -o "%P|%a|%l|%D|%c|%m|%G|%f"'
-hpc --profile <profile> run 'scontrol show partition'
-hpc --profile <profile> run 'scontrol show config | grep -Ei "ClusterName|MaxArraySize|MaxJobCount|MaxSubmitJobs|MaxTasksPerNode|SchedulerParameters"'
+hpc --profile <profile> slurm-limits
+hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition>
 ```
 
 If multiple Slurm clusters are visible, rerun with `-M <cluster>` for each
@@ -156,8 +155,8 @@ Find whether jobs require accounts and which limits are attached to QoS or user
 associations:
 
 ```bash
-hpc --profile <profile> run 'sacctmgr -n -P show assoc where user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES 2>/dev/null || true'
-hpc --profile <profile> run 'sacctmgr -n -P show qos format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall 2>/dev/null || true'
+hpc --profile <profile> slurm-limits --cluster <cluster>
+hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition> --qos <qos>
 ```
 
 If `sacctmgr` access is restricted, fall back to site documentation, example job

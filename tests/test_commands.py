@@ -22,6 +22,7 @@ from hpc_tools.cli import (
     cmd_install_probe,
     cmd_job,
     cmd_paths,
+    cmd_slurm_limits,
     cmd_submit,
     cmd_write_hardware_probe,
     cmd_write_probe,
@@ -89,6 +90,31 @@ class CommandTests(unittest.TestCase):
         self.assertIs(args.handler, cmd_job)
         self.assertEqual(args.cluster, "wice")
         self.assertIn("-M wice", slurm.squeue_job_command(args.jobid, args.cluster))
+
+    def test_slurm_limits_command_covers_controller_partition_qos_and_assoc(self) -> None:
+        command = slurm.slurm_limits_command(cluster="wice", partition="batch", qos="normal")
+
+        self.assertIn("## controller", command)
+        self.assertIn("scontrol -M wice show config", command)
+        self.assertIn("MaxArraySize", command)
+        self.assertIn("## partitions", command)
+        self.assertIn("scontrol -M wice show partition batch", command)
+        self.assertIn("sinfo -M wice -p batch -o", command)
+        self.assertIn("sinfo -M wice -p batch -N -o", command)
+        self.assertIn("sacctmgr -n -P show qos normal", command)
+        self.assertIn("sacctmgr -n -P show assoc where cluster=wice user=$USER partition=batch", command)
+        self.assertIn("MaxSubmitJobsPU", command)
+
+    def test_slurm_limits_parser_accepts_filters(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            ["slurm-limits", "--cluster", "wice", "--partition", "batch", "--qos", "normal"]
+        )
+
+        self.assertIs(args.handler, cmd_slurm_limits)
+        self.assertEqual(args.cluster, "wice")
+        self.assertEqual(args.partition, "batch")
+        self.assertEqual(args.qos, "normal")
 
     def test_submit_test_only_command(self) -> None:
         command = slurm.submit_command("job.slurm", directory="$VSC_DATA/Projects/demo", test_only=True)

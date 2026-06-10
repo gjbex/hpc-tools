@@ -59,18 +59,15 @@ Slurm reference for array and submit limits:
 
 ```bash
 hpc --profile <profile> hardware
+hpc --profile <profile> slurm-limits --cluster <cluster>
+hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition>
 ```
 
 Look for controller-wide limits such as `MaxArraySize`, `MaxJobCount`, and
 `MaxSubmitJobs`, plus QoS or association limits such as `MaxJobsPU`,
 `MaxSubmitJobsPU`, `MaxJobs`, `MaxSubmitJobs`, `GrpJobs`, and
-`GrpSubmitJobs`. If the reference is missing or stale, collect live limits with:
-
-```bash
-hpc --profile <profile> run 'scontrol -M <cluster> show config | grep -Ei "MaxArraySize|MaxJobCount|MaxSubmitJobs|SchedulerParameters"'
-hpc --profile <profile> run 'sacctmgr -n -P show qos format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall 2>/dev/null || true'
-hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES 2>/dev/null || true'
-```
+`GrpSubmitJobs`. If the reference is missing or stale, use `hpc slurm-limits`
+to collect live limits before sizing the array.
 
 Treat `MaxArraySize=N` as the maximum number of array index values; for a
 zero-based array, the largest simple range is normally `--array=0-<N-1>`.

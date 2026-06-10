@@ -6,6 +6,18 @@ import shlex
 SQUEUE_FORMAT = "%.18i %.9P %.40j %.8u %.2t %.10M %.10l %.6D %R"
 SQUEUE_JOB_FORMAT = "%.18i %.9P %.32j %.8T %.10M %.10l %.6D %R"
 SACCT_FORMAT = "JobID,JobName%24,Partition,Account,State,ExitCode,Elapsed"
+SLURM_LIMIT_CONFIG_PATTERN = (
+    "ClusterName|MaxArraySize|MaxJobCount|MaxSubmitJobs|"
+    "MaxTasksPerNode|SchedulerParameters"
+)
+SLURM_QOS_FORMAT = (
+    "Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,"
+    "GrpSubmitJobs,GrpTRES,MaxWall"
+)
+SLURM_ASSOC_FORMAT = (
+    "Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,"
+    "MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES"
+)
 
 
 def queue_state_command(queue_command: str) -> str:
@@ -26,6 +38,59 @@ def squeue_job_command(jobid: str, cluster: str | None = None) -> str:
         parts.extend(["-M", cluster])
     parts.extend(["-j", jobid, "-o", SQUEUE_JOB_FORMAT])
     return _quote_command(parts)
+
+
+def slurm_limits_command(
+    *,
+    cluster: str | None = None,
+    partition: str | None = None,
+    qos: str | None = None,
+) -> str:
+    commands = [
+        _section_command(
+            "controller",
+            f"{_quote_command(_with_cluster(['scontrol', 'show', 'config'], cluster))} "
+            f"| grep -Ei {shlex.quote(SLURM_LIMIT_CONFIG_PATTERN)} || true",
+        ),
+        _section_command(
+            "partitions",
+            _quote_command(_with_cluster(["scontrol", "show", "partition"], cluster) + ([partition] if partition else [])),
+        ),
+        _section_command(
+            "partition-summary",
+            _quote_command(
+                _with_cluster(["sinfo"], cluster)
+                + (["-p", partition] if partition else [])
+                + ["-o", "%P|%a|%l|%D|%c|%m|%G|%f"]
+            ),
+        ),
+        _section_command(
+            "partition-nodes",
+            f"{_quote_command(_with_cluster(['sinfo'], cluster) + (['-p', partition] if partition else []) + ['-N', '-o', '%N|%c|%m|%G|%t'])} "
+            "| sed -n '1,40p'",
+        ),
+        _section_command(
+            "qos",
+            _quote_command(
+                ["sacctmgr", "-n", "-P", "show", "qos"]
+                + ([qos] if qos else [])
+                + [f"format={SLURM_QOS_FORMAT}"]
+            )
+            + " 2>/dev/null || true",
+        ),
+        _section_command(
+            "associations",
+            _quote_command_preserving_shell_vars(
+                ["sacctmgr", "-n", "-P", "show", "assoc", "where"]
+                + ([f"cluster={cluster}"] if cluster else [])
+                + ["user=$USER"]
+                + ([f"partition={partition}"] if partition else [])
+                + [f"format={SLURM_ASSOC_FORMAT}"]
+            )
+            + " 2>/dev/null || true",
+        ),
+    ]
+    return "; ".join(commands)
 
 
 SUBMIT_OPTION_NAMES = {
@@ -97,3 +162,20 @@ def _quote_command_preserving_user(parts: list[str]) -> str:
     for part in parts:
         quoted.append(part if part == "$USER" else shlex.quote(part))
     return " ".join(quoted)
+
+
+def _quote_command_preserving_shell_vars(parts: list[str]) -> str:
+    quoted = []
+    for part in parts:
+        quoted.append(part if "$" in part else shlex.quote(part))
+    return " ".join(quoted)
+
+
+def _with_cluster(parts: list[str], cluster: str | None) -> list[str]:
+    if not cluster:
+        return parts
+    return [parts[0], "-M", cluster, *parts[1:]]
+
+
+def _section_command(title: str, command: str) -> str:
+    return f"printf '\\n## {title}\\n'; {command}"
