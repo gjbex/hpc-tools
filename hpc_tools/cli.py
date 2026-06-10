@@ -322,6 +322,16 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     )
     jobs_parser.set_defaults(handler=cmd_jobs)
 
+    job_parser = subparsers.add_parser("job", help="Show status for one Slurm job")
+    job_parser.add_argument("jobid", help="Slurm job ID")
+    job_parser.add_argument(
+        "--cluster",
+        "-M",
+        default="all",
+        help="Slurm cluster name; defaults to all visible clusters",
+    )
+    job_parser.set_defaults(handler=cmd_job)
+
     submit_parser = subparsers.add_parser("submit", help="Submit a Slurm job script")
     submit_parser.add_argument("jobscript", help="Job script path relative to --directory")
     submit_parser.add_argument(
@@ -544,6 +554,8 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print("  ~/.codex/skills/hpc-filesystem-environment")
     print("  ~/.codex/skills/hpc-deploy-build")
     print("  ~/.codex/skills/hpc-slurm-jobs")
+    print("  ~/.codex/skills/hpc-slurm-job-arrays")
+    print("  ~/.codex/skills/hpc-slurm-benchmark")
     return 0
 
 
@@ -883,6 +895,10 @@ def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
 
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
     return run_remote(profile, slurm.squeue_user_command(args.cluster), dry_run=args.dry_run)
+
+
+def cmd_job(args: argparse.Namespace, profile: Profile) -> int:
+    return run_remote(profile, slurm.squeue_job_command(args.jobid, args.cluster), dry_run=args.dry_run)
 
 
 def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:

@@ -20,6 +20,7 @@ from hpc_tools.cli import (
     cmd_clone,
     cmd_install_hardware_probe,
     cmd_install_probe,
+    cmd_job,
     cmd_paths,
     cmd_submit,
     cmd_write_hardware_probe,
@@ -63,6 +64,31 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(args.cluster, "wice")
         self.assertIn("-M wice", slurm.squeue_user_command(args.cluster))
+
+    def test_squeue_job_command_uses_standard_status_format(self) -> None:
+        command = slurm.squeue_job_command("12345", "wice")
+
+        self.assertEqual(
+            command,
+            "squeue -M wice -j 12345 -o '%.18i %.9P %.32j %.8T %.10M %.10l %.6D %R'",
+        )
+
+    def test_job_parser_defaults_to_all_clusters(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["job", "12345"])
+
+        self.assertIs(args.handler, cmd_job)
+        self.assertEqual(args.jobid, "12345")
+        self.assertEqual(args.cluster, "all")
+        self.assertIn("-M all", slurm.squeue_job_command(args.jobid, args.cluster))
+
+    def test_job_parser_accepts_cluster_override(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["job", "12345", "--cluster", "wice"])
+
+        self.assertIs(args.handler, cmd_job)
+        self.assertEqual(args.cluster, "wice")
+        self.assertIn("-M wice", slurm.squeue_job_command(args.jobid, args.cluster))
 
     def test_submit_test_only_command(self) -> None:
         command = slurm.submit_command("job.slurm", directory="$VSC_DATA/Projects/demo", test_only=True)
@@ -374,6 +400,8 @@ class CommandTests(unittest.TestCase):
         self.assertIn("cuda_device_properties_source:", output)
         self.assertIn("package_uninstall: pipx uninstall hpc-tools", output)
         self.assertIn("hpc-cluster-onboarding", output)
+        self.assertIn("hpc-slurm-job-arrays", output)
+        self.assertIn("hpc-slurm-benchmark", output)
 
     def test_references_list_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()

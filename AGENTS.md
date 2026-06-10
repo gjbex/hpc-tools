@@ -40,6 +40,9 @@ Slurm-based HPC systems.
   available, prefer the bundled `hpc r ...` plugin commands for reusable local
   dependency scanning.
 - Use `hpc-slurm-jobs` for job scripts, submission, queue state, and accounting.
+- Use `hpc-slurm-job-arrays` for parameter sweeps, many-input-file runs,
+  `atools` workflows, resumable array bookkeeping, and aggregating per-task
+  output.
 - Use `hpc-slurm-benchmark` for remote Slurm benchmarks, scaling runs,
   pilot-first benchmark sweeps, artifact collection, and local analysis.
 - Use `hpc-deploy-build` for remote clone/build/test workflows.

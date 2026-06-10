@@ -42,7 +42,7 @@ when needed:
 
 ```bash
 hpc --profile <profile> jobs --cluster <cluster>
-hpc --profile <profile> run 'squeue -M <cluster> -j <jobid> -o "%.18i %.9P %.40j %.8u %.2t %.10M %.10l %.6D %R"'
+hpc --profile <profile> job <jobid> --cluster <cluster>
 ```
 
 ## Hardware and Site Context

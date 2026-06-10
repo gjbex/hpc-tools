@@ -229,6 +229,7 @@ hpc hardware --source
 hpc hardware --path
 hpc jobs                  # defaults to --cluster all
 hpc jobs --cluster wice
+hpc job 123456 --cluster wice
 hpc submit job.slurm
 hpc submit --test-only job.slurm
 hpc submit --validate-first job.slurm
@@ -494,6 +495,9 @@ configured `hpc-tools` profile:
   verifying software on a remote HPC profile.
 - [skills/hpc-slurm-jobs](skills/hpc-slurm-jobs) for queue inspection, Slurm job
   scripts, submission, accounting, and output follow-up.
+- [skills/hpc-slurm-job-arrays](skills/hpc-slurm-job-arrays) for parameter
+  sweeps, many-input-file array workflows, `atools`-style task bookkeeping,
+  reruns of failed array elements, and output aggregation.
 - [skills/hpc-slurm-benchmark](skills/hpc-slurm-benchmark) for Slurm-backed
   benchmark runs, pilot-first sweeps, result collection, and local analysis.
 
@@ -509,6 +513,7 @@ cp -R skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
 cp -R skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
 cp -R skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
 cp -R skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
+cp -R skills/hpc-slurm-job-arrays ~/.codex/skills/hpc-slurm-job-arrays
 cp -R skills/hpc-slurm-benchmark ~/.codex/skills/hpc-slurm-benchmark
 ```
 

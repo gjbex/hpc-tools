@@ -19,6 +19,7 @@ SKILLS = [
     "hpc-filesystem-environment",
     "hpc-r-packages",
     "hpc-slurm-jobs",
+    "hpc-slurm-job-arrays",
     "hpc-slurm-benchmark",
 ]
 
@@ -69,6 +70,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("cuda-device-properties.slurm", text)
         self.assertIn("device-properties.txt", text)
         self.assertIn("mark-collected", text)
+        self.assertIn("hpc --profile <profile> job <jobid> --cluster <cluster>", text)
+        self.assertNotIn("squeue -M <cluster> -j <jobid>", text)
 
     def test_slurm_benchmark_skill_covers_quote_and_efficiency(self) -> None:
         text = (ROOT / "skills" / "hpc-slurm-benchmark" / "SKILL.md").read_text(
@@ -87,6 +90,35 @@ class SkillTests(unittest.TestCase):
         self.assertIn("superseded benchmark attempts", text)
         self.assertIn("CUDA device-property probe fails", text)
         self.assertIn("cmake-build.txt", text)
+        self.assertIn("hpc --profile <profile> job <jobid> --cluster <cluster>", text)
+        self.assertNotIn("squeue -M <cluster> -j <jobid>", text)
+
+    def test_slurm_job_arrays_skill_covers_atools_resume_and_io_hygiene(self) -> None:
+        text = (ROOT / "skills" / "hpc-slurm-job-arrays" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("atools", text)
+        self.assertIn("aenv", text)
+        self.assertIn("alog", text)
+        self.assertIn("arange", text)
+        self.assertIn("areduce", text)
+        self.assertIn("aload", text)
+        self.assertIn("SLURM_ARRAY_TASK_ID", text)
+        self.assertIn("MaxArraySize", text)
+        self.assertIn("MaxSubmitJobsPU", text)
+        self.assertIn("scontrol -M <cluster> show config", text)
+        self.assertIn("sacctmgr -n -P show qos", text)
+        self.assertIn("--array=0-<N-1>", text)
+        self.assertIn("submit-job limits", text)
+        self.assertIn("roughly 30 minutes or more", text)
+        self.assertIn("--array=1-200%5", text)
+        self.assertIn("--validate-first", text)
+        self.assertIn("pilot-first", text)
+        self.assertIn("hpc submissions list", text)
+        self.assertIn("rerun only the necessary task IDs", text)
+        self.assertIn("hpc --profile <profile> job <jobid> --cluster <cluster>", text)
+        self.assertNotIn("squeue -M <cluster> -j <jobid>", text)
 
     def test_storage_reference_warns_about_nfs_for_parallel_io(self) -> None:
         text = (ROOT / "examples" / "references" / "kuleuven-tier2-storage.md").read_text(
@@ -197,9 +229,11 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Use an editable install only when developing", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
+        self.assertIn("cp -R skills/hpc-slurm-job-arrays", text)
         self.assertIn("hpc plugins list", text)
         self.assertIn("hpc r scan", text)
         self.assertIn("hpc --profile genius r check", text)
+        self.assertIn("hpc job 123456 --cluster wice", text)
         self.assertIn("hpc submit --validate-first", text)
         self.assertIn("hpc paths", text)
         self.assertIn("docs/submissions.md", text)
@@ -222,6 +256,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc-cluster-onboarding", text)
         self.assertIn("hpc-cluster-discovery", text)
         self.assertIn("hpc-r-packages", text)
+        self.assertIn("hpc-slurm-job-arrays", text)
         self.assertIn("hpc-slurm-benchmark", text)
         self.assertIn("python3 -m unittest discover -s tests", text)
 

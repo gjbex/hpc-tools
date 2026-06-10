@@ -4,6 +4,7 @@ import shlex
 
 
 SQUEUE_FORMAT = "%.18i %.9P %.40j %.8u %.2t %.10M %.10l %.6D %R"
+SQUEUE_JOB_FORMAT = "%.18i %.9P %.32j %.8T %.10M %.10l %.6D %R"
 SACCT_FORMAT = "JobID,JobName%24,Partition,Account,State,ExitCode,Elapsed"
 
 
@@ -17,6 +18,14 @@ def squeue_user_command(cluster: str | None = None) -> str:
         parts.extend(["-M", cluster])
     parts.extend(["-u", "$USER", "-o", SQUEUE_FORMAT])
     return _quote_command_preserving_user(parts)
+
+
+def squeue_job_command(jobid: str, cluster: str | None = None) -> str:
+    parts = ["squeue"]
+    if cluster:
+        parts.extend(["-M", cluster])
+    parts.extend(["-j", jobid, "-o", SQUEUE_JOB_FORMAT])
+    return _quote_command(parts)
 
 
 SUBMIT_OPTION_NAMES = {

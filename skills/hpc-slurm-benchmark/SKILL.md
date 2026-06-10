@@ -189,7 +189,7 @@ Monitor queue and accounting state with:
 ```bash
 hpc --profile <profile> jobs --cluster <cluster>
 hpc --profile <profile> sacct <jobid> --cluster <cluster>
-hpc --profile <profile> run 'squeue -M <cluster> -j <jobid> -o "%.18i %.9P %.32j %.8T %.10M %.10l %.6D %R"'
+hpc --profile <profile> job <jobid> --cluster <cluster>
 ```
 
 For failures, inspect accounting and the Slurm output file before changing the
