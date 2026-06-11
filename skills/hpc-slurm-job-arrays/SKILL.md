@@ -124,6 +124,43 @@ the current row and keep task outputs partitioned by task ID. For an
 `atools`-based script, let `aenv` populate the task-specific variables and call
 `alog` at task start and end.
 
+For very short tasks, prefer a stepped array that assigns one chunk to each
+Slurm array element, for example `--array=1-2000:25%20`. Inside the job, treat
+the real `SLURM_ARRAY_TASK_ID` as the chunk start, derive the chunk size from
+`SLURM_ARRAY_TASK_STEP` with a fallback, and loop over the contained manifest
+rows. When using `aenv`, run each row in a subshell, temporarily export
+`SLURM_ARRAY_TASK_ID=<row>`, then `source <(aenv --data params.csv)` so `aenv`
+selects the row's parameter values:
+
+```bash
+chunk_start="${SLURM_ARRAY_TASK_ID}"
+chunk_size="${SLURM_ARRAY_TASK_STEP:-25}"
+chunk_end=$((chunk_start + chunk_size - 1))
+if ((chunk_end > SLURM_ARRAY_TASK_MAX)); then
+    chunk_end="${SLURM_ARRAY_TASK_MAX}"
+fi
+
+for row in $(seq "$chunk_start" "$chunk_end"); do
+    (
+        export SLURM_ARRAY_TASK_ID="$row"
+        source <(aenv --data params.csv)
+
+        alog start "row-${row}"
+        ./run_one_instance \
+            --alpha "$ALPHA" \
+            --beta "$BETA" \
+            --seed "$SEED" \
+            --output "results/row-${row}.json"
+        alog done "row-${row}"
+    )
+done
+```
+
+Use the subshell so row-specific `aenv` variables do not leak between
+instances. Verify whether the site's `aenv` treats `SLURM_ARRAY_TASK_ID=1` as
+the first data row after the CSV header or uses zero-based indexing before
+submitting the full sweep.
+
 The core requirements are:
 
 - deterministic mapping from array index to task metadata;
@@ -147,6 +184,9 @@ Keep these rules:
 - as a rule of thumb from the `atools` docs, prefer tasks long enough to
   amortize scheduler and environment overhead, roughly 30 minutes or more;
 - if tasks are shorter, bundle multiple manifest rows into one array element;
+  for `atools`, a stepped array such as `--array=1-2000:25%20` plus the
+  temporary `SLURM_ARRAY_TASK_ID` override pattern keeps one `params.csv` while
+  still using `aenv` for each row;
 - avoid many tiny random reads or writes on shared storage;
 - use node-local scratch for temporary task files when the site exposes it, and
   stage compact results back;
