@@ -30,6 +30,10 @@ Slurm-based HPC systems.
 
 ## Skill Routing
 
+- Treat `skills/_shared/` as the conceptual HPC guidance layer. Keep the
+  top-level `hpc-*` skills action-oriented around `hpc-tools` commands, and
+  link to shared references for Slurm concepts, accounting safety, storage/I/O,
+  and benchmark methodology instead of duplicating broad advice.
 - Use `hpc-cluster-onboarding` for first-time setup of a new Slurm cluster.
 - Use `hpc-cluster-discovery` for partition limits, QoS/account limits, array
   limits, and hardware probe interpretation.

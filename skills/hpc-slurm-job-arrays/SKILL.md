@@ -17,6 +17,15 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Use [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+array limits, submit limits, and scheduler semantics. Use
+[`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md) for
+charge-account and quote-before-submit rules. Use
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for
+shared-filesystem pressure, local scratch, and artifact handling.
+
 ## Scope
 
 Use this skill when the workload is embarrassingly parallel: one executable or
@@ -67,15 +76,13 @@ Look for controller-wide limits such as `MaxArraySize`, `MaxJobCount`, and
 `MaxSubmitJobs`, plus QoS or association limits such as `MaxJobsPU`,
 `MaxSubmitJobsPU`, `MaxJobs`, `MaxSubmitJobs`, `GrpJobs`, and
 `GrpSubmitJobs`. If the reference is missing or stale, use `hpc slurm-limits`
-to collect live limits before sizing the array.
-
-Treat `MaxArraySize=N` as the maximum number of array index values; for a
+to collect live limits before sizing the array. Interpret `MaxArraySize` and
+submit-job limits using
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md); for a
 zero-based array, the largest simple range is normally `--array=0-<N-1>`.
-Keep this separate from submit-job limits, because sites can count one array
-job, all array elements, pending elements, or running elements differently for
-policy purposes. When the intended sweep is larger than the visible limits,
-split it into batches, add a concurrency cap such as `%<limit>`, or ask the
-user which subset to run first.
+When the intended sweep is larger than the visible limits, split it into
+batches, add a concurrency cap such as `%<limit>`, or ask the user which subset
+to run first.
 
 ## Task Enumeration
 
@@ -129,7 +136,9 @@ rewriting from scratch.
 
 ## Runtime and I/O Hygiene
 
-Array jobs amplify overhead and filesystem pressure.
+Array jobs amplify overhead and filesystem pressure. Use
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for storage and
+local scratch decisions.
 
 Keep these rules:
 
@@ -150,7 +159,9 @@ scratch policy rather than the array logic.
 
 ## Accounts, Quotes, and Validation
 
-Array submissions can multiply cost quickly. On charge-accounting sites:
+Array submissions can multiply cost quickly. Use
+[`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md).
+On charge-accounting sites:
 
 - inspect accounts first with `hpc --profile <profile> balance` and
   `hpc --profile <profile> statement --account <account>`;

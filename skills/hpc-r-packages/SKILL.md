@@ -17,6 +17,16 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Use [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) when choosing
+library locations, interpreting quota pressure, or avoiding shared-filesystem
+metadata load. Use
+[`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md)
+before submitting chargeable compute-node package install jobs. Use
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+module-version and job-script reproducibility guidance.
+
 ## Goal
 
 Before the user submits an R job or even writes a Slurm script, determine

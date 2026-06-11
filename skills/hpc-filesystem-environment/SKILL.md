@@ -17,6 +17,14 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Use [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for storage
+roles, quota interpretation, local scratch, shared-filesystem search hygiene,
+cleanup safety, and artifact handling. Use
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) when
+storage decisions depend on partitions, node classes, or job-script behavior.
+
 ## Profile Capabilities
 
 Check the selected profile before using optional helpers:
@@ -43,12 +51,8 @@ Inspect quota state when configured:
 hpc --profile <profile> quota
 ```
 
-Treat quota warnings seriously:
-
-- Block quota can block clones, builds, and generated output.
-- File-count quota can fail jobs even when block usage is below quota.
-- Summarize both block usage and file-count usage when either is near or over
-  quota.
+Treat quota warnings seriously, following the block and file-count guidance in
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md).
 
 For configured project storage:
 
@@ -56,19 +60,10 @@ For configured project storage:
 hpc --profile <profile> projects
 ```
 
-For jobs with parallel I/O or heavy temporary I/O, use the profile's storage
-reference to identify the appropriate scratch filesystem. Do not assume home or
-data filesystems are suitable; on many HPC systems they are NFS-mounted and not
-intended for parallel I/O.
-
-For workloads that read and write many files frequently, consider local node
-scratch when the storage reference shows SSD or NVMe local scratch. Local
-scratch is only available while the job runs, so job scripts must stage inputs
-in, stage outputs out, and preserve partial output with traps or periodic
-checkpoint/stage-out logic if failure halfway would lose useful data. When the
-site exposes an environment variable for node-local scratch, use that variable
-instead of hardcoding a path; for KU Leuven this is `VSC_SCRATCH_NODE`. Treat
-local scratch capacity as shared node state, not scheduler-reserved capacity.
+For jobs with parallel I/O, heavy temporary I/O, or frequent small-file access,
+use the profile's storage reference and
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) to choose between
+home, project/data, shared scratch, and node-local scratch.
 
 For ownership or path questions, inspect likely paths directly:
 
@@ -80,11 +75,8 @@ hpc --profile <profile> run 'du -sh <path> 2>/dev/null || true'
 
 Do not run blind `find` searches from top-level HPC filesystem roots such as
 `VSC_DATA`, `VSC_SCRATCH`, project, data, scratch, or archive directories.
-These shared filesystems can have very large directory trees, and recursive
-metadata walks can create unnecessary load. `VSC_HOME` is less risky because
-the quota is usually smaller, but avoid blind recursive searches there too when
-possible. Ask the user for a narrower path or pattern first; if a search is
-necessary, bound it to a specific directory and shallow `-maxdepth`.
+Follow the bounded-search guidance in
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md).
 
 Do not delete files or environments unless the user explicitly asks. For cleanup
 requests, first report the target path, approximate size, filesystem, and any

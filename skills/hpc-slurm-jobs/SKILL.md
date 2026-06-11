@@ -17,6 +17,19 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Before giving conceptual advice or preparing a real submission, read the shared
+reference that matches the decision:
+
+- [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+  partitions, QoS, array limits, job-script defaults, and probe jobs;
+- [`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md)
+  for charge accounts, quote-before-submit, stale quotes, and pilot-first cost
+  handling;
+- [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for storage,
+  local scratch, search hygiene, and artifact handling.
+
 ## Queue Monitoring
 
 If the profile defines `queue_command`, use it for a site-specific occupancy
@@ -47,26 +60,19 @@ hpc --profile <profile> job <jobid> --cluster <cluster>
 
 ## Hardware and Site Context
 
-Before choosing partitions, memory, CPU counts, GPU directives, account
-directives, cluster flags, or I/O paths for a job script, check whether the
-selected profile exposes local hardware/site context:
+Before choosing resources or I/O paths for a job script, use
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) and
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md), then check
+whether the selected profile exposes local hardware/site context:
 
 ```bash
 hpc --profile <profile> hardware
 hpc --profile <profile> hardware --source
 ```
 
-Use local hardware references to map requested resources to node types and
-partitions. Use storage references to choose appropriate scratch filesystems for
-parallel I/O and to avoid home/data filesystems that are not intended for heavy
-job I/O. For workloads with many frequent small-file reads/writes, consider
-local node scratch when available, but include stage-in, stage-out, and failure
-handling because local scratch disappears when the job allocation ends. Use the
-site-provided node-local scratch variable when one exists, and remember that
-local scratch capacity may be shared with other jobs on the node rather than
-reserved by the scheduler. Use source URLs when the user asks for current
-details or when the local reference appears stale. Do not hardcode site-specific
-partitions or filesystem paths in this skill.
+Use local references to map requested resources to node types, partitions, and
+storage choices. Use source URLs when the user asks for current details or when
+the local reference appears stale.
 
 When documentation is missing or uncertain, install the bundled probe script
 with `hpc --profile <profile> install-hardware-probe --directory <remote-dir>`.
@@ -84,9 +90,10 @@ core count. For long-queued probe jobs, if the profile defines `email`, offer
 
 ## Accounts and Credits
 
-Some Slurm sites require credits on an account before jobs can run. When the
-profile exposes accounting helpers, inspect them before writing or submitting
-jobs that use `#SBATCH --account=<account>`:
+Use [`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md)
+before writing final account directives or submitting jobs. When the profile
+exposes accounting helpers, inspect them before writing or submitting jobs that
+use `#SBATCH --account=<account>`:
 
 ```bash
 hpc --profile <profile> balance
@@ -95,27 +102,17 @@ hpc --profile <profile> statement --account <account> --start <YYYY-mm-dd> --end
 hpc --profile <profile> quote srun -M <cluster> -p <partition> -A <account> -t <HH:MM:SS> <resource-options>
 ```
 
-Use `balance` to identify accessible accounts and available or reserved credits.
-Use `statement` to inspect transactions for a specific account. Use `quote` to
-estimate the maximum credit cost before submitting a job when the site provides
-a quote command. Include the same Slurm resource options that will be used for
-submission, such as cluster, partition, walltime, node count, CPU count, memory,
-and GPU requests. Present the quote to the user before submitting, because
-credits can have monetary value. If these commands are not present in help, the
+Use `balance` to identify accessible accounts and available or reserved credits,
+`statement` to inspect transactions for a specific account, and `quote` to
+estimate maximum credit cost. If these commands are not present in help, the
 selected profile does not define the corresponding accounting commands.
-
-If the user has access to multiple credit accounts, ask which account to charge
-before submitting a job or generating a final submission script. Do not choose
-an account only because it has enough balance or appeared in a previous job.
-Credits can have monetary value, and account usage is often used for project
-reporting, so charging the correct account matters even for small test or probe
-jobs.
 
 When creating a job script, do not assume `#SBATCH --account=...` is required.
 Include it only when the target site/profile requires an account, the user
-provides an account, an existing project template uses one, or accounting
-helpers indicate that jobs are charged to accounts. On systems that do not use
-credits/accounts, omit the account directive.
+provides an account, an
+existing project template uses one, or accounting helpers indicate that jobs
+are charged to accounts. On systems that do not use credits/accounts, omit the
+account directive.
 
 ## Job Scripts
 
@@ -153,14 +150,10 @@ module purge
 ```
 
 Prefer `#!/bin/bash -l` so the environment is initialized before module loads.
-For compiled-code jobs, do not assume the system image compiler is suitable;
-HPC images often keep `/usr/bin/gcc`, `/usr/bin/g++`, or CMake older than the
-project requires. Use the module system for compilers, CMake, MPI, and similar
-build/runtime tools when the site provides them. Prefer explicit module
-versions, such as `<compiler-module/version>` or `<cmake-module/version>`, over
-generic module names so job scripts remain reproducible. Discover and verify
-candidate versions with `hpc module-spider <tool>` or a remote `module avail`
-query before pinning them.
+For compiled-code jobs, follow the module and reproducibility guidance in
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md). Discover
+and verify candidate versions with `hpc module-spider <tool>` or a remote
+`module avail` query before pinning them.
 
 Validate before submission:
 

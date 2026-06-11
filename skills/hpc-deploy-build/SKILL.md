@@ -17,6 +17,13 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Use [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) before
+choosing clone/build locations or diagnosing quota and filesystem pressure. Use
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+module-version and reproducibility guidance that also applies to job scripts.
+
 ## Discover Profile Capabilities
 
 Before relying on profile-specific helpers, check what is configured:
@@ -90,10 +97,10 @@ hpc --profile <profile> run 'which <tool>; <tool> --version'
 ```
 
 For compiled projects, check the module system before relying on tools from the
-system image. Cluster image compilers and CMake can be older than the project
-requires, so prefer site modules for compilers, CMake, MPI, and related build
-tools. Pin explicit module versions for reproducibility instead of loading
-generic names.
+system image. Follow the reproducibility guidance in
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md): prefer
+site modules for compilers, CMake, MPI, and related build tools, and pin
+explicit module versions instead of loading generic names.
 
 If the site uses Lmod, load the pinned modules in the same command that builds:
 

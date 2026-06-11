@@ -17,6 +17,16 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Use [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+partition, QoS, submit-limit, array-limit, job-script, and probe-job
+interpretation. Use
+[`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for filesystem,
+local scratch, and raw-artifact handling. Use
+[`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md)
+before submitting chargeable probe jobs.
+
 ## Discovery Order
 
 Start with configured profile context when it exists:
@@ -49,17 +59,10 @@ and partition QoS usually come from `scontrol show partition`:
 hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition>
 ```
 
-Read these fields carefully:
-
-- `MaxTime`: maximum walltime for a job in the partition.
-- `DefaultTime`: walltime used when the job does not request one.
-- `MaxNodes`: partition-level per-job node cap; `UNLIMITED` still means the
-  request is practically bounded by `TotalNodes`, availability, account policy,
-  and QoS.
-- `TotalNodes` and `TotalCPUs`: current partition capacity known to Slurm.
-- `DefMemPerCPU` and `MaxMemPerCPU`: memory defaults and limits when the site
-  uses per-CPU memory accounting.
-- `QoS` and `DenyQos`: QoS policy attached to, or excluded from, the partition.
+Read partition fields using
+[`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md), including
+`MaxTime`, `DefaultTime`, `MaxNodes`, `TotalNodes`, `TotalCPUs`,
+`DefMemPerCPU`, `MaxMemPerCPU`, `QoS`, and `DenyQos`.
 
 Per-user or per-account submit limits are usually not stored on the partition.
 Check QoS and associations:

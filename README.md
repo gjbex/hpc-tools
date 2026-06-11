@@ -482,6 +482,10 @@ configured `hpc-tools` profile:
 
 - [skills/_shared/hpc-tools-remote-access.md](skills/_shared/hpc-tools-remote-access.md)
   contains the shared remote command/profile guidance used by the domain skills.
+- [skills/_shared](skills/_shared) also contains conceptual HPC references for
+  Slurm resource semantics, accounting safety, storage/I/O choices, and
+  benchmark methodology. The top-level `hpc-*` skills stay action-oriented and
+  link to these references when conceptual advice is needed.
 - [skills/hpc-cluster-onboarding](skills/hpc-cluster-onboarding) for guiding a
   first-time setup and information collection process for an arbitrary
   Slurm-based HPC system.
@@ -490,6 +494,9 @@ configured `hpc-tools` profile:
   references, live commands, and hardware-probe output.
 - [skills/hpc-filesystem-environment](skills/hpc-filesystem-environment) for
   storage, quota, ownership, module, and conda environment inspection.
+- [skills/hpc-r-packages](skills/hpc-r-packages) for checking CRAN and
+  Bioconductor dependency availability through site R and bundle modules before
+  planning user package installs.
 - [skills/hpc-deploy-build](skills/hpc-deploy-build) for cloning, building, and
   verifying software on a remote HPC profile.
 - [skills/hpc-slurm-jobs](skills/hpc-slurm-jobs) for queue inspection, Slurm job
@@ -510,6 +517,7 @@ cp -R skills/_shared ~/.codex/skills/_shared
 cp -R skills/hpc-cluster-onboarding ~/.codex/skills/hpc-cluster-onboarding
 cp -R skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
 cp -R skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
+cp -R skills/hpc-r-packages ~/.codex/skills/hpc-r-packages
 cp -R skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
 cp -R skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
 cp -R skills/hpc-slurm-job-arrays ~/.codex/skills/hpc-slurm-job-arrays

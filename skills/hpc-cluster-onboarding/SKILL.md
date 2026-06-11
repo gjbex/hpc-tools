@@ -47,6 +47,19 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+During onboarding, use the shared conceptual references to decide what facts
+belong in durable profile notes:
+
+- [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+  partitions, QoS, submit limits, array limits, job-script conventions, and
+  probe-job requirements;
+- [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for filesystem
+  roles, quota interpretation, parallel I/O, local scratch, and search hygiene;
+- [`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md)
+  for charge-account selection and quote-before-submit rules.
+
 ## Goal
 
 Build enough local reference context for the other hpc-tools skills to make
@@ -174,8 +187,8 @@ hpc --profile <profile> run 'command -v quota; command -v lfs; command -v beegfs
 ```
 
 Identify home, project/data, shared scratch, and node-local scratch separately.
-Do not recommend parallel I/O on home directories unless site documentation
-explicitly says it is appropriate.
+Use [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) before
+recommending parallel I/O on home or data filesystems.
 
 ### 5. Discover Software Environment
 
@@ -214,7 +227,8 @@ For custom edits, generate a local copy with
 `hpc write-probe --kind hardware hardware-probe.slurm`, edit it, and transfer it
 to the remote working directory with the user's normal file-transfer method.
 
-Submit one probe per representative node class or partition, not one per node.
+Submit one probe per representative node class or partition, not one per node,
+following [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md).
 Prefer short, low-impact probes first; increase walltime only when Intel MLC or
 site tools need more time.
 

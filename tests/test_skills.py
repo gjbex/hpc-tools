@@ -9,6 +9,28 @@ PROBE_SCRIPT = ROOT / "examples" / "job-scripts" / "hardware-probe.slurm"
 PARTITION_REPORT = ROOT / "examples" / "references" / "slurm-partition-discovery-report.md"
 WICE_HARDWARE_REPORT = ROOT / "examples" / "references" / "wice-probe-hardware-report.md"
 SHARED_REMOTE_ACCESS = ROOT / "skills" / "_shared" / "hpc-tools-remote-access.md"
+SHARED_CONCEPTS = {
+    "hpc-accounting-safety.md": [
+        "Quote Before Submit",
+        "A quote becomes stale",
+        "ask which account to use",
+    ],
+    "hpc-benchmark-methodology.md": [
+        "Benchmark Contract",
+        "parallel efficiency",
+        "speedup(p) = T1 / Tp",
+    ],
+    "hpc-slurm-concepts.md": [
+        "Partition, QoS, and Submit Limits",
+        "MaxSubmitJobsPU",
+        "--array=0-<N-1>",
+    ],
+    "hpc-storage-io.md": [
+        "Node-Local Scratch",
+        "Shared Filesystem Search Hygiene",
+        "VSC_SCRATCH",
+    ],
+}
 README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
 SUBMISSIONS_DOC = ROOT / "docs" / "submissions.md"
@@ -46,6 +68,62 @@ class SkillTests(unittest.TestCase):
             with self.subTest(skill=skill):
                 text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn("../_shared/hpc-tools-remote-access.md", text)
+
+    def test_shared_conceptual_references_exist_and_are_routed(self) -> None:
+        for filename, required_strings in SHARED_CONCEPTS.items():
+            with self.subTest(shared=filename):
+                path = ROOT / "skills" / "_shared" / filename
+                self.assertTrue(path.exists(), f"missing {path}")
+                text = path.read_text(encoding="utf-8")
+                for required in required_strings:
+                    self.assertIn(required, text)
+
+        expected_refs = {
+            "hpc-cluster-onboarding": [
+                "hpc-slurm-concepts.md",
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+            ],
+            "hpc-slurm-jobs": [
+                "hpc-slurm-concepts.md",
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+            ],
+            "hpc-slurm-job-arrays": [
+                "hpc-slurm-concepts.md",
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+            ],
+            "hpc-slurm-benchmark": [
+                "hpc-benchmark-methodology.md",
+                "hpc-slurm-concepts.md",
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+            ],
+            "hpc-filesystem-environment": [
+                "hpc-storage-io.md",
+            ],
+            "hpc-deploy-build": [
+                "hpc-storage-io.md",
+                "hpc-slurm-concepts.md",
+            ],
+            "hpc-r-packages": [
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+                "hpc-slurm-concepts.md",
+            ],
+            "hpc-cluster-discovery": [
+                "hpc-slurm-concepts.md",
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+            ],
+        }
+        for skill, refs in expected_refs.items():
+            with self.subTest(skill=skill):
+                text = (ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("Conceptual References", text)
+                for ref in refs:
+                    self.assertIn(f"../_shared/{ref}", text)
 
     def test_skills_do_not_hardcode_site_specific_commands_or_paths(self) -> None:
         forbidden = [

@@ -17,38 +17,44 @@ For profile selection, optional helpers, login-gate handling, `--dry-run`, and
 remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
+## Conceptual References
+
+Read the shared conceptual references that match the benchmark decision before
+giving advice or submitting work:
+
+- [`../_shared/hpc-benchmark-methodology.md`](../_shared/hpc-benchmark-methodology.md)
+  for timing hygiene, speedup, parallel efficiency, metadata, and result
+  interpretation;
+- [`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md)
+  for charge accounts, quote-before-submit, stale quotes, and pilot-first cost
+  handling;
+- [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for local
+  scratch, shared filesystem pressure, and local artifact analysis;
+- [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
+  partition, QoS, and job-script semantics.
+
 ## Scope
 
 Use this skill for end-to-end command-line benchmarking on a Slurm-backed HPC
 profile, especially when local results need to be compared with remote jobs or
 when a threaded executable needs scaling, speedup, or efficiency estimates.
 
-Use the general scientific CLI benchmark workflow for timing-method choices,
-warmups, repeat counts, affinity variables, and interpretation. This skill adds
-the hpc-tools/Slurm operational contract: profile discovery, charge-account
+Use the shared benchmark methodology reference, or the general scientific CLI
+benchmark workflow when it is available, for timing-method choices, warmups,
+repeat counts, affinity variables, and interpretation. This skill adds the
+hpc-tools/Slurm operational contract: profile discovery, charge-account
 selection, quoting, job validation, pilot-first submission, monitoring, artifact
 collection, and local analysis.
 
 ## Benchmark Contract
 
-Before submitting jobs, define and record:
-
-- executable, source revision, build type, compiler, and module versions;
-- exact command line and problem size;
-- measured quantity, such as program-reported kernel time or end-to-end wall
-  time;
-- warmup count and measured run count;
-- intended active thread count and any scheduler allocation used only to satisfy
-  memory, GPU, or placement policy;
-- affinity settings such as `OMP_NUM_THREADS`, `OMP_PROC_BIND`, `OMP_PLACES`,
-  and runtime schedule variables;
-- local and remote host or node names;
-- account, cluster, partition, reservation, QoS, memory, walltime, and CPU/GPU
-  request when submitting remotely.
-
-Do not compare runs with different problem sizes unless the user explicitly asks
-for weak scaling or throughput. When computing speedup or parallel efficiency,
-collect a same-system baseline at one active thread:
+Before submitting jobs, define and record the benchmark contract from
+[`../_shared/hpc-benchmark-methodology.md`](../_shared/hpc-benchmark-methodology.md),
+including executable, revision, build, command, problem size, measured quantity,
+repeat count, active thread count, affinity settings, host/node, and Slurm
+resource request. Do not compare runs with different problem sizes unless the
+user explicitly asks for weak scaling or throughput. When computing speedup or
+parallel efficiency, collect a same-system baseline at one active thread:
 
 ```text
 speedup(p) = T1 / Tp
@@ -62,9 +68,10 @@ baseline.
 
 ## Local Baseline
 
-Build an optimized executable locally before timing. Prefer the repository's
-existing build workflow and do not add a new benchmark harness unless repeated
-manual commands are becoming error-prone.
+Build an optimized executable locally before timing, following
+[`../_shared/hpc-benchmark-methodology.md`](../_shared/hpc-benchmark-methodology.md).
+Prefer the repository's existing build workflow and do not add a new benchmark
+harness unless repeated manual commands are becoming error-prone.
 
 For OpenMP or threaded programs, run at least:
 
@@ -76,13 +83,8 @@ OMP_PLACES=cores \
 <command>
 ```
 
-Choose a problem size whose measured runtime is long enough to be meaningful for
-the user's request. If the program reports an internal kernel time, verify that
-that internal time, not just outer wall-clock time, satisfies the runtime target.
-
 Store local benchmark outputs as compact CSV or JSON artifacts under a named
-results directory. Include a short metadata header or separate metadata file with
-host, date, command, environment variables, and build information.
+results directory, with enough metadata for local and remote comparison.
 
 ## Remote Preparation
 
@@ -106,10 +108,10 @@ inside the job when compute-node modules, CPU generation, or filesystem placemen
 matter. For compiled code, use pinned site module versions when available rather
 than system-image compilers.
 
-Use node-local scratch for temporary build directories when the site exposes it,
-and stage only compact result artifacts back to persistent storage. Avoid doing
-iterative analysis through many small remote commands; transfer CSV, JSON, and
-logs locally and summarize them in the local workspace.
+Use [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) for scratch
+and artifact-placement decisions. Avoid iterative analysis through many small
+remote commands; transfer compact artifacts locally and summarize them in the
+local workspace.
 
 ## Accounts, Quotes, and Validation
 
@@ -120,8 +122,10 @@ hpc --profile <profile> balance
 hpc --profile <profile> statement --account <account>
 ```
 
-If multiple charge accounts are available, ask which account to use. Do not pick
-one only because it has credits or appeared in an earlier job.
+If multiple charge accounts are available, follow
+[`../_shared/hpc-accounting-safety.md`](../_shared/hpc-accounting-safety.md) and
+ask which account to use. Do not pick one only because it has credits or
+appeared in an earlier job.
 
 Before every real submission on a charge-accounting site, quote the exact job
 shape and present the estimate to the user:
