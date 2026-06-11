@@ -18,7 +18,7 @@ Check the selected profile before relying on optional helpers:
 
 ```bash
 hpc --profile <profile> --help
-hpc --profile <profile> --dry-run run 'hostname'
+hpc --profile <profile> --dry-run doctor
 ```
 
 Use only helpers that appear in help for the selected profile:
@@ -41,10 +41,11 @@ hpc --profile <profile> hardware --source
 
 ## Command Pattern
 
-Run short inspection commands directly:
+Use consolidated commands for standard diagnostics:
 
 ```bash
-hpc --profile <profile> run 'pwd; hostname; whoami'
+hpc --profile <profile> doctor
+hpc --profile <profile> site-env
 ```
 
 For commands that depend on modules or environment setup, load modules and run

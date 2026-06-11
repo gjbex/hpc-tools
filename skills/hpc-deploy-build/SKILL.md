@@ -65,7 +65,7 @@ Check destination and storage first when possible:
 ```bash
 hpc --profile <profile> projects
 hpc --profile <profile> quota
-hpc --profile <profile> run 'test -e <remote-project-dir>/<repo> && ls -ld <remote-project-dir>/<repo> || echo missing'
+hpc --profile <profile> storage inspect <remote-project-dir>
 ```
 
 If the profile has `projects_dir`, clone with:
@@ -75,16 +75,16 @@ hpc --profile <profile> clone <url> --branch <branch>
 ```
 
 If no project directory is configured, ask for or infer a remote destination and
-use `hpc run` explicitly:
+pass it explicitly:
 
 ```bash
-hpc --profile <profile> run 'cd <remote-parent-dir> && git clone --branch <branch> <url>'
+hpc --profile <profile> clone <url> --branch <branch> --directory <remote-parent-dir>
 ```
 
 Verify the clone:
 
 ```bash
-hpc --profile <profile> run 'cd <remote-repo-dir> && git status --short --branch && git remote -v && git log -1 --oneline'
+hpc --profile <profile> repo status --directory <remote-repo-dir>
 ```
 
 ## Build Environment

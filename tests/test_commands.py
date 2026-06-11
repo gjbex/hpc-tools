@@ -11,18 +11,26 @@ from unittest import mock
 
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
+    _doctor_command,
     _install_cuda_device_properties_command,
     _install_hardware_probe_command,
     _log_submission,
     _quote_command,
+    _repo_status_command,
+    _site_env_command,
     _statement_command,
+    _storage_inspect_command,
     build_parser,
     cmd_clone,
+    cmd_doctor,
     cmd_install_hardware_probe,
     cmd_install_probe,
     cmd_job,
     cmd_paths,
+    cmd_repo_status,
     cmd_slurm_limits,
+    cmd_site_env,
+    cmd_storage_inspect,
     cmd_submit,
     cmd_write_hardware_probe,
     cmd_write_probe,
@@ -115,6 +123,62 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.cluster, "wice")
         self.assertEqual(args.partition, "batch")
         self.assertEqual(args.qos, "normal")
+
+    def test_doctor_parser_and_command(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["doctor"])
+
+        self.assertIs(args.handler, cmd_doctor)
+        command = _doctor_command()
+        self.assertIn("## identity", command)
+        self.assertIn("hostname; whoami; pwd", command)
+        self.assertIn("## slurm-tools", command)
+        self.assertIn("command -v \"$tool\"", command)
+        self.assertIn("sacctmgr", command)
+
+    def test_site_env_parser_and_command(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["site-env"])
+
+        self.assertIs(args.handler, cmd_site_env)
+        command = _site_env_command()
+        self.assertIn("## environment", command)
+        self.assertIn("HOME|DATA|SCRATCH|WORK|PROJECT|TMP|SLURM", command)
+        self.assertIn("## helper-tools", command)
+        self.assertIn("beegfs-ctl", command)
+        self.assertIn("module --version", command)
+
+    def test_storage_inspect_parser_and_command(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["storage", "inspect", "$VSC_DATA/Projects/demo"])
+
+        self.assertIs(args.handler, cmd_storage_inspect)
+        self.assertEqual(args.path, "$VSC_DATA/Projects/demo")
+        command = _storage_inspect_command(args.path)
+        self.assertIn("## path", command)
+        self.assertIn("ls -ld $VSC_DATA/Projects/demo", command)
+        self.assertIn("df -hT $VSC_DATA/Projects/demo", command)
+        self.assertIn("du -sh $VSC_DATA/Projects/demo", command)
+        self.assertIn("mount | sed -n '1,80p'", command)
+
+    def test_storage_inspect_defaults_to_current_directory(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["storage", "inspect"])
+
+        self.assertEqual(args.path, ".")
+        self.assertIn("df -hT .", _storage_inspect_command(args.path))
+
+    def test_repo_status_parser_and_command(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["repo", "status", "--directory", "$VSC_DATA/Projects/demo"])
+
+        self.assertIs(args.handler, cmd_repo_status)
+        self.assertEqual(args.directory, "$VSC_DATA/Projects/demo")
+        command = _repo_status_command(args.directory)
+        self.assertIn("test -d $VSC_DATA/Projects/demo", command)
+        self.assertIn("git status --short --branch", command)
+        self.assertIn("git remote -v", command)
+        self.assertIn("git log -1 --oneline", command)
 
     def test_submit_test_only_command(self) -> None:
         command = slurm.submit_command("job.slurm", directory="$VSC_DATA/Projects/demo", test_only=True)
@@ -291,6 +355,54 @@ class CommandTests(unittest.TestCase):
         self.assertIs(args.handler, cmd_clone)
         self.assertEqual(args.url, "https://github.com/org/repo.git")
         self.assertEqual(args.branch, "main")
+
+    def test_clone_parser_accepts_directory_override(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "clone",
+                "https://github.com/org/repo.git",
+                "--branch",
+                "main",
+                "--directory",
+                "$VSC_SCRATCH/repos",
+                "--name",
+                "demo",
+            ]
+        )
+
+        self.assertIs(args.handler, cmd_clone)
+        self.assertEqual(args.directory, "$VSC_SCRATCH/repos")
+        self.assertEqual(args.name, "demo")
+
+    def test_clone_uses_directory_override(self) -> None:
+        profile = make_profile(projects_dir=None)
+        parser = build_parser(profile)
+        args = parser.parse_args(
+            [
+                "--dry-run",
+                "clone",
+                "https://github.com/org/repo.git",
+                "--directory",
+                "$VSC_SCRATCH/repos",
+            ]
+        )
+
+        with mock.patch("hpc_tools.cli.run_remote") as run_remote:
+            cmd_clone(args, profile)
+
+        self.assertEqual(
+            run_remote.call_args.args[1],
+            "cd $VSC_SCRATCH/repos && git clone https://github.com/org/repo.git",
+        )
+
+    def test_clone_requires_directory_when_projects_dir_is_missing(self) -> None:
+        profile = make_profile(projects_dir=None)
+        parser = build_parser(profile)
+        args = parser.parse_args(["clone", "https://github.com/org/repo.git"])
+
+        with self.assertRaises(ConfigError):
+            cmd_clone(args, profile)
 
     def test_paths_parser(self) -> None:
         parser = build_parser()
@@ -798,6 +910,7 @@ class CommandTests(unittest.TestCase):
 
 def make_profile(
     *,
+    projects_dir: str | None = "$VSC_DATA/Projects",
     quota_command: str | None = "myquota",
     queue_command: str | None = "slurm_queuestate",
     sam_balance_command: str | None = "sam-balance",
@@ -819,7 +932,7 @@ def make_profile(
         user="gjb",
         ssh_options=("-x",),
         login_shell=("bash", "-l", "-c"),
-        projects_dir="$VSC_DATA/Projects",
+        projects_dir=projects_dir,
         quota_command=quota_command,
         queue_command=queue_command,
         sam_balance_command=sam_balance_command,

@@ -195,10 +195,15 @@ reference_set = "kuleuven-tier2"
 ## Commands
 
 ```bash
-hpc run 'hostname'
+hpc doctor
 hpc paths
 hpc plugins list
 hpc plugins info r
+hpc doctor
+hpc site-env
+hpc storage inspect .
+hpc storage inspect $VSC_DATA/Projects/demo
+hpc repo status --directory $VSC_DATA/Projects/demo
 hpc r scan Script/Main_casestudy1.R
 hpc --profile genius r check Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2
 hpc --profile genius r plan-install Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2 --partition batch_icelake --output install-r-packages.slurm
@@ -219,6 +224,7 @@ hpc install-hardware-probe --directory <remote-dir>
 hpc quota                  # if quota_command is configured
 hpc projects
 hpc clone https://github.com/org/repo.git --branch main
+hpc clone https://github.com/org/repo.git --branch main --directory $VSC_SCRATCH/repos
 hpc module-spider Rust
 hpc queue                  # if queue_command is configured
 hpc balance                # if sam_balance_command is configured
@@ -249,7 +255,7 @@ Use `--profile` to select a profile and `--dry-run` to print the SSH command
 without executing it:
 
 ```bash
-hpc --profile genius --dry-run run 'cd "$VSC_DATA/Projects/foo" && git status'
+hpc --profile genius --dry-run repo status --directory "$VSC_DATA/Projects/foo"
 ```
 
 `hpc paths` is a local command that does not require a configured profile. Use
@@ -411,9 +417,8 @@ Then collect information in this order:
 1. Verify access and Slurm commands:
 
    ```bash
-   hpc --profile example --dry-run run 'hostname'
-   hpc --profile example run 'hostname; whoami; pwd'
-   hpc --profile example run 'command -v sbatch; command -v sinfo; command -v scontrol; command -v sacctmgr || true'
+   hpc --profile example --dry-run doctor
+   hpc --profile example doctor
    ```
 
 2. Discover Slurm partitions and controller limits:
@@ -438,9 +443,8 @@ Then collect information in this order:
 4. Discover storage and quota commands:
 
    ```bash
-   hpc --profile example run 'pwd; df -hT .; mount | sed -n "1,80p"'
-   hpc --profile example run 'env | grep -Ei "HOME|DATA|SCRATCH|WORK|PROJECT|TMP|SLURM" | sort'
-   hpc --profile example run 'command -v quota; command -v lfs; command -v beegfs-ctl; command -v mmlsquota; command -v module || true'
+   hpc --profile example storage inspect .
+   hpc --profile example site-env
    ```
 
    Record home, project/data, shared scratch, and node-local scratch separately.

@@ -46,6 +46,60 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     run_parser.add_argument("remote_command", help="Command to run through the configured login shell")
     run_parser.set_defaults(handler=cmd_run)
 
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Check remote login identity and core Slurm tool availability",
+    )
+    doctor_parser.set_defaults(handler=cmd_doctor)
+
+    site_env_parser = subparsers.add_parser(
+        "site-env",
+        help="Inspect remote site environment variables and common HPC helper tools",
+    )
+    site_env_parser.set_defaults(handler=cmd_site_env)
+
+    storage_parser = subparsers.add_parser(
+        "storage",
+        help="Inspect remote filesystem paths and storage context",
+    )
+    storage_subparsers = storage_parser.add_subparsers(
+        dest="storage_command",
+        metavar="<subcommand>",
+        required=True,
+    )
+    storage_inspect_parser = storage_subparsers.add_parser(
+        "inspect",
+        help="Inspect one remote path with bounded storage checks",
+    )
+    storage_inspect_parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Remote path to inspect; defaults to the remote current directory",
+    )
+    storage_inspect_parser.set_defaults(handler=cmd_storage_inspect)
+
+    repo_parser = subparsers.add_parser(
+        "repo",
+        help="Inspect remote source-code repositories",
+    )
+    repo_subparsers = repo_parser.add_subparsers(
+        dest="repo_command",
+        metavar="<subcommand>",
+        required=True,
+    )
+    repo_status_parser = repo_subparsers.add_parser(
+        "status",
+        help="Show remote Git repository status, remotes, and latest commit",
+    )
+    repo_status_parser.add_argument(
+        "--directory",
+        "-C",
+        required=True,
+        help="Remote repository directory to inspect",
+    )
+    repo_status_parser.set_defaults(handler=cmd_repo_status)
+
     paths_parser = subparsers.add_parser(
         "paths",
         help="Show hpc-tools config, reference, skill, and package paths",
@@ -259,9 +313,14 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     projects_parser = subparsers.add_parser("projects", help="List the remote project directory")
     projects_parser.set_defaults(handler=cmd_projects)
 
-    clone_parser = subparsers.add_parser("clone", help="Clone a Git repository into projects_dir")
+    clone_parser = subparsers.add_parser("clone", help="Clone a Git repository into a remote directory")
     clone_parser.add_argument("url", help="Git repository URL")
     clone_parser.add_argument("--branch", "-b", help="Branch to clone")
+    clone_parser.add_argument(
+        "--directory",
+        "-C",
+        help="Remote parent directory for the clone; defaults to profile projects_dir",
+    )
     clone_parser.add_argument(
         "--name",
         help="Optional destination directory name passed to git clone",
@@ -538,6 +597,22 @@ def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
     return run_remote(profile, args.remote_command, dry_run=args.dry_run)
 
 
+def cmd_doctor(args: argparse.Namespace, profile: Profile) -> int:
+    return run_remote(profile, _doctor_command(), dry_run=args.dry_run)
+
+
+def cmd_site_env(args: argparse.Namespace, profile: Profile) -> int:
+    return run_remote(profile, _site_env_command(), dry_run=args.dry_run)
+
+
+def cmd_storage_inspect(args: argparse.Namespace, profile: Profile) -> int:
+    return run_remote(profile, _storage_inspect_command(args.path), dry_run=args.dry_run)
+
+
+def cmd_repo_status(args: argparse.Namespace, profile: Profile) -> int:
+    return run_remote(profile, _repo_status_command(args.directory), dry_run=args.dry_run)
+
+
 def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     del args, profile
     package_probe = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm")
@@ -646,15 +721,18 @@ def cmd_projects(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
-    if not profile.projects_dir:
-        raise ConfigError(f"profile '{profile.name}' does not define projects_dir")
+    directory = args.directory or profile.projects_dir
+    if not directory:
+        raise ConfigError(
+            f"profile '{profile.name}' does not define projects_dir; pass --directory"
+        )
     parts = ["git", "clone"]
     if args.branch:
         parts.extend(["--branch", args.branch])
     parts.append(args.url)
     if args.name:
         parts.append(args.name)
-    command = f"cd {profile.projects_dir} && {' '.join(shlex.quote(part) for part in parts)}"
+    command = f"cd {_quote_remote_path_expression(directory)} && {' '.join(shlex.quote(part) for part in parts)}"
     return run_remote(profile, command, dry_run=args.dry_run)
 
 
@@ -1143,6 +1221,80 @@ def cmd_slurm_limits(args: argparse.Namespace, profile: Profile) -> int:
         ),
         dry_run=args.dry_run,
     )
+
+
+def _doctor_command() -> str:
+    return "; ".join(
+        [
+            _section_command("identity", "hostname; whoami; pwd"),
+            _section_command(
+                "slurm-tools",
+                _tool_check_loop(["sbatch", "sinfo", "scontrol", "sacct", "sacctmgr"]),
+            ),
+        ]
+    )
+
+
+def _site_env_command() -> str:
+    return "; ".join(
+        [
+            _section_command(
+                "environment",
+                "env | grep -Ei 'HOME|DATA|SCRATCH|WORK|PROJECT|TMP|SLURM' | sort || true",
+            ),
+            _section_command(
+                "helper-tools",
+                _tool_check_loop(["quota", "lfs", "beegfs-ctl", "mmlsquota", "module"]),
+            ),
+            _section_command("module-system", "module --version 2>&1 || true"),
+        ]
+    )
+
+
+def _storage_inspect_command(path: str) -> str:
+    remote_path = _quote_remote_path_expression(path)
+    return "; ".join(
+        [
+            _section_command("path", f"pwd; ls -ld {remote_path} 2>/dev/null || true"),
+            _section_command(
+                "filesystem",
+                f"df -hT {remote_path} 2>/dev/null || df -h {remote_path} 2>/dev/null || true",
+            ),
+            _section_command("usage", f"du -sh {remote_path} 2>/dev/null || true"),
+            _section_command("mounts", "mount | sed -n '1,80p'"),
+        ]
+    )
+
+
+def _repo_status_command(directory: str) -> str:
+    remote_dir = _quote_remote_path_expression(directory)
+    return (
+        f"test -d {remote_dir} && cd {remote_dir} && {{ "
+        "printf '\\n## repository\\n'; pwd; "
+        "printf '\\n## status\\n'; git status --short --branch; "
+        "printf '\\n## remotes\\n'; git remote -v; "
+        "printf '\\n## latest-commit\\n'; git log -1 --oneline; "
+        "}"
+    )
+
+
+def _tool_check_loop(tools: list[str]) -> str:
+    quoted_tools = " ".join(shlex.quote(tool) for tool in tools)
+    return (
+        f"for tool in {quoted_tools}; do "
+        "printf '%s: ' \"$tool\"; command -v \"$tool\" || true; "
+        "done"
+    )
+
+
+def _section_command(title: str, command: str) -> str:
+    return f"printf '\\n## {title}\\n'; {command}"
+
+
+def _quote_remote_path_expression(path: str) -> str:
+    if path.startswith("$") or path.startswith("~"):
+        return path
+    return shlex.quote(path)
 
 
 def _statement_command(

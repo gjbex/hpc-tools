@@ -68,9 +68,7 @@ home, project/data, shared scratch, and node-local scratch.
 For ownership or path questions, inspect likely paths directly:
 
 ```bash
-hpc --profile <profile> run 'ls -ld <path>'
-hpc --profile <profile> run 'df -h <path> 2>/dev/null || true'
-hpc --profile <profile> run 'du -sh <path> 2>/dev/null || true'
+hpc --profile <profile> storage inspect <path>
 ```
 
 Do not run blind `find` searches from top-level HPC filesystem roots such as
@@ -105,6 +103,7 @@ context.
 Use these commands to answer conda environment questions:
 
 ```bash
+hpc --profile <profile> site-env
 hpc --profile <profile> run 'which conda; conda --version'
 hpc --profile <profile> run 'conda env list'
 hpc --profile <profile> run 'conda info'

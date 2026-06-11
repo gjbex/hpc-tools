@@ -100,7 +100,7 @@ Verify the remote checkout or deployment path before submitting. Do not assume
 that the local current working directory maps to the remote job directory:
 
 ```bash
-hpc --profile <profile> run 'test -d <remote-dir> && cd <remote-dir> && pwd && git status --short --branch'
+hpc --profile <profile> repo status --directory <remote-dir>
 ```
 
 If the software is not deployed yet, use the deploy/build workflow first. Build

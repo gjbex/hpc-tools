@@ -76,26 +76,10 @@ Set these placeholders before rerunning the commands:
 - `<partition>`: Slurm partition name.
 - `<qos>`: QoS attached to the partition, often from `scontrol show partition`.
 
-Partition limits:
+Partition, QoS, association, and controller-wide array limits:
 
 ```bash
-hpc --profile <profile> run 'scontrol -M <cluster> show partition <partition>'
-hpc --profile <profile> run 'sinfo -M <cluster> -p <partition> -o "%P|%a|%l|%D|%N"'
-hpc --profile <profile> run 'sinfo -M <cluster> -p <partition> -N -o "%N|%c|%m|%G|%t" | sed -n "1,12p"'
-```
-
-QoS and association limits:
-
-```bash
-hpc --profile <profile> run 'sacctmgr -n -P show qos <qos> format=Name,MaxJobsPU,MaxSubmitJobsPU,MaxTRESPU,GrpJobs,GrpSubmitJobs,GrpTRES,MaxWall'
-hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES'
-hpc --profile <profile> run 'sacctmgr -n -P show assoc where cluster=<cluster> user=$USER partition=<partition> format=Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES'
-```
-
-Controller-wide array limits:
-
-```bash
-hpc --profile <profile> run 'scontrol -M <cluster> show config | grep -Ei "MaxArraySize|MaxJobCount|MaxSubmitJobs|MaxTasksPerNode|SchedulerParameters"'
+hpc --profile <profile> slurm-limits --cluster <cluster> --partition <partition> --qos <qos>
 ```
 
 Hardware probe, when documentation or Slurm node fields are not enough:

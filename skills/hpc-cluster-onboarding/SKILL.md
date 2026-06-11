@@ -142,9 +142,8 @@ email = "user@example.org"
 Verify:
 
 ```bash
-hpc --profile <profile> --dry-run run 'hostname'
-hpc --profile <profile> run 'hostname; whoami; pwd'
-hpc --profile <profile> run 'command -v sbatch; command -v sinfo; command -v scontrol; command -v sacctmgr || true'
+hpc --profile <profile> --dry-run doctor
+hpc --profile <profile> doctor
 ```
 
 ### 2. Discover Slurm Shape
@@ -181,9 +180,8 @@ Use the filesystem/environment skill for detailed storage inspection. At a
 minimum, collect:
 
 ```bash
-hpc --profile <profile> run 'pwd; df -hT .; mount | sed -n "1,80p"'
-hpc --profile <profile> run 'env | grep -Ei "HOME|DATA|SCRATCH|WORK|PROJECT|TMP|SLURM" | sort'
-hpc --profile <profile> run 'command -v quota; command -v lfs; command -v beegfs-ctl; command -v mmlsquota; command -v module || true'
+hpc --profile <profile> storage inspect .
+hpc --profile <profile> site-env
 ```
 
 Identify home, project/data, shared scratch, and node-local scratch separately.
@@ -195,7 +193,7 @@ recommending parallel I/O on home or data filesystems.
 Check whether the site uses Lmod or another module system:
 
 ```bash
-hpc --profile <profile> run 'module --version 2>&1 || true'
+hpc --profile <profile> site-env
 hpc --profile <profile> run 'module avail 2>&1 | sed -n "1,120p"'
 ```
 
