@@ -77,10 +77,18 @@ The current R plugin covers:
 4. staging, quoting, validating, submitting, and logging install jobs
 5. verification of completed install jobs from their output files
 
+When an R package install fails because of a non-R dependency, use package
+metadata such as CRAN `SystemRequirements` to identify the missing library or
+tool, check whether the site provides it as a module, and include that module in
+both the install job and later runtime job scripts. JAGS-related R packages are
+a common example: the R package may need a `JAGS` module loaded before install
+and when running scripts that use the package.
+
 Follow-on R work should continue in the plugin layer rather than expanding the
 core CLI. The next likely additions are:
 
 - package-source presets for common ecosystems such as INLA
+- explicit system-dependency/module hints for package families such as JAGS
 - richer parsing of dynamic package loading patterns
 
 ## Python Plugin Follow-On Work

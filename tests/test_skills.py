@@ -379,6 +379,10 @@ class SkillTests(unittest.TestCase):
         self.assertIn("module-spider R-bundle-Bioconductor", text)
         self.assertIn("rg -n 'library\\\\(|require\\\\(|requireNamespace\\\\('", text)
         self.assertIn("missing and likely requiring user installation", text)
+        self.assertIn("SystemRequirements", text)
+        self.assertIn("module-spider JAGS", text)
+        self.assertIn("JAGS-related R packages", text)
+        self.assertIn("runtime contract", text)
 
     def test_r_packages_skill_covers_compute_node_install_workflow(self) -> None:
         text = (ROOT / "skills" / "hpc-r-packages" / "SKILL.md").read_text(
@@ -388,6 +392,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Compute-Node Install Workflow", text)
         self.assertIn("pilot-first", text)
         self.assertIn("hpc submit --validate-first", text)
+        self.assertIn("non-R system dependency modules", text)
         self.assertIn("VSC_ARCH_LOCAL", text)
         self.assertIn(".libPaths()", text)
         self.assertIn("sessionInfo()", text)

@@ -135,11 +135,31 @@ bundle module would satisfy it. Only after that should the package be listed as
 an extra user install requirement.
 
 When you move from verification to installation guidance, also inspect whether
-the package or its hard dependencies require compilation. For CRAN packages,
-`NeedsCompilation` is a useful first signal, but do not stop there; a pure-R
-top-level package can still depend on compiled packages underneath. If the
-site-specific R library layout depends on architecture, installation advice
-must follow that layout.
+the package or its hard dependencies require compilation or non-R system
+libraries. For CRAN packages, the package page and archived package metadata are
+the first places to check for `SystemRequirements`, configure notes, and
+external library requirements; `NeedsCompilation` is a useful signal, but do
+not stop there. A pure-R top-level package can still depend on compiled
+packages or external tools underneath.
+
+For failures that mention missing headers, shared libraries, configure scripts,
+or commands, map the missing component to a site module before retrying the R
+install. For example, JAGS-related R packages often require the external `JAGS`
+library/runtime documented on the package's CRAN page. Check whether a module
+exists:
+
+```bash
+hpc --profile <profile> module-spider JAGS
+hpc --profile <profile> module-spider <system-dependency>
+```
+
+If a suitable module exists, include it in the install job's `module load` line
+alongside `R`, `R-bundle-CRAN`, and `R-bundle-Bioconductor`. Also carry the same
+non-R dependency module into every subsequent Slurm job script or remote command
+that loads or runs packages linked against it. Treat the successful install
+module stack as part of the runtime contract, not as an install-only detail.
+If the site-specific R library layout depends on architecture, installation
+advice must follow that layout.
 
 ## Output
 
@@ -167,8 +187,8 @@ native extensions with host-specific optimization flags.
 Use a pilot-first process:
 
 1. write a small install job script for the intended partition and CPU class;
-2. load the exact `R`, `R-bundle-CRAN`, and `R-bundle-Bioconductor` modules
-   chosen during verification;
+2. load the exact `R`, `R-bundle-CRAN`, `R-bundle-Bioconductor`, and any
+   non-R system dependency modules chosen during verification;
 3. set `R_LIBS_USER` to the architecture-aware library root;
 4. install only the packages still missing after bundle checks;
 5. end the job with an explicit `requireNamespace()` verification block;
@@ -185,6 +205,8 @@ A good install script should:
   `/tmp` for downloaded tarballs and build artifacts;
 - print the final `.libPaths()` and `sessionInfo()` so the completed job log
   records exactly which library tree and module stack were used;
+- print the loaded module list so non-R dependencies such as `JAGS` are
+  captured in the install evidence and can be copied into runtime job scripts;
 - verify the target package set explicitly, for example `PrevMap`, `INLA`, and
   `dlnm`, rather than assuming a successful `install.packages()` call is enough.
 
@@ -195,6 +217,8 @@ verification in this order:
 - the package status lines printed by the job's final `requireNamespace()`
   block;
 - the architecture-qualified `.libPaths()` recorded in the job output;
+- the module list recorded in the job output, including non-R dependency
+  modules;
 - optional package-directory existence checks in the user library root.
 
 If the package source is not available from the current CRAN index, do not stop
