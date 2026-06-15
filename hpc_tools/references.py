@@ -32,6 +32,7 @@ REFERENCE_URL_KEYS = (
     "hardware_url",
     "slurm_url",
     "storage_url",
+    "status_url",
 )
 
 
@@ -44,6 +45,7 @@ class ReferenceContext:
     slurm_url: str | None
     storage_reference: str | None
     storage_url: str | None
+    status_url: str | None
     probe_hardware_report: str | None
 
 
@@ -60,6 +62,7 @@ class ReferenceSet:
     slurm_url: str | None
     storage_reference: Path
     storage_url: str | None
+    status_url: str | None
     probe_hardware_report: Path | None
 
 
@@ -73,6 +76,7 @@ def resolve_reference_context(profile: Profile) -> ReferenceContext:
         slurm_url=_prefer_value(reference_set.slurm_url if reference_set else None, profile.slurm_url),
         storage_reference=_prefer_path(reference_set.storage_reference if reference_set else None, profile.storage_reference),
         storage_url=_prefer_value(reference_set.storage_url if reference_set else None, profile.storage_url),
+        status_url=_prefer_value(reference_set.status_url if reference_set else None, profile.status_url),
         probe_hardware_report=_prefer_path(
             reference_set.probe_hardware_report if reference_set else None,
             _profile_probe_hardware_report(profile),
@@ -126,6 +130,7 @@ def load_reference_set(name: str | None, *, base_dir: Path | None = None) -> Ref
         slurm_url=_optional_string(sources, "slurm_url"),
         storage_reference=resolved_files["storage_reference"],
         storage_url=_optional_string(sources, "storage_url"),
+        status_url=_optional_string(sources, "status_url"),
         probe_hardware_report=optional_probe,
     )
 
@@ -187,6 +192,7 @@ def create_reference_set(
             "hardware_url": context.hardware_url,
             "slurm_url": context.slurm_url,
             "storage_url": context.storage_url,
+            "status_url": context.status_url,
         },
         include_probe=(destination / OPTIONAL_FILE_KEYS["probe_hardware_report"]).exists(),
     )
@@ -290,6 +296,8 @@ def format_reference_set(reference_set: ReferenceSet) -> str:
         lines.append(f"slurm_url: {reference_set.slurm_url}")
     if reference_set.storage_url:
         lines.append(f"storage_url: {reference_set.storage_url}")
+    if reference_set.status_url:
+        lines.append(f"status_url: {reference_set.status_url}")
     return "\n".join(lines)
 
 

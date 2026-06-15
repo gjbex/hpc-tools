@@ -36,6 +36,7 @@ class ReferenceSetTests(unittest.TestCase):
             self.assertTrue(reference_set.storage_reference.exists())
             self.assertTrue(reference_set.probe_hardware_report.exists())
             self.assertIn("source_profile: genius", format_reference_set(reference_set))
+            self.assertIn("status_url: https://status.example.org/", format_reference_set(reference_set))
 
     def test_export_and_import_reference_set_round_trip(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -56,6 +57,7 @@ class ReferenceSetTests(unittest.TestCase):
                     listed = list_reference_sets()
 
             self.assertEqual(imported.name, "kuleuven-tier2")
+            self.assertEqual(imported.status_url, "https://status.example.org/")
             self.assertEqual([reference_set.name for reference_set in listed], ["kuleuven-tier2"])
 
     def test_render_hardware_context_prefers_attached_reference_set(self) -> None:
@@ -103,6 +105,7 @@ class ReferenceSetTests(unittest.TestCase):
                 slurm_url = "https://example.org/slurm"
                 storage_reference = "{profile_dir / 'storage.md'}"
                 storage_url = "https://example.org/storage"
+                status_url = "https://status.example.org/"
                 """
             ).strip()
             + "\n",

@@ -18,6 +18,7 @@ def profile_has_hardware_context(profile: Profile | None) -> bool:
             context.slurm_url,
             context.storage_reference,
             context.storage_url,
+            context.status_url,
         ]
     )
 
@@ -64,6 +65,8 @@ def _render_sources(context) -> str:
         lines.append(f"slurm_url: {context.slurm_url}")
     if context.storage_url:
         lines.append(f"storage_url: {context.storage_url}")
+    if context.status_url:
+        lines.append(f"status_url: {context.status_url}")
     return "\n".join(lines)
 
 

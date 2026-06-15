@@ -39,6 +39,13 @@ hpc --profile <profile> hardware
 hpc --profile <profile> hardware --source
 ```
 
+When login, storage, Slurm commands, OnDemand sessions, or job starts behave
+unexpectedly, check any configured `status_url` shown by `hpc --profile
+<profile> hardware --source` before diagnosing the issue as user error or a
+local configuration problem. Treat status pages as current operational context;
+record the incident title, affected service, update time, and maintenance
+window when reporting the result.
+
 ## Command Pattern
 
 Use consolidated commands for standard diagnostics:

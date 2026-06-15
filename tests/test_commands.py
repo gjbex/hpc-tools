@@ -898,13 +898,15 @@ class CommandTests(unittest.TestCase):
             hardware_url="https://example.org/hardware",
             slurm_url="https://example.org/slurm",
             storage_url="https://example.org/storage",
+            status_url="https://status.example.org/",
         )
 
         self.assertEqual(
             render_hardware_context(profile, source_only=True),
             "hardware_url: https://example.org/hardware\n"
             "slurm_url: https://example.org/slurm\n"
-            "storage_url: https://example.org/storage",
+            "storage_url: https://example.org/storage\n"
+            "status_url: https://status.example.org/",
         )
 
 
@@ -922,6 +924,7 @@ def make_profile(
     slurm_url: str | None = "https://example.org/slurm",
     storage_reference: str | None = "examples/references/kuleuven-tier2-storage.md",
     storage_url: str | None = "https://example.org/storage",
+    status_url: str | None = "https://status.example.org/",
     reference_set: str | None = None,
     email: str | None = "gjb@example.org",
 ) -> Profile:
@@ -944,6 +947,7 @@ def make_profile(
         slurm_url=slurm_url,
         storage_reference=storage_reference,
         storage_url=storage_url,
+        status_url=status_url,
         reference_set=reference_set,
         default_cluster="wice",
         email=email,

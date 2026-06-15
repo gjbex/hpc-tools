@@ -41,7 +41,13 @@ recommendations:
 
 ```bash
 hpc --profile <profile> hardware
+hpc --profile <profile> hardware --source
 ```
+
+When storage paths disappear, quotas or project storage behave oddly, or remote
+commands fail before reaching the expected filesystem, check any configured
+`status_url` in the source output before assuming a local path or permission
+problem.
 
 ## Quotas and Storage
 

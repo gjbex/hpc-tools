@@ -79,6 +79,10 @@ is set, otherwise `~/.config/hpc-tools/profiles/<profile>/`:
 - storage reference: home/project/scratch filesystems, quota commands,
   parallel-I/O guidance, and local scratch behavior.
 
+If the site publishes an operational status page, add it to the profile as
+`status_url`. This gives later skills a current source to check when login,
+storage, OnDemand, Slurm, or job-start behavior looks like a site incident.
+
 The recommended durable layout is:
 
 ```text
@@ -136,6 +140,7 @@ the profile reference directory shown by `hpc paths`:
 hardware_reference = "~/.config/hpc-tools/profiles/<profile>/hardware.md"
 slurm_reference = "~/.config/hpc-tools/profiles/<profile>/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/<profile>/storage.md"
+status_url = "https://status.example.org/"
 email = "user@example.org"
 ```
 

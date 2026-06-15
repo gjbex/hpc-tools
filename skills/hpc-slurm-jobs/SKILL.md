@@ -74,6 +74,12 @@ Use local references to map requested resources to node types, partitions, and
 storage choices. Use source URLs when the user asks for current details or when
 the local reference appears stale.
 
+If jobs do not start, Slurm commands fail, storage disappears, or OnDemand
+sessions behave unexpectedly, check the configured `status_url` from `hpc
+--profile <profile> hardware --source` before changing scripts or resource
+requests. Maintenance windows can reserve compute nodes, interrupt storage, or
+temporarily break Slurm commands.
+
 When documentation is missing or uncertain, install the bundled probe script
 with `hpc --profile <profile> install-hardware-probe --directory <remote-dir>`.
 Pass required site directives with options such as `--account`, `--cluster`,

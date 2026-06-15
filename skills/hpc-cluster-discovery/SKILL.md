@@ -37,6 +37,11 @@ hpc --profile <profile> hardware --source
 hpc --profile <profile> queue
 ```
 
+If live discovery fails or reports surprising scheduler/storage behavior, check
+any `status_url` from the profile sources before drawing conclusions from the
+failure. Status pages can explain maintenance reservations, storage
+interruptions, login-node issues, or temporary Slurm controller problems.
+
 Treat local references and live command output as complementary:
 
 - Use references to identify expected clusters, partitions, node classes,

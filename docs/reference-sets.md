@@ -21,8 +21,8 @@ hpc --profile <profile> references attach <name>
 ```
 
 When `reference_set = "<name>"` is present in a profile, `hpc hardware`
-resolves hardware, Slurm, and storage references from that shared bundle before
-falling back to profile-local paths.
+resolves hardware, Slurm, storage, and status source metadata from that shared
+bundle before falling back to profile-local metadata.
 
 ## Current Workflow
 
@@ -66,7 +66,7 @@ Reference sets are for cluster-global context:
 - Slurm policy summaries
 - storage summaries
 - consolidated probe reports
-- source URLs and provenance stored in `manifest.toml`
+- source URLs, operational status URLs, and provenance stored in `manifest.toml`
 
 They are not for user-specific state:
 

@@ -101,6 +101,7 @@ slurm_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/slurm.md"
 slurm_url = "https://docs.vscentrum.be/leuven/slurm_specifics.html"
 storage_reference = "~/.config/hpc-tools/profiles/kuleuven-tier2/storage.md"
 storage_url = "https://docs.vscentrum.be/leuven/tier2_hardware/storage.html"
+status_url = "https://status.vscentrum.be/tier2_leuven.html"
 default_cluster = "wice"
 email = "user@example.org"
 ```
@@ -136,17 +137,17 @@ not define one of them, the corresponding `quota`, `queue`, `balance`,
 rejected if invoked anyway.
 
 `hardware_reference`, `hardware_url`, `slurm_reference`, `slurm_url`,
-`storage_reference`, and `storage_url` are optional metadata fields. They let
-users and Codex skills inspect site-specific hardware, partitions, filesystems,
-and Slurm policy without hardcoding those details in the generic skills. Local
-reference files should be concise Markdown summaries of the relevant web
-documentation.
+`storage_reference`, `storage_url`, and `status_url` are optional metadata
+fields. They let users and Codex skills inspect site-specific hardware,
+partitions, filesystems, Slurm policy, and active service notices without
+hardcoding those details in the generic skills. Local reference files should be
+concise Markdown summaries of the relevant web documentation.
 
 `reference_set` is optional. When it is set, `hpc hardware` resolves hardware,
-Slurm, and storage references from the shared reference set under
+Slurm, storage, and status source metadata from the shared reference set under
 `~/.config/hpc-tools/reference-sets/<name>/` before falling back to any
-profile-local reference paths. This is the preferred way to reuse one
-cluster-wide reference bundle across multiple users.
+profile-local metadata. This is the preferred way to reuse one cluster-wide
+reference bundle across multiple users.
 
 Keep generated profile references outside the repository so the checkout can be
 deleted after installation. The recommended layout is under the hpc-tools config
@@ -181,6 +182,7 @@ login_shell = ["bash", "-l", "-c"]
 hardware_reference = "~/.config/hpc-tools/profiles/example/hardware.md"
 slurm_reference = "~/.config/hpc-tools/profiles/example/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
+status_url = "https://status.example.org/"
 ```
 
 Or attach a shared reference set:

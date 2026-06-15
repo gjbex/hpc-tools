@@ -56,6 +56,10 @@ resource request. Do not compare runs with different problem sizes unless the
 user explicitly asks for weak scaling or throughput. When computing speedup or
 parallel efficiency, collect a same-system baseline at one active thread:
 
+If submission, queue state, storage access, or job starts look abnormal, check
+the profile `status_url` from `hpc --profile <profile> hardware --source`
+before treating the run as a benchmark result or retuning resource requests.
+
 ```text
 speedup(p) = T1 / Tp
 efficiency(p) = speedup(p) / p
