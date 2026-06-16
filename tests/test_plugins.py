@@ -161,6 +161,20 @@ dependencies:
         self.assertTrue(any("constraints file" in note for note in result.notes))
         self.assertTrue(any("editable install" in note for note in result.notes))
 
+    def test_python_dependency_aliases_map_common_dist_names_to_import_names(self) -> None:
+        self.assertEqual(
+            python_support._dependency_import_name_from_raw("scikit-learn>=1.5", "scikit_learn"),
+            "sklearn",
+        )
+        self.assertEqual(
+            python_support._dependency_import_name_from_raw("PyYAML>=6", "PyYAML"),
+            "yaml",
+        )
+        self.assertEqual(
+            python_support._dependency_import_name_from_raw("Pillow", "Pillow"),
+            "PIL",
+        )
+
     def test_python_inspect_deps_command_runs_without_profile(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -282,7 +296,7 @@ dependencies:
             completed = subprocess.CompletedProcess(
                 args=[],
                 returncode=1,
-                stdout="mmh3\tMISSING\nscikit_learn\tMISSING\n",
+                stdout="mmh3\tMISSING\nsklearn\tMISSING\n",
                 stderr="",
             )
             stdout = io.StringIO()
@@ -297,9 +311,9 @@ dependencies:
         self.assertEqual(exit_code, 0)
         remote_command = remote.call_args.args[1]
         self.assertIn('"mmh3"', remote_command)
-        self.assertIn('"scikit_learn"', remote_command)
+        self.assertIn('"sklearn"', remote_command)
         self.assertIn("python -m pip install --no-cache-dir mmh3 scikit-learn", script)
-        self.assertIn('"scikit_learn"', script)
+        self.assertIn('"sklearn"', script)
         self.assertIn("Conda dependencies were inspected but are not pip-installed", stdout.getvalue())
         self.assertIn("hdf5", stdout.getvalue())
 

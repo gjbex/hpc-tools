@@ -4,6 +4,7 @@ import contextlib
 import io
 import tempfile
 import textwrap
+import tarfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -81,6 +82,38 @@ class ReferenceSetTests(unittest.TestCase):
             with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": directory}, clear=True):
                 with self.assertRaisesRegex(ValueError, "reference set manifest not found"):
                     load_reference_set("missing")
+
+    def test_set_profile_reference_set_escapes_toml_strings(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            value = 'weird"name\\set'
+
+            set_profile_reference_set(config_path, "genius", value)
+            config = load_config(str(config_path))
+
+        self.assertEqual(resolve_profile(config, "genius").reference_set, value)
+
+    def test_import_reference_set_rejects_symlink_members(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            profile = resolve_profile(load_config(str(config_path)), "genius")
+            with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(root)}, clear=True):
+                create_reference_set("kuleuven-tier2", profile)
+
+                archive_path = root / "bad-reference-set.tar.gz"
+                with tarfile.open(archive_path, "w:gz") as archive:
+                    top = tarfile.TarInfo("bad-set")
+                    top.type = tarfile.DIRTYPE
+                    archive.addfile(top)
+                    link = tarfile.TarInfo("bad-set/hardware.md")
+                    link.type = tarfile.SYMTYPE
+                    link.linkname = "/etc/passwd"
+                    archive.addfile(link)
+
+                with self.assertRaisesRegex(ValueError, "unsupported archive member type"):
+                    import_reference_set(archive_path)
 
     def _write_config(self, root: Path) -> Path:
         profile_dir = root / "hpc-tools" / "profiles" / "genius"

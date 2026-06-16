@@ -30,6 +30,7 @@ from hpc_tools.cli import (
     cmd_install_probe,
     cmd_job,
     cmd_paths,
+    cmd_projects,
     cmd_repo_status,
     cmd_slurm_limits,
     cmd_site_env,
@@ -400,6 +401,18 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(
             run_remote.call_args.args[1],
             "cd $VSC_SCRATCH/repos && git clone https://github.com/org/repo.git",
+        )
+
+    def test_projects_quotes_directory_paths(self) -> None:
+        profile = make_profile(projects_dir="/data/My Projects")
+        args = type("Args", (), {"dry_run": False})()
+
+        with mock.patch("hpc_tools.cli.run_remote") as run_remote:
+            cmd_projects(args, profile)
+
+        self.assertEqual(
+            run_remote.call_args.args[1],
+            "ls -ld '/data/My Projects' 2>/dev/null && ls -1 '/data/My Projects'",
         )
 
     def test_clone_requires_directory_when_projects_dir_is_missing(self) -> None:

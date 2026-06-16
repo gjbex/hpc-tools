@@ -17,6 +17,17 @@ from hpc_tools.ssh import run_remote_capture
 
 REQUIREMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)")
 STATUS_LINE_RE = re.compile(r"^(?P<package>[A-Za-z0-9_.-]+)\t(?P<status>OK|MISSING)$")
+IMPORT_NAME_ALIASES = {
+    "beautifulsoup4": "bs4",
+    "mysql_connector_python": "mysql.connector",
+    "opencv_python": "cv2",
+    "opencv_python_headless": "cv2",
+    "pillow": "PIL",
+    "pyyaml": "yaml",
+    "python_dateutil": "dateutil",
+    "python_levenshtein": "Levenshtein",
+    "scikit_learn": "sklearn",
+}
 
 
 @dataclass(frozen=True)
@@ -558,8 +569,9 @@ def _dependency_file_import_names(inspection: DependencyInspection) -> list[str]
         *inspection.pyproject_dependencies,
         *inspection.pip_dependencies,
     ]:
-        if spec.name not in names:
-            names.append(spec.name)
+        import_name = _dependency_import_name_from_spec(spec)
+        if import_name not in names:
+            names.append(import_name)
     return names
 
 
@@ -570,7 +582,8 @@ def _dependency_file_install_name_map(inspection: DependencyInspection) -> dict[
         *inspection.pyproject_dependencies,
         *inspection.pip_dependencies,
     ]:
-        mapping.setdefault(spec.name, _dependency_install_name_from_raw(spec.raw, spec.name))
+        import_name = _dependency_import_name_from_spec(spec)
+        mapping.setdefault(import_name, _dependency_install_name_from_raw(spec.raw, spec.name))
     return mapping
 
 
@@ -978,7 +991,14 @@ def _scan_requirements(path: Path, packages: dict[str, list[PackageHit]], notes:
             continue
         match = REQUIREMENT_RE.match(stripped)
         if match:
-            _record_package(packages, _normalize_requirement_name(match.group(1)), path, line_number, "requirements")
+            raw_name = match.group(1)
+            _record_package(
+                packages,
+                _dependency_import_name_from_raw(raw_name, _normalize_requirement_name(raw_name)),
+                path,
+                line_number,
+                "requirements",
+            )
         else:
             notes.append(f"{path}:{line_number} contains a requirement that was not statically resolved.")
 
@@ -1055,9 +1075,10 @@ def _scan_pyproject_lightweight(path: Path, packages: dict[str, list[PackageHit]
             in_dependencies = True
         if in_dependencies:
             for match in re.finditer(r'["\']([A-Za-z0-9_.-]+)', stripped):
+                raw_name = match.group(1)
                 _record_package(
                     packages,
-                    _normalize_requirement_name(match.group(1)),
+                    _dependency_import_name_from_raw(raw_name, _normalize_requirement_name(raw_name)),
                     path,
                     line_number,
                     "pyproject dependencies",
@@ -1176,6 +1197,21 @@ def _dependency_install_name_from_raw(raw: str, fallback: str) -> str:
     if not name:
         return fallback
     return name.strip().split("[", 1)[0]
+
+
+def _dependency_import_name_from_spec(spec: DependencySpec) -> str:
+    return _dependency_import_name_from_raw(spec.raw, spec.name)
+
+
+def _dependency_import_name_from_raw(raw: str, fallback: str) -> str:
+    name = _dependency_name_from_requirement(raw)
+    if not name:
+        return fallback
+    normalized = _normalize_requirement_name(name)
+    alias = IMPORT_NAME_ALIASES.get(normalized.lower())
+    if alias:
+        return alias
+    return normalized
 
 
 def _dependency_name_from_conda(value: str) -> str | None:

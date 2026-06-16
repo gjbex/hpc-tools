@@ -872,7 +872,8 @@ def cmd_quota(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_projects(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.projects_dir:
         raise ConfigError(f"profile '{profile.name}' does not define projects_dir")
-    command = f"ls -ld {profile.projects_dir} 2>/dev/null && ls -1 {profile.projects_dir}"
+    remote_path = _quote_remote_path_expression(profile.projects_dir)
+    command = f"ls -ld {remote_path} 2>/dev/null && ls -1 {remote_path}"
     return run_remote(profile, command, dry_run=args.dry_run)
 
 

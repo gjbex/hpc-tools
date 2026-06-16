@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import json
 from pathlib import Path
 import os
 import re
@@ -313,12 +314,12 @@ def set_profile_reference_set(config_path: Path, profile_name: str, reference_se
             if reference_set is None:
                 del lines[index]
             else:
-                lines[index] = f'reference_set = "{reference_set}"'
+                lines[index] = f"reference_set = {json.dumps(reference_set)}"
             path.write_text("\n".join(lines) + ("\n" if contents.endswith("\n") else ""), encoding="utf-8")
             return
 
     if reference_set is not None:
-        lines.insert(start + 1, f'reference_set = "{reference_set}"')
+        lines.insert(start + 1, f"reference_set = {json.dumps(reference_set)}")
         path.write_text("\n".join(lines) + ("\n" if contents.endswith("\n") else ""), encoding="utf-8")
 
 
@@ -401,7 +402,18 @@ def _safe_extract_reference_archive(archive: tarfile.TarFile, destination: Path)
             continue
         if Path(member.name).is_absolute() or ".." in parts:
             raise ConfigError(f"unsafe archive member: {member.name}")
-    archive.extractall(destination)
+        target = _safe_relative_path(destination, member.name)
+        if member.isdir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        if not member.isfile():
+            raise ConfigError(f"unsupported archive member type: {member.name}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        extracted = archive.extractfile(member)
+        if extracted is None:
+            raise ConfigError(f"could not read archive member: {member.name}")
+        with extracted, target.open("wb") as output:
+            shutil.copyfileobj(extracted, output)
 
 
 def _write_manifest(
