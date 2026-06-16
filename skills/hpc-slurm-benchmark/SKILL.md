@@ -44,7 +44,9 @@ benchmark workflow when it is available, for timing-method choices, warmups,
 repeat counts, affinity variables, and interpretation. This skill adds the
 hpc-tools/Slurm operational contract: profile discovery, charge-account
 selection, quoting, job validation, pilot-first submission, monitoring, artifact
-collection, and local analysis.
+collection, and local analysis. For the local analysis step, prefer the bundled
+`hpc benchmark summarize` and `hpc benchmark compare` plugin commands when they
+fit the artifact format.
 
 ## Benchmark Contract
 

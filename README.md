@@ -33,13 +33,16 @@ python3 -m pip install --user -e .
 reference, and Slurm functionality, while language- or workflow-specific
 helpers can live in plugins.
 
-The repository currently ships bundled `python` and `r` plugins, so after installation you
+The repository currently ships bundled `benchmark`, `python`, and `r` plugins, so after installation you
 can use:
 
 ```bash
 hpc plugins list
+hpc plugins info benchmark
 hpc plugins info python
 hpc plugins info r
+hpc benchmark summarize results/
+hpc benchmark compare baseline.csv candidate.csv --candidate-threads 8
 hpc python scan path/to/script-or-project
 hpc python inspect-deps path/to/script-or-project
 hpc --profile <profile> python check path/to/script-or-project --module Python/<version>

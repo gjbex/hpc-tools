@@ -41,6 +41,7 @@ from hpc_tools.cli import (
     cmd_write_probe,
     main,
 )
+from hpc_tools.plugins import benchmark_support
 from hpc_tools.hardware import render_hardware_context
 from hpc_tools.ssh import build_ssh_argv
 from hpc_tools import slurm
@@ -541,6 +542,14 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(args.command, "plugins")
         self.assertEqual(args.plugins_command, "list")
+
+    def test_benchmark_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["benchmark", "summarize", "results/"])
+
+        self.assertEqual(args.command, "benchmark")
+        self.assertEqual(args.benchmark_command, "summarize")
+        self.assertIs(args.handler, benchmark_support.cmd_benchmark_summarize)
 
     def test_r_scan_parser(self) -> None:
         parser = build_parser()

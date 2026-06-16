@@ -27,11 +27,16 @@ The first implementation slice provides:
 - plugin discovery through the `hpc_tools.plugins` entry-point group
 - a local `hpc plugins list` command
 - a local `hpc plugins info <name>` command
-- bundled `python` and `r` plugins with local scan commands
+- bundled `benchmark`, `python`, and `r` plugins with local analysis and scan commands
 
-The bundled `python` and `r` plugins are packaged with the core distribution so
+The bundled `benchmark`, `python`, and `r` plugins are packaged with the core distribution so
 the plugin contract is exercised immediately in development and release
 installs.
+
+The bundled benchmark plugin covers:
+
+- `hpc benchmark summarize`
+- `hpc benchmark compare`
 
 The bundled Python plugin covers:
 
@@ -70,6 +75,7 @@ Use Python entry points:
 ```ini
 [options.entry_points]
 hpc_tools.plugins =
+    benchmark = hpc_tools.plugins.benchmark_support:get_plugin
     python = hpc_tools.plugins.python_support:get_plugin
     r = hpc_tools.plugins.r_support:get_plugin
 ```
