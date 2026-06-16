@@ -217,7 +217,7 @@ hpc repo status --directory $VSC_DATA/Projects/demo
 hpc python scan analysis.py
 hpc python inspect-deps .
 hpc --profile genius python check analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b
-hpc --profile genius python plan-install analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b --venv ~/venvs/py313-scipy-mmh3 --partition batch_icelake --output install-python-packages.slurm
+hpc --profile genius python plan-install analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b --venv /path/to/remote/project/.venv-icelake-scipy-mmh3 --partition batch_icelake --output install-python-packages.slurm
 hpc --profile genius python submit-install install-python-packages.slurm --directory $VSC_DATA/Projects/demo --account <account>
 hpc --profile genius python verify-install --job-output /path/to/job.out --package mmh3
 hpc r scan Script/Main_casestudy1.R

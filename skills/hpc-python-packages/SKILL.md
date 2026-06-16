@@ -26,6 +26,10 @@ before submitting chargeable compute-node install jobs. Use
 [`../_shared/hpc-slurm-concepts.md`](../_shared/hpc-slurm-concepts.md) for
 module-version and job-script reproducibility guidance.
 
+For VSC clusters, keep this workflow aligned with the VSC Python package
+management guidance:
+<https://docs.vscentrum.be/compute/software/installing_software/python_package_management.html>.
+
 ## Goal
 
 Before the user submits a Python job, determine whether the script's imports are
@@ -145,6 +149,19 @@ For mixed YAML files, separate the interpretation:
 - conda or micromamba only for the parts that truly require conda-managed
   binaries.
 
+## Package/Import Name Mismatches
+
+Keep package names and import names separate. The runtime check is import-based,
+but pip installation is package-name based. Many packages match directly, but
+common exceptions include `scikit-learn` -> `sklearn`, `PyYAML` -> `yaml`,
+`opencv-python` -> `cv2`, and `beautifulsoup4` -> `bs4`.
+
+When a dependency file names a package whose import name differs, verify both
+names explicitly. Use the package name for pip install planning and pass the
+import name with `--package <import-name>` when checking the runtime
+environment. For example, check `sklearn` even when the requirement line says
+`scikit-learn`.
+
 ## Check Remote Modules
 
 Search software through Lmod before recommending a user install:
@@ -167,6 +184,7 @@ environment with the same module loads that the user will use in the job:
 
 ```bash
 hpc --profile <profile> run 'module load <module> <bundle-module> && python --version && python -m pip --version'
+hpc --profile <profile> run 'module load <module> <bundle-module> && python3 -m pip list -v'
 hpc --profile <profile> run 'module load <module> <bundle-module> && python -c "import importlib.util; print(importlib.util.find_spec(\"<import-name>\"))"'
 ```
 
@@ -197,6 +215,69 @@ Avoid `pip install --user` for HPC jobs. A user-site install is shared across
 multiple Python module versions and can silently mix incompatible packages. A
 named venv tied to the selected module stack is easier to reason about and
 remove.
+
+For VSC clusters, the normal pip install line should use `--no-cache-dir` to
+avoid stale cache effects and unnecessary cache growth. For packages with
+native build dependencies supplied by loaded modules, consider
+`--no-build-isolation` so pip uses the compilers and build dependencies from
+the module environment instead of trying to build in an isolated environment.
+
+## Venv Location
+
+When the relevant remote project directory is clear, create the venv inside
+that project tree, for example `<project>/.venv-<cluster-or-module-stack>`.
+This keeps dependencies, code, and project-specific reproducibility evidence
+together and makes cleanup straightforward.
+
+If the target project directory is not clear from the script path, dependency
+files, or user request, ask the user where the venv should live before planning
+the install. Do not guess between home, scratch, data, and project storage when
+the choice affects quotas, lifetime, or collaboration.
+
+Use project/data storage rather than home for large environments or
+environments that will be reused by batch jobs. Keep pip cache and temporary
+build directories in node-local or scratch temporary storage, not inside the
+project venv. Do not put project-specific venvs under `~/.config/hpc-tools`;
+that location is for reusable hpc-tools profile references.
+
+## Architecture-Specific Environments
+
+On VSC clusters and other heterogeneous systems, create the venv on a node with
+the same microarchitecture as the nodes that will run the Python job. Native
+scientific Python packages may compile or install architecture-specific code
+even when the top-level package is imported from Python.
+
+Use `${VSC_ARCH_LOCAL}` to record the current microarchitecture and include it
+in the venv name when useful, for example `<project>/venv-${VSC_ARCH_LOCAL}`.
+If the same project will run on multiple node architectures, create a separate
+venv for each architecture and load the matching module stack before activating
+each venv.
+
+When a project already has a `requirements.txt` file and optionally a
+`modules.txt` file, use those files as evidence for the module stack and pip
+dependencies, but still verify which packages are already provided by loaded
+modules before installing. The `hpc python plan-install` workflow remains useful
+when you need a generated Slurm install job, import-status checks,
+account-aware submission, or dependency inspection before installation.
+
+When the site provides a `uv` module and the project is already using `uv`, it
+can be a reasonable alternative package manager. Apply the same module-first,
+architecture-specific, no-home-venv, and runtime-module-stack rules.
+
+## Runtime Job Snippet
+
+The final Slurm job should load the same modules before activating the venv.
+Use explicit module versions when possible:
+
+```bash
+module load <module> <bundle-module> <native-dependency-module>
+source <remote-venv>/bin/activate
+python -c "import <import-name>"
+python <script.py>
+```
+
+Load modules before activating the venv so the venv sees the same Python,
+shared libraries, and site packages that were present during installation.
 
 ## Compute-Node Install Workflow
 
@@ -232,6 +313,39 @@ hpc --profile <profile> python verify-install --job-output <remote-job-output> -
 The generated install script should print the loaded module list, Python
 executable, Python version, temporary build root, and import status lines. Those
 lines are the evidence that the venv was created under the intended stack.
+
+## Native Extension Build Requirements
+
+If a package build fails because headers, libraries, compilers, CUDA, MPI, HDF5,
+GDAL, BLAS/LAPACK, GEOS, PROJ, NetCDF, or command-line build tools are missing,
+inspect the build log before retrying. Map the missing component to site modules
+with:
+
+```bash
+hpc --profile <profile> module-spider <dependency>
+```
+
+Load compiler, CMake, CUDA, MPI, HDF5, GDAL, and other native dependency modules
+during the install job when the package requires them. Keep the successful
+module stack in later runtime jobs too; native Python extensions may link
+against libraries provided by those modules.
+
+## Reproducibility Capture
+
+For installs that will be reused, keep enough evidence to recreate the
+environment. The install job output should capture:
+
+- `module list`;
+- `python --version`;
+- `python -c "import sys; print(sys.executable); print(sys.path)"`;
+- `python -m pip list`;
+- `python -m pip freeze`;
+- the venv path and whether it used `--system-site-packages`;
+- import verification for every required import name.
+
+Store the job output or a short environment note next to the project or run
+metadata. Avoid storing this durable run evidence under `~/.config/hpc-tools`
+unless it is a reusable profile reference rather than project-specific state.
 
 ## Output
 

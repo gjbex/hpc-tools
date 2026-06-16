@@ -128,6 +128,13 @@ missing package. Treat the successful install module stack as part of the
 runtime contract: load the same modules before activating the venv in later job
 scripts.
 
+On VSC clusters, keep Python venvs out of home, create them in the relevant
+project/data/scratch location, and include the target microarchitecture when the
+cluster is heterogeneous. The generated install script already uses
+`--no-cache-dir` and can guard on `VSC_ARCH_LOCAL`; for project workflows based
+on `requirements.txt` plus `modules.txt`, inspect those files before choosing
+the module stack and package install list.
+
 Follow-on Python work should continue in the plugin layer rather than expanding
 the core CLI. Likely additions are:
 

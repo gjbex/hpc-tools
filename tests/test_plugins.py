@@ -154,7 +154,7 @@ dependencies:
         script = python_support.render_install_script(
             missing_packages=["mmh3"],
             modules=["SciPy-bundle/2025.07-gfbf-2025b", "matplotlib/3.10.5-gfbf-2025b"],
-            venv="~/venvs/py313-scipy-mmh3",
+            venv="/data/projects/demo/.venv-icelake-scipy-mmh3",
             cluster="wice",
             partition="batch_icelake",
             job_name="py-install",
@@ -198,7 +198,7 @@ dependencies:
                     "packages": [],
                     "modules": ["Python/3.13.5-GCCcore-14.3.0"],
                     "output": output,
-                    "venv": "~/venvs/demo",
+                    "venv": "/data/projects/demo/.venv-icelake",
                     "cluster": "wice",
                     "partition": "batch_icelake",
                     "job_name": "py-install",
