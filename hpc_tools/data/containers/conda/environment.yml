@@ -1,0 +1,5 @@
+name: two_stage_conda
+channels:
+  - conda-forge
+dependencies:
+  - numpy

@@ -24,6 +24,7 @@ from hpc_tools.cli import (
     build_parser,
     cmd_clone,
     cmd_doctor,
+    cmd_install_container,
     cmd_install_hardware_probe,
     cmd_install_probe,
     cmd_job,
@@ -33,6 +34,7 @@ from hpc_tools.cli import (
     cmd_site_env,
     cmd_storage_inspect,
     cmd_submit,
+    cmd_write_container,
     cmd_write_hardware_probe,
     cmd_write_probe,
     main,
@@ -410,6 +412,12 @@ class CommandTests(unittest.TestCase):
         args = parser.parse_args(["paths"])
 
         self.assertIs(args.handler, cmd_paths)
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = args.handler(args, None)
+
+        self.assertEqual(result, 0)
+        self.assertIn("container_generic_template:", stdout.getvalue())
 
     def test_submissions_list_parser(self) -> None:
         parser = build_parser()
@@ -635,6 +643,30 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.time, "00:30:00")
         self.assertTrue(args.mail_notifications)
 
+    def test_write_container_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["write-container", "--kind", "generic", "bundle"])
+
+        self.assertIs(args.handler, cmd_write_container)
+        self.assertEqual(args.kind, "generic")
+        self.assertEqual(args.output, "bundle")
+
+    def test_install_container_parser(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "install-container",
+                "--kind",
+                "generic",
+                "--directory",
+                "$VSC_DATA/containers",
+            ]
+        )
+
+        self.assertIs(args.handler, cmd_install_container)
+        self.assertEqual(args.kind, "generic")
+        self.assertEqual(args.directory, "$VSC_DATA/containers")
+
     def test_write_hardware_probe_to_stdout(self) -> None:
         parser = build_parser()
         args = parser.parse_args(
@@ -702,6 +734,21 @@ class CommandTests(unittest.TestCase):
 
             self.assertEqual(result, 0)
             self.assertIn("Hardware probe output written", output.read_text(encoding="utf-8"))
+
+    def test_write_container_bundle_to_directory(self) -> None:
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "bundle"
+            args = parser.parse_args(["write-container", "--kind", "generic", str(output)])
+
+            result = args.handler(args, None)
+
+            self.assertEqual(result, 0)
+            self.assertTrue((output / "create_apptainer_container.slurm").exists())
+            self.assertIn(
+                "apptainer build",
+                (output / "create_apptainer_container.slurm").read_text(encoding="utf-8"),
+            )
 
     def test_write_hardware_probe_rejects_existing_file_without_force(self) -> None:
         parser = build_parser()
@@ -785,6 +832,28 @@ class CommandTests(unittest.TestCase):
         self.assertIn("cat > cuda/device_properties.cu", command)
         self.assertIn("cudaGetDeviceProperties", command)
         self.assertIn("chmod +x cuda-device-properties.slurm", command)
+
+    def test_install_container_bundle_writes_remote_bundle(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["install-container", "--kind", "generic", "--directory", "$VSC_DATA/containers"])
+
+        with mock.patch("hpc_tools.cli.run_remote", return_value=0) as run_remote:
+            result = cmd_install_container(args, profile)
+
+        self.assertEqual(result, 0)
+        command = run_remote.call_args.args[1]
+        self.assertIn("mkdir -p $VSC_DATA/containers", command)
+        self.assertIn("cat > create_apptainer_container.slurm", command)
+        self.assertIn("apptainer build", command)
+
+    def test_apptainer_container_file_is_packaged(self) -> None:
+        data = resources.files("hpc_tools.data")
+
+        slurm_template = data.joinpath("containers", "apptainer", "create_apptainer_container.slurm")
+
+        self.assertTrue(slurm_template.is_file())
+        self.assertIn("apptainer build", slurm_template.read_text(encoding="utf-8"))
 
     def test_cuda_device_properties_files_are_packaged(self) -> None:
         data = resources.files("hpc_tools.data")

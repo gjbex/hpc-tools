@@ -225,6 +225,9 @@ hpc --profile genius r check Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024
 hpc --profile genius r plan-install Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2 --partition batch_icelake --output install-r-packages.slurm
 hpc --profile genius r submit-install install-r-packages.slurm --directory $VSC_DATA/Projects/demo/Script --account <account>
 hpc --profile genius r verify-install --job-output /path/to/job.out --package PrevMap --package INLA --package dlnm
+# use an Apptainer container when the stack is large or startup load matters more than another local install
+hpc write-container --kind generic generic-container/
+hpc install-container --kind generic --directory $VSC_DATA/Projects/demo/container
 hpc references list
 hpc references create kuleuven-tier2
 hpc references export kuleuven-tier2 --output kuleuven-tier2-reference-set.tar.gz

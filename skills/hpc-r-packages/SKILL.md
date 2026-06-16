@@ -226,6 +226,20 @@ at “package is unavailable.” Check whether the required version is archive-o
 and install from the archived tarball explicitly. This commonly applies to
 older research code that expects pinned package versions.
 
+## Container Fallback
+
+If the package set is large, uses many compiled dependencies, or causes
+unacceptable filesystem load during installation or repeated batch-job starts,
+consider an Apptainer container instead of another user-library install. This
+is especially useful when the environment needs to be reused across many jobs
+or when the same package stack keeps getting rebuilt.
+
+Keep the module checks and `requireNamespace()` verification first. The point
+of the container is to freeze a known-good R stack, not to skip dependency
+validation. If the user already has an Apptainer definition file, point them
+at `hpc write-container --kind generic` or
+`hpc install-container --kind generic` so the build runs as a Slurm job.
+
 When packages are missing, list only the missing package names unless the user
 asks for installation commands. If the user does ask for installation guidance,
 separate CRAN-style installs from Bioconductor-style installs and keep the

@@ -330,6 +330,23 @@ during the install job when the package requires them. Keep the successful
 module stack in later runtime jobs too; native Python extensions may link
 against libraries provided by those modules.
 
+## Container Fallback
+
+If the dependency stack is large, repeatedly rebuilt, or causes unacceptable
+filesystem load at install time or batch-job startup, prefer an Apptainer
+container over another ad hoc venv. Use the container when the user needs a
+stable, reusable environment that bundles Python plus native system libraries
+and package dependencies together.
+
+The same module-first checks still matter: verify what the project needs, then
+decide whether the right answer is a venv layered on site modules or a
+container built from those dependencies. When recommending a container, point
+the user at the site/container workflow that creates the image from a package
+list or environment spec. If the user already has an Apptainer definition
+file, use `hpc write-container --kind generic` or
+`hpc install-container --kind generic` so the recipe is built in a Slurm
+job instead of on the login node.
+
 ## Reproducibility Capture
 
 For installs that will be reused, keep enough evidence to recreate the

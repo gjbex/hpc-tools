@@ -26,8 +26,17 @@ from hpc_tools.ssh import run_remote, run_remote_capture
 from hpc_tools import slurm, submissions
 
 
-LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions", "references", "plugins"}
+LOCAL_COMMANDS = {
+    "paths",
+    "write-hardware-probe",
+    "write-probe",
+    "write-container",
+    "submissions",
+    "references",
+    "plugins",
+}
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
+CONTAINER_KINDS = {"generic", "r", "conda"}
 JSON_NATIVE_HANDLERS = {
     "cmd_python_scan",
     "cmd_python_inspect_deps",
@@ -295,6 +304,58 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     )
     _add_probe_directive_options(generic_install_probe_parser)
     generic_install_probe_parser.set_defaults(handler=cmd_install_probe)
+
+    container_parser = subparsers.add_parser(
+        "write-container",
+        help="Write a packaged Apptainer container build bundle",
+    )
+    container_parser.add_argument(
+        "--kind",
+        choices=sorted(CONTAINER_KINDS),
+        required=True,
+        help="Packaged container bundle to write",
+    )
+    container_parser.add_argument(
+        "output",
+        help="Output directory for the container bundle",
+    )
+    container_parser.add_argument(
+        "--name",
+        help="Primary Slurm script filename; defaults depend on --kind",
+    )
+    container_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite output path if it already exists",
+    )
+    container_parser.set_defaults(handler=cmd_write_container)
+
+    install_container_parser = subparsers.add_parser(
+        "install-container",
+        help="Install a packaged Apptainer container build bundle on the remote host",
+    )
+    install_container_parser.add_argument(
+        "--kind",
+        choices=sorted(CONTAINER_KINDS),
+        required=True,
+        help="Packaged container bundle to install",
+    )
+    install_container_parser.add_argument(
+        "--directory",
+        "-C",
+        required=True,
+        help="Remote directory where the bundle should be written",
+    )
+    install_container_parser.add_argument(
+        "--name",
+        help="Primary Slurm script filename; defaults depend on --kind",
+    )
+    install_container_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite remote files if they already exist",
+    )
+    install_container_parser.set_defaults(handler=cmd_install_container)
 
     install_probe_parser = subparsers.add_parser(
         "install-hardware-probe",
@@ -623,7 +684,7 @@ def _should_parse_without_config(argv: list[str]) -> bool:
         return False
     if remaining[0] == "paths":
         return True
-    if remaining[0] in {"write-hardware-probe", "write-probe"}:
+    if remaining[0] in {"write-hardware-probe", "write-probe", "write-container"}:
         return not (pre_args.profile or pre_args.config or "--mail-notifications" in remaining)
     if remaining[0] == "submissions":
         return not _submissions_needs_profile(remaining)
@@ -692,6 +753,11 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     package_probe = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm")
     package_cuda_probe = resources.files("hpc_tools.data").joinpath("cuda-device-properties.slurm")
     package_cuda_source = resources.files("hpc_tools.data").joinpath("cuda")
+    package_container_generic = resources.files("hpc_tools.data").joinpath(
+        "containers", "apptainer", "create_apptainer_container.slurm"
+    )
+    package_container_r = resources.files("hpc_tools.data").joinpath("containers", "r", "create_r_container.slurm")
+    package_container_conda = resources.files("hpc_tools.data").joinpath("containers", "conda", "create_conda_container.slurm")
     config_dir = default_config_dir()
     print(f"config: {default_config_path()}")
     print(f"profile_references: {config_dir / 'profiles' / '<profile>'}")
@@ -700,6 +766,9 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print(f"hardware_probe_template: {package_probe}")
     print(f"cuda_device_properties_template: {package_cuda_probe}")
     print(f"cuda_device_properties_source: {package_cuda_source}")
+    print(f"container_generic_template: {package_container_generic}")
+    print(f"container_r_template: {package_container_r}")
+    print(f"container_conda_template: {package_container_conda}")
     print()
     print("package_uninstall: pipx uninstall hpc-tools")
     print("optional_user_state:")
@@ -875,6 +944,25 @@ def cmd_install_probe(args: argparse.Namespace, profile: Profile) -> int:
     return run_remote(profile, command, dry_run=args.dry_run)
 
 
+def cmd_write_container(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    bundle = _container_bundle(args.kind)
+    output_dir = Path(args.output).expanduser()
+    _write_bundle_assets(output_dir, bundle, force=args.force)
+    print(f"Container bundle written to {output_dir}")
+    return 0
+
+
+def cmd_install_container(args: argparse.Namespace, profile: Profile) -> int:
+    bundle = _container_bundle(args.kind)
+    command = _install_bundle_command(
+        directory=args.directory,
+        bundle=bundle,
+        force=args.force,
+    )
+    return run_remote(profile, command, dry_run=args.dry_run)
+
+
 def _hardware_probe_template(args: argparse.Namespace | None = None, profile: Profile | None = None) -> str:
     template = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm").read_text(
         encoding="utf-8"
@@ -963,6 +1051,75 @@ def _cuda_device_properties_bundle() -> dict[str, str]:
             encoding="utf-8"
         ),
     }
+
+
+def _container_bundle(kind: str) -> dict[str, str]:
+    data = resources.files("hpc_tools.data").joinpath("containers", "apptainer" if kind == "generic" else kind)
+    if kind == "generic":
+        return {
+            "create_apptainer_container.slurm": data.joinpath("create_apptainer_container.slurm").read_text(
+                encoding="utf-8"
+            ),
+        }
+    if kind == "r":
+        return {
+            "create_r_container.slurm": data.joinpath("create_r_container.slurm").read_text(
+                encoding="utf-8"
+            ),
+            "apt_packages.txt": data.joinpath("apt_packages.txt").read_text(encoding="utf-8"),
+            "install_packages.R": data.joinpath("install_packages.R").read_text(encoding="utf-8"),
+            "labels.txt": data.joinpath("labels.txt").read_text(encoding="utf-8"),
+        }
+    if kind == "conda":
+        return {
+            "create_conda_container.slurm": data.joinpath("create_conda_container.slurm").read_text(
+                encoding="utf-8"
+            ),
+            "environment.yml": data.joinpath("environment.yml").read_text(encoding="utf-8"),
+            "labels.txt": data.joinpath("labels.txt").read_text(encoding="utf-8"),
+        }
+    raise ConfigError(f"unsupported container kind: {kind}")
+
+
+def _write_bundle_assets(output_dir: Path, bundle: dict[str, str], *, force: bool = False) -> None:
+    for relative_path in bundle:
+        destination = output_dir / relative_path
+        if destination.exists() and not force:
+            raise ConfigError(f"output file already exists: {destination}; use --force to overwrite")
+
+    for relative_path, contents in bundle.items():
+        destination = output_dir / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(contents, encoding="utf-8")
+    for relative_path in bundle:
+        if relative_path.endswith(".slurm"):
+            (output_dir / relative_path).chmod(0o755)
+
+
+def _install_bundle_command(*, directory: str, bundle: dict[str, str], force: bool = False) -> str:
+    remote_dir = slurm._quote_remote_path_expression(directory)
+    commands = [f"mkdir -p {remote_dir} && cd {remote_dir}"]
+    if not force:
+        for relative_path in bundle:
+            quoted_path = shlex.quote(relative_path)
+            commands.append(
+                f"if [ -e {quoted_path} ]; then "
+                f"echo 'output file already exists: {relative_path}; use --force to overwrite' >&2; "
+                "exit 1; "
+                "fi"
+            )
+    for index, (relative_path, contents) in enumerate(bundle.items()):
+        quoted_path = shlex.quote(relative_path)
+        delimiter = f"HPC_TOOLS_CONTAINER_BUNDLE_{index}"
+        commands.append(
+            f"cat > {quoted_path} <<'{delimiter}'\n"
+            f"{contents}"
+            f"{delimiter}\n"
+        )
+    for relative_path in bundle:
+        if relative_path.endswith(".slurm"):
+            commands.append(f"chmod +x {shlex.quote(relative_path)}")
+    return "\n".join(commands)
 
 
 def _write_cuda_device_properties_bundle(output_dir: Path, *, force: bool = False) -> None:

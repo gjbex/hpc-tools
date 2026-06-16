@@ -135,6 +135,13 @@ cluster is heterogeneous. The generated install script already uses
 on `requirements.txt` plus `modules.txt`, inspect those files before choosing
 the module stack and package install list.
 
+If the package set is large or the batch-job startup load matters more than the
+build cost, prefer an Apptainer container that freezes the Python or R stack
+instead of extending the same shared-filesystem install again. If the user
+already has a definition file, point them at `hpc write-container --kind
+generic` or `hpc install-container --kind generic` so they can build that
+recipe inside a Slurm job.
+
 Follow-on Python work should continue in the plugin layer rather than expanding
 the core CLI. Likely additions are:
 

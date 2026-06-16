@@ -330,6 +330,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc r scan", text)
         self.assertIn("hpc python scan", text)
         self.assertIn("hpc python inspect-deps", text)
+        self.assertIn("Apptainer container", text)
+        self.assertIn("hpc write-container --kind generic", text)
         self.assertIn("hpc --profile genius r check", text)
         self.assertIn("hpc --profile genius python check", text)
         self.assertIn("hpc job 123456 --cluster wice", text)
@@ -393,6 +395,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("module-spider JAGS", text)
         self.assertIn("JAGS-related R packages", text)
         self.assertIn("runtime contract", text)
+        self.assertIn("Container Fallback", text)
+        self.assertIn("Apptainer container", text)
 
     def test_r_packages_skill_covers_compute_node_install_workflow(self) -> None:
         text = (ROOT / "skills" / "hpc-r-packages" / "SKILL.md").read_text(
@@ -471,6 +475,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("Native Extension Build Requirements", text)
         self.assertIn("module-spider <dependency>", text)
         self.assertIn("Load compiler, CMake, CUDA, MPI, HDF5, GDAL", text)
+        self.assertIn("Container Fallback", text)
+        self.assertIn("Apptainer", text)
         self.assertIn("Reproducibility Capture", text)
         self.assertIn("python -m pip freeze", text)
         self.assertIn("sys.path", text)
@@ -507,6 +513,13 @@ class SkillTests(unittest.TestCase):
         self.assertIn("closed", text)
         self.assertIn("stateDiagram-v2", text)
         self.assertIn("append-only", text)
+
+    def test_plugins_doc_mentions_container_fallback_for_large_stacks(self) -> None:
+        text = (ROOT / "docs" / "plugins.md").read_text(encoding="utf-8")
+
+        self.assertIn("Apptainer", text)
+        self.assertIn("batch-job startup load matters more than the", text)
+        self.assertIn("instead of extending the same shared-filesystem install again", text)
 
     def _frontmatter(self, path: Path) -> dict[str, str]:
         lines = path.read_text(encoding="utf-8").splitlines()
