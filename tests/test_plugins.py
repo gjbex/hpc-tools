@@ -10,6 +10,7 @@ import unittest
 from unittest import mock
 
 from hpc_tools.config import ConfigError
+from hpc_tools.cli import build_parser
 from hpc_tools import plugin_system
 from hpc_tools.plugins import benchmark_support, python_support, r_support
 
@@ -51,7 +52,8 @@ class PluginTests(unittest.TestCase):
         self.assertAlmostEqual(candidate.mean, 6.0)
         self.assertEqual(summarize_rc, 0)
         self.assertEqual(compare_rc, 0)
-        self.assertIn(str(root), summarize_stdout.getvalue())
+        self.assertIn("baseline.csv", summarize_stdout.getvalue())
+        self.assertIn("candidate.csv", summarize_stdout.getvalue())
         self.assertIn("SOURCES", summarize_stdout.getvalue())
         self.assertIn("speedup: 2", compare_stdout.getvalue())
 
@@ -73,6 +75,17 @@ class PluginTests(unittest.TestCase):
 
         with self.assertRaises(ConfigError):
             benchmark_support.summarize_target(Path("/tmp/does-not-exist.csv"))
+
+    def test_benchmark_compare_rejects_non_positive_threads(self) -> None:
+        with self.assertRaises(SystemExit):
+            build_parser().parse_args([
+                "benchmark",
+                "compare",
+                "/tmp/a",
+                "/tmp/b",
+                "--candidate-threads",
+                "0",
+            ])
 
     def test_python_scan_detects_imports_and_requirements(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

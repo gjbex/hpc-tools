@@ -112,7 +112,7 @@ class BenchmarkSupportPlugin:
         compare_parser.add_argument("candidate", type=Path, help="Candidate benchmark file or directory")
         compare_parser.add_argument(
             "--candidate-threads",
-            type=int,
+            type=_positive_int,
             help="Active thread count for the candidate run; used for efficiency",
         )
         compare_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
@@ -129,7 +129,9 @@ def get_plugin() -> BenchmarkSupportPlugin:
 
 def cmd_benchmark_summarize(args: argparse.Namespace, profile: Profile | None) -> int:
     del profile
-    summaries = [summarize_target(target) for target in args.targets]
+    summaries = []
+    for target in args.targets:
+        summaries.extend(_summaries_for_target(target))
     if args.json:
         print(
             json.dumps(
@@ -161,6 +163,13 @@ def cmd_benchmark_compare(args: argparse.Namespace, profile: Profile | None) -> 
         return 0
     print(format_comparison(comparison))
     return 0
+
+
+def _summaries_for_target(target: Path) -> list[BenchmarkSummary]:
+    if target.is_dir():
+        source_files = _collect_source_files(target)
+        return [summarize_target(source_file) for source_file in source_files]
+    return [summarize_target(target)]
 
 
 def summarize_target(target: Path) -> BenchmarkSummary:
@@ -270,6 +279,16 @@ def _collect_source_files(target: Path) -> list[Path]:
     if not files:
         raise ValueError(f"no benchmark data files found under {target}")
     return files
+
+
+def _positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(f"invalid positive integer value: {value}") from error
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"candidate_threads must be a positive integer: {value}")
+    return parsed
 
 
 def _read_records(path: Path) -> list[dict[str, Any]]:
