@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 from importlib import resources
 import subprocess
 import tempfile
@@ -540,6 +541,32 @@ class CommandTests(unittest.TestCase):
         self.assertIn("hpc-cluster-onboarding", output)
         self.assertIn("hpc-slurm-job-arrays", output)
         self.assertIn("hpc-slurm-benchmark", output)
+
+    def test_paths_main_json_wraps_text_output(self) -> None:
+        stdout = io.StringIO()
+        with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": "/tmp/xdg"}, clear=True), contextlib.redirect_stdout(stdout):
+            result = main(["paths", "--json"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(result, 0)
+        self.assertEqual(payload["returncode"], 0)
+        self.assertEqual(payload["stderr"], "")
+        self.assertIn("config:", payload["stdout"])
+        self.assertIn("paths", payload["argv"])
+
+    def test_python_scan_main_json_stays_native(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "analysis.py").write_text("import mmh3\n", encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = main(["python", "scan", str(root), "--json"])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(result, 0)
+        self.assertIn("mmh3", payload["packages"])
+        self.assertIn(str(root / "analysis.py"), payload["scanned_files"][0])
+        self.assertNotIn("stdout", payload)
 
     def test_references_list_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()

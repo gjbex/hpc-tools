@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import argparse
+import io
+import json
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
@@ -25,10 +28,20 @@ from hpc_tools import slurm, submissions
 
 LOCAL_COMMANDS = {"paths", "write-hardware-probe", "write-probe", "submissions", "references", "plugins"}
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
+JSON_NATIVE_HANDLERS = {
+    "cmd_python_scan",
+    "cmd_python_inspect_deps",
+    "cmd_python_check",
+    "cmd_python_verify_install",
+    "cmd_r_scan",
+    "cmd_r_check",
+    "cmd_r_verify_install",
+}
 
 
 def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="hpc")
+    parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     parser.add_argument("--profile", help="Profile name from the configuration file")
     parser.add_argument(
         "--config",
@@ -500,18 +513,35 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
+    json_requested = False
     try:
+        original_argv = list(argv)
+        argv, json_requested = _strip_json_flag(argv)
         pre_args, _ = _build_pre_parser().parse_known_args(argv)
         if _should_parse_without_config(argv):
             parser = build_parser()
             args = parser.parse_args(argv)
-            return args.handler(args, None)
+            setattr(args, "json", getattr(args, "json", False) or json_requested)
+            return _dispatch_command(args, None, json_requested, original_argv)
         config = load_config(pre_args.config)
         profile = resolve_profile(config, pre_args.profile)
         parser = build_parser(profile)
         args = parser.parse_args(argv)
-        return args.handler(args, profile)
+        setattr(args, "json", getattr(args, "json", False) or json_requested)
+        return _dispatch_command(args, profile, json_requested, original_argv)
     except ConfigError as error:
+        if json_requested:
+            print(
+                json.dumps(
+                    {
+                        "error": str(error),
+                        "returncode": 2,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 2
         parser = build_parser()
         parser.exit(2, f"hpc: configuration error: {error}\n")
 
@@ -521,6 +551,50 @@ def _build_pre_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile")
     parser.add_argument("--config")
     return parser
+
+
+def _strip_json_flag(argv: list[str]) -> tuple[list[str], bool]:
+    cleaned: list[str] = []
+    json_requested = False
+    for arg in argv:
+        if arg == "--json":
+            json_requested = True
+            continue
+        cleaned.append(arg)
+    return cleaned, json_requested
+
+
+def _dispatch_command(
+    args: argparse.Namespace,
+    profile: Profile | None,
+    json_requested: bool,
+    original_argv: list[str],
+) -> int:
+    if not json_requested or args.handler.__name__ in JSON_NATIVE_HANDLERS:
+        return args.handler(args, profile)
+
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            returncode = args.handler(args, profile)
+    except ConfigError as error:
+        returncode = 2
+        stderr.write(f"hpc: configuration error: {error}\n")
+
+    print(
+        json.dumps(
+                    {
+                "argv": original_argv,
+                        "returncode": returncode,
+                        "stdout": stdout.getvalue(),
+                        "stderr": stderr.getvalue(),
+                    },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return returncode
 
 
 def _add_probe_directive_options(parser: argparse.ArgumentParser) -> None:
