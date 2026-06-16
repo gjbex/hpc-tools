@@ -1250,37 +1250,57 @@ def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
 
 def cmd_status(args: argparse.Namespace, profile: Profile) -> int:
     failures = 0
+    sections: list[tuple[str, list[str]]] = []
 
-    print("== status page ==")
     if profile.status_url:
         try:
-            print(_fetch_status_page(profile.status_url))
+            status_text = _fetch_status_page(profile.status_url)
         except ConfigError as error:
-            print(f"status page unavailable: {error}")
+            sections.append(("status page", [f"status page unavailable: {error}"]))
             failures += 1
+        else:
+            sections.append(("status page", status_text.splitlines()))
     else:
-        print(f"profile '{profile.name}' does not define status_url")
+        sections.append(("status page", [f"profile '{profile.name}' does not define status_url"]))
         failures += 1
 
-    print()
-    print("== quota ==")
     if profile.quota_command:
-        failures += run_remote(profile, profile.quota_command, dry_run=args.dry_run)
+        quota_result = run_remote_capture(profile, profile.quota_command, dry_run=args.dry_run)
+        if quota_result.returncode != 0:
+            failures += 1
+            sections.append(("quota", [f"quota check failed with return code {quota_result.returncode}"]))
+        else:
+            quota_text = quota_result.stdout.strip()
+            sections.append(("quota", quota_text.splitlines() if quota_text else []))
     else:
-        print(f"profile '{profile.name}' does not define quota_command")
+        sections.append(("quota", [f"profile '{profile.name}' does not define quota_command"]))
         failures += 1
 
-    print()
-    print("== balance ==")
     if profile.sam_balance_command:
-        failures += run_remote(profile, profile.sam_balance_command, dry_run=args.dry_run)
+        balance_result = run_remote_capture(profile, profile.sam_balance_command, dry_run=args.dry_run)
+        if balance_result.returncode != 0:
+            failures += 1
+            sections.append(("balance", [f"balance check failed with return code {balance_result.returncode}"]))
+        else:
+            balance_text = balance_result.stdout.strip()
+            sections.append(("balance", balance_text.splitlines() if balance_text else []))
     else:
-        print(f"profile '{profile.name}' does not define sam_balance_command")
+        sections.append(("balance", [f"profile '{profile.name}' does not define sam_balance_command"]))
         failures += 1
 
-    print()
-    print("== submissions ==")
-    print(submissions.format_records(submissions.active_records(submissions.read_events())))
+    records = submissions.active_records(submissions.read_events())
+    sections.append(("submissions", submissions.format_records(records).splitlines()))
+
+    for index, (title, lines) in enumerate(sections):
+        if index:
+            print()
+        print(f"== {title} ==")
+        if lines:
+            for line in lines:
+                print(line)
+        else:
+            print("No data.")
+
     return 0 if failures == 0 else 1
 
 

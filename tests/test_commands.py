@@ -427,7 +427,7 @@ class CommandTests(unittest.TestCase):
 
         self.assertIs(args.handler, cmd_status)
 
-    def test_status_command_checks_page_quota_balance_and_submissions(self) -> None:
+    def test_status_command_shows_full_report(self) -> None:
         profile = make_profile()
         parser = build_parser(profile)
         args = parser.parse_args(["status"])
@@ -448,15 +448,19 @@ class CommandTests(unittest.TestCase):
         response.headers.get_content_charset.return_value = "utf-8"
 
         with mock.patch("hpc_tools.cli.urlopen", return_value=response) as urlopen, \
-             mock.patch("hpc_tools.cli.run_remote", return_value=0) as run_remote, \
+             mock.patch("hpc_tools.cli.run_remote_capture") as run_remote_capture, \
              mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]) as read_events:
+            run_remote_capture.side_effect = [
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 573G* of 600G\n", stderr=""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="ID Name Balance Reserved Available\n142 geniusdefaultslurmaccount 0 0 0\n", stderr=""),
+            ]
             stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
                 result = args.handler(args, profile)
 
         self.assertEqual(result, 0)
         self.assertEqual(urlopen.call_args.args[0], profile.status_url)
-        self.assertEqual([call.args[1] for call in run_remote.call_args_list], ["myquota", "sam-balance"])
+        self.assertEqual([call.args[1] for call in run_remote_capture.call_args_list], ["myquota", "sam-balance"])
         read_events.assert_called_once()
         text = stdout.getvalue()
         self.assertIn("== status page ==", text)
@@ -464,7 +468,55 @@ class CommandTests(unittest.TestCase):
         self.assertIn("All systems running fine", text)
         self.assertIn("No maintenance planned currently.", text)
         self.assertIn("== quota ==", text)
+        self.assertIn("file system: $VSC_DATA", text)
+        self.assertIn("Blocks: 573G* of 600G", text)
         self.assertIn("== balance ==", text)
+        self.assertIn("geniusdefaultslurmaccount", text)
+        self.assertIn("== submissions ==", text)
+        self.assertIn("No submissions.", text)
+
+    def test_status_command_shows_full_report_with_issues(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["status"])
+
+        html_body = """\
+        <html>
+          <body>
+            <h1>Service update</h1>
+            <p>Planned maintenance on 2026-06-20.</p>
+            <p>Minor incident on the login node.</p>
+          </body>
+        </html>
+        """
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        response.read.return_value = html_body.encode("utf-8")
+        response.headers.get_content_charset.return_value = "utf-8"
+
+        with mock.patch("hpc_tools.cli.urlopen", return_value=response), \
+             mock.patch("hpc_tools.cli.run_remote_capture") as run_remote_capture, \
+             mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]):
+            run_remote_capture.side_effect = [
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 599G of 600G\n", stderr=""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="ID Name Balance Reserved Available\n142 geniusdefaultslurmaccount 0 0 0\n", stderr=""),
+            ]
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = args.handler(args, profile)
+
+        self.assertEqual(result, 0)
+        text = stdout.getvalue()
+        self.assertIn("== status page ==", text)
+        self.assertIn("Service update", text)
+        self.assertIn("Planned maintenance on 2026-06-20.", text)
+        self.assertIn("Minor incident on the login node.", text)
+        self.assertIn("== quota ==", text)
+        self.assertIn("file system: $VSC_DATA", text)
+        self.assertIn("Blocks: 599G of 600G", text)
+        self.assertIn("== balance ==", text)
+        self.assertIn("geniusdefaultslurmaccount", text)
         self.assertIn("== submissions ==", text)
         self.assertIn("No submissions.", text)
 
