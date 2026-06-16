@@ -240,6 +240,7 @@ hpc install-probe --kind hardware --directory <remote-dir>
 hpc install-probe --kind cuda-device-properties --directory <remote-dir>
 hpc write-hardware-probe hardware-probe.slurm
 hpc install-hardware-probe --directory <remote-dir>
+hpc status
 hpc quota                  # if quota_command is configured
 hpc projects
 hpc clone https://github.com/org/repo.git --branch main

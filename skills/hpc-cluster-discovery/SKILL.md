@@ -49,6 +49,10 @@ Treat local references and live command output as complementary:
 - Use live commands and probe output to confirm what a real allocation exposes.
 - Call out mismatches explicitly instead of silently choosing one source.
 
+For a quick cluster status overview, prefer `hpc status`. It should gather the
+configured status page, quota, credit balance, and current submission log in a
+single report before you start drilling into a specific subsystem.
+
 For scheduler details that affect where probes run, use the Slurm skill. For
 storage, quota, modules, or conda details, use the filesystem/environment skill.
 For cloning or placing probe scripts on the remote system, use the deploy/build

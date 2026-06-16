@@ -66,6 +66,10 @@ For configured project storage:
 hpc --profile <profile> projects
 ```
 
+For a quick status pass that combines the site status page, quota, balance, and
+current submissions, use `hpc status` before you split the problem into a
+storage-only or scheduler-only investigation.
+
 For jobs with parallel I/O, heavy temporary I/O, or frequent small-file access,
 use the profile's storage reference and
 [`../_shared/hpc-storage-io.md`](../_shared/hpc-storage-io.md) to choose between

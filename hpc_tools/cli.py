@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import contextlib
 import argparse
+import html
 import io
 import json
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
+import re
 import shlex
 import sys
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from hpc_tools.config import (
     ConfigError,
@@ -445,6 +449,13 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
             help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
         )
         quote_parser.set_defaults(handler=cmd_quote)
+
+    if profile is None or profile.status_url:
+        status_parser = subparsers.add_parser(
+            "status",
+            help="Show site status, quota, balance, and local submissions",
+        )
+        status_parser.set_defaults(handler=cmd_status)
 
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
     jobs_parser.add_argument(
@@ -1081,6 +1092,32 @@ def _container_bundle(kind: str) -> dict[str, str]:
     raise ConfigError(f"unsupported container kind: {kind}")
 
 
+def _fetch_status_page(url: str) -> str:
+    try:
+        with urlopen(url, timeout=20) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            body = response.read().decode(charset, errors="replace")
+    except (URLError, TimeoutError, OSError) as error:
+        raise ConfigError(f"failed to fetch status page {url}: {error}") from error
+
+    text = _html_to_text(body)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return f"{url} (no text content found)"
+    return "\n".join(lines[:20])
+
+
+def _html_to_text(document: str) -> str:
+    document = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", document)
+    document = re.sub(r"(?i)<br\s*/?>", "\n", document)
+    document = re.sub(r"(?i)</(p|div|li|tr|h[1-6])>", "\n", document)
+    document = re.sub(r"<[^>]+>", " ", document)
+    document = html.unescape(document)
+    document = re.sub(r"[ \t\r\f\v]+", " ", document)
+    document = re.sub(r"\n+", "\n", document)
+    return document.strip()
+
+
 def _write_bundle_assets(output_dir: Path, bundle: dict[str, str], *, force: bool = False) -> None:
     for relative_path in bundle:
         destination = output_dir / relative_path
@@ -1209,6 +1246,42 @@ def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
         raise ConfigError(f"profile '{profile.name}' does not define sam_quote_command")
     command = _quote_command(profile.sam_quote_command, args.quote_args)
     return run_remote(profile, command, dry_run=args.dry_run)
+
+
+def cmd_status(args: argparse.Namespace, profile: Profile) -> int:
+    failures = 0
+
+    print("== status page ==")
+    if profile.status_url:
+        try:
+            print(_fetch_status_page(profile.status_url))
+        except ConfigError as error:
+            print(f"status page unavailable: {error}")
+            failures += 1
+    else:
+        print(f"profile '{profile.name}' does not define status_url")
+        failures += 1
+
+    print()
+    print("== quota ==")
+    if profile.quota_command:
+        failures += run_remote(profile, profile.quota_command, dry_run=args.dry_run)
+    else:
+        print(f"profile '{profile.name}' does not define quota_command")
+        failures += 1
+
+    print()
+    print("== balance ==")
+    if profile.sam_balance_command:
+        failures += run_remote(profile, profile.sam_balance_command, dry_run=args.dry_run)
+    else:
+        print(f"profile '{profile.name}' does not define sam_balance_command")
+        failures += 1
+
+    print()
+    print("== submissions ==")
+    print(submissions.format_records(submissions.active_records(submissions.read_events())))
+    return 0 if failures == 0 else 1
 
 
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:

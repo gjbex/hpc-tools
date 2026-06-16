@@ -18,6 +18,7 @@ from hpc_tools.cli import (
     _log_submission,
     _quote_command,
     _repo_status_command,
+    _fetch_status_page,
     _site_env_command,
     _statement_command,
     _storage_inspect_command,
@@ -32,6 +33,7 @@ from hpc_tools.cli import (
     cmd_repo_status,
     cmd_slurm_limits,
     cmd_site_env,
+    cmd_status,
     cmd_storage_inspect,
     cmd_submit,
     cmd_write_container,
@@ -418,6 +420,53 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertIn("container_generic_template:", stdout.getvalue())
+
+    def test_status_parser(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["status"])
+
+        self.assertIs(args.handler, cmd_status)
+
+    def test_status_command_checks_page_quota_balance_and_submissions(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["status"])
+
+        html_body = """\
+        <html>
+          <head><title>Tier 2 Leuven status</title></head>
+          <body>
+            <h1>All systems running fine</h1>
+            <p>No maintenance planned currently.</p>
+          </body>
+        </html>
+        """
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        response.read.return_value = html_body.encode("utf-8")
+        response.headers.get_content_charset.return_value = "utf-8"
+
+        with mock.patch("hpc_tools.cli.urlopen", return_value=response) as urlopen, \
+             mock.patch("hpc_tools.cli.run_remote", return_value=0) as run_remote, \
+             mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]) as read_events:
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = args.handler(args, profile)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(urlopen.call_args.args[0], profile.status_url)
+        self.assertEqual([call.args[1] for call in run_remote.call_args_list], ["myquota", "sam-balance"])
+        read_events.assert_called_once()
+        text = stdout.getvalue()
+        self.assertIn("== status page ==", text)
+        self.assertIn("Tier 2 Leuven status", text)
+        self.assertIn("All systems running fine", text)
+        self.assertIn("No maintenance planned currently.", text)
+        self.assertIn("== quota ==", text)
+        self.assertIn("== balance ==", text)
+        self.assertIn("== submissions ==", text)
+        self.assertIn("No submissions.", text)
 
     def test_submissions_list_parser(self) -> None:
         parser = build_parser()
@@ -894,6 +943,7 @@ class CommandTests(unittest.TestCase):
                 slurm_url=None,
                 storage_reference=None,
                 storage_url=None,
+                status_url=None,
             )
         )
         help_text = parser.format_help()
