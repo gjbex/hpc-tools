@@ -551,6 +551,19 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.benchmark_command, "summarize")
         self.assertIs(args.handler, benchmark_support.cmd_benchmark_summarize)
 
+    def test_benchmark_main_json_is_native(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "one.csv"
+            path.write_text("seconds\n10\n", encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                result = main(["--json", "benchmark", "summarize", str(path)])
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(result, 0)
+        self.assertIn("summaries", payload)
+        self.assertNotIn("stdout", payload)
+
     def test_r_scan_parser(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["r", "scan", "Script/Main.R"])

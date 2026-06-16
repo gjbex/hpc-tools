@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from unittest import mock
 
+from hpc_tools.config import ConfigError
 from hpc_tools import plugin_system
 from hpc_tools.plugins import benchmark_support, python_support, r_support
 
@@ -52,6 +54,25 @@ class PluginTests(unittest.TestCase):
         self.assertIn(str(root), summarize_stdout.getvalue())
         self.assertIn("SOURCES", summarize_stdout.getvalue())
         self.assertIn("speedup: 2", compare_stdout.getvalue())
+
+    def test_benchmark_json_is_native_and_missing_input_is_config_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "one.csv"
+            path.write_text("seconds\n10\n", encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                rc = benchmark_support.cmd_benchmark_summarize(
+                    type("Args", (), {"targets": [path], "json": True})(),
+                    None,
+                )
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(rc, 0)
+        self.assertIn("summaries", payload)
+        self.assertNotIn("stdout", payload)
+
+        with self.assertRaises(ConfigError):
+            benchmark_support.summarize_target(Path("/tmp/does-not-exist.csv"))
 
     def test_python_scan_detects_imports_and_requirements(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

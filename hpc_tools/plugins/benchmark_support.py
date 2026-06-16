@@ -8,10 +8,46 @@ from pathlib import Path
 import statistics
 from typing import Any
 
-from hpc_tools.config import Profile
+from hpc_tools.config import ConfigError, Profile
 
 
 MEASUREMENT_KEYS = ("seconds", "time", "duration", "runtime", "elapsed", "walltime")
+MEASUREMENT_NAME_HINTS = (
+    "time",
+    "runtime",
+    "duration",
+    "elapsed",
+    "wallclock",
+    "wall",
+    "latency",
+    "seconds",
+    "second",
+    "sec",
+    "ms",
+    "min",
+    "hour",
+)
+DIMENSION_NAME_HINTS = (
+    "thread",
+    "worker",
+    "rank",
+    "replica",
+    "run",
+    "trial",
+    "iteration",
+    "iter",
+    "sample",
+    "size",
+    "problem",
+    "node",
+    "core",
+    "count",
+    "batch",
+    "step",
+    "epoch",
+    "process",
+    "proc",
+)
 
 
 @dataclass(frozen=True)
@@ -128,14 +164,17 @@ def cmd_benchmark_compare(args: argparse.Namespace, profile: Profile | None) -> 
 
 
 def summarize_target(target: Path) -> BenchmarkSummary:
-    source_files = _collect_source_files(target)
-    records: list[dict[str, Any]] = []
-    for source_file in source_files:
-        records.extend(_read_records(source_file))
-    measurement_key = _discover_measurement_key(records)
-    measurements = _collect_measurements(records, measurement_key)
-    if not measurements:
-        raise ValueError(f"no numeric benchmark measurements found in {target}")
+    try:
+        source_files = _collect_source_files(target)
+        records: list[dict[str, Any]] = []
+        for source_file in source_files:
+            records.extend(_read_records(source_file))
+        measurement_key = _discover_measurement_key(records)
+        measurements = _collect_measurements(records, measurement_key)
+        if not measurements:
+            raise ConfigError(f"no numeric benchmark measurements found in {target}")
+    except (FileNotFoundError, ValueError, json.JSONDecodeError) as error:
+        raise ConfigError(str(error)) from error
     stdev = statistics.stdev(measurements) if len(measurements) > 1 else 0.0
     return BenchmarkSummary(
         target=str(target),
@@ -269,12 +308,35 @@ def _discover_measurement_key(records: list[dict[str, Any]]) -> str:
         for key in keys:
             if key.lower() == preferred:
                 return key
+    scored_candidates: list[tuple[int, str]] = []
     for key in keys:
-        if key.lower() in {"label", "name", "config", "threads", "run", "variant"}:
+        lower = key.lower()
+        numeric_values = [value for value in (_parse_float(record.get(key)) for record in records) if value is not None]
+        if not numeric_values:
             continue
-        if any(_parse_float(record.get(key)) is not None for record in records):
-            return key
-    raise ValueError("could not determine the benchmark measurement column")
+        score = len(numeric_values)
+        if any(hint in lower for hint in MEASUREMENT_NAME_HINTS):
+            score += 20
+        if any(hint in lower for hint in DIMENSION_NAME_HINTS):
+            score -= 15
+        if lower in {"label", "name", "config", "variant"}:
+            score -= 20
+        scored_candidates.append((score, key))
+
+    if not scored_candidates:
+        raise ValueError("could not determine the benchmark measurement column")
+
+    scored_candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best_score = scored_candidates[0][0]
+    best_candidates = [key for score, key in scored_candidates if score == best_score]
+    if len(best_candidates) > 1:
+        raise ValueError(
+            "could not determine the benchmark measurement column; "
+            f"candidates were {', '.join(best_candidates)}"
+        )
+    if best_score <= 0:
+        raise ValueError("could not determine the benchmark measurement column")
+    return best_candidates[0]
 
 
 def _collect_measurements(records: list[dict[str, Any]], measurement_key: str) -> list[float]:
