@@ -48,6 +48,84 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("mmh3", stdout.getvalue())
 
+    def test_python_inspect_deps_parses_requirements_pyproject_and_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "requirements.txt").write_text(
+                "numpy>=2\n-r extra-requirements.txt\n-c constraints.txt\n",
+                encoding="utf-8",
+            )
+            (root / "extra-requirements.txt").write_text("mmh3==5.1.0\n-e .\n", encoding="utf-8")
+            (root / "pyproject.toml").write_text(
+                '[project]\ndependencies = ["matplotlib>=3.10", "scikit-learn"]\n',
+                encoding="utf-8",
+            )
+            (root / "environment.yml").write_text(
+                """name: demo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - numpy
+  - hdf5
+  - pip:
+    - mmh3==5.1.0
+    - PyYAML>=6
+  - pandas
+""",
+                encoding="utf-8",
+            )
+
+            result = python_support.inspect_dependencies(root)
+
+        self.assertEqual([spec.name for spec in result.requirements], ["numpy", "mmh3"])
+        self.assertEqual(
+            [spec.name for spec in result.pyproject_dependencies],
+            ["matplotlib", "scikit_learn"],
+        )
+        self.assertEqual(
+            [spec.name for spec in result.conda_dependencies],
+            ["python", "numpy", "hdf5", "pandas"],
+        )
+        self.assertEqual([spec.name for spec in result.pip_dependencies], ["mmh3", "PyYAML"])
+        self.assertEqual(result.channels, ["conda-forge"])
+        self.assertEqual(result.python_versions, ["python=3.13"])
+        self.assertEqual(result.binary_hints, ["hdf5"])
+        self.assertTrue(any("constraints file" in note for note in result.notes))
+        self.assertTrue(any("editable install" in note for note in result.notes))
+
+    def test_python_inspect_deps_command_runs_without_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "requirements.txt").write_text("mmh3\n", encoding="utf-8")
+            args = type("Args", (), {"target": root, "json": False})()
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = python_support.cmd_python_inspect_deps(args, None)
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Requirements:", stdout.getvalue())
+        self.assertIn("mmh3", stdout.getvalue())
+
+    def test_python_inspect_deps_command_emits_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "environment.yml").write_text(
+                "channels:\n  - conda-forge\ndependencies:\n  - python=3.13\n",
+                encoding="utf-8",
+            )
+            args = type("Args", (), {"target": root, "json": True})()
+
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = python_support.cmd_python_inspect_deps(args, None)
+
+        self.assertEqual(exit_code, 0)
+        payload = __import__("json").loads(stdout.getvalue())
+        self.assertEqual(payload["channels"], ["conda-forge"])
+        self.assertEqual(payload["python_versions"], ["python=3.13"])
+
     def test_build_python_check_command_loads_modules_and_emits_status_lines(self) -> None:
         command = python_support.build_check_command(
             ["mmh3", "numpy"],
@@ -95,6 +173,68 @@ class PluginTests(unittest.TestCase):
         self.assertIn("python -m pip install --no-cache-dir mmh3", script)
         self.assertIn("importlib.util.find_spec", script)
         self.assertIn('if [[ "${VSC_ARCH_LOCAL}" != "icelake" ]]', script)
+
+    def test_python_plan_install_uses_inspected_dependency_files(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "requirements.txt").write_text("scikit-learn>=1.5\n", encoding="utf-8")
+            (root / "environment.yml").write_text(
+                """channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - hdf5
+  - pip:
+    - mmh3==5.1.0
+""",
+                encoding="utf-8",
+            )
+            output = root / "install-python.slurm"
+            args = type(
+                "Args",
+                (),
+                {
+                    "target": root,
+                    "packages": [],
+                    "modules": ["Python/3.13.5-GCCcore-14.3.0"],
+                    "output": output,
+                    "venv": "~/venvs/demo",
+                    "cluster": "wice",
+                    "partition": "batch_icelake",
+                    "job_name": "py-install",
+                    "time": "00:30:00",
+                    "cpus_per_task": "2",
+                    "arch_guard": None,
+                    "no_system_site_packages": False,
+                    "upgrade_pip": False,
+                    "force": False,
+                    "dry_run": False,
+                },
+            )()
+            profile = type("Profile", (), {"default_cluster": "wice"})()
+            completed = subprocess.CompletedProcess(
+                args=[],
+                returncode=1,
+                stdout="mmh3\tMISSING\nscikit_learn\tMISSING\n",
+                stderr="",
+            )
+            stdout = io.StringIO()
+
+            with mock.patch(
+                "hpc_tools.plugins.python_support.run_remote_capture",
+                return_value=completed,
+            ) as remote, contextlib.redirect_stdout(stdout):
+                exit_code = python_support.cmd_python_plan_install(args, profile)
+            script = output.read_text(encoding="utf-8")
+
+        self.assertEqual(exit_code, 0)
+        remote_command = remote.call_args.args[1]
+        self.assertIn('"mmh3"', remote_command)
+        self.assertIn('"scikit_learn"', remote_command)
+        self.assertIn("python -m pip install --no-cache-dir mmh3 scikit-learn", script)
+        self.assertIn('"scikit_learn"', script)
+        self.assertIn("Conda dependencies were inspected but are not pip-installed", stdout.getvalue())
+        self.assertIn("hdf5", stdout.getvalue())
 
     def test_parse_python_verify_output_extracts_statuses_and_executable(self) -> None:
         output = """mmh3 OK

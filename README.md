@@ -41,6 +41,7 @@ hpc plugins list
 hpc plugins info python
 hpc plugins info r
 hpc python scan path/to/script-or-project
+hpc python inspect-deps path/to/script-or-project
 hpc --profile <profile> python check path/to/script-or-project --module Python/<version>
 hpc --profile <profile> python plan-install path/to/script-or-project --module Python/<version> --venv <remote-venv> --partition <partition> --output install-python-packages.slurm
 hpc --profile <profile> python submit-install install-python-packages.slurm --directory <remote-dir> --account <account>
@@ -214,6 +215,7 @@ hpc storage inspect .
 hpc storage inspect $VSC_DATA/Projects/demo
 hpc repo status --directory $VSC_DATA/Projects/demo
 hpc python scan analysis.py
+hpc python inspect-deps .
 hpc --profile genius python check analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b
 hpc --profile genius python plan-install analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b --venv ~/venvs/py313-scipy-mmh3 --partition batch_icelake --output install-python-packages.slurm
 hpc --profile genius python submit-install install-python-packages.slurm --directory $VSC_DATA/Projects/demo --account <account>

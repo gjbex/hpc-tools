@@ -52,6 +52,13 @@ bundled `hpc python scan` plugin command when it is available:
 hpc python scan <script-or-project-dir>
 ```
 
+When the project has dependency files, inspect them before choosing an install
+strategy:
+
+```bash
+hpc python inspect-deps <script-or-project-dir>
+```
+
 For profile-aware workflows, prefer the plugin commands when they cover the
 task:
 
@@ -67,6 +74,12 @@ may provide `numpy` and `scipy` through a scientific bundle and `matplotlib`
 through a separate module; both modules must be loaded before checking imports,
 creating the venv, and running the final job.
 
+`hpc python plan-install` consumes the same dependency-file inspection used by
+`inspect-deps`: requirements files, simple pyproject dependencies, and nested
+`environment.yml` `pip:` entries are included in the import check and install
+plan. Conda dependencies from `environment.yml` are reported as notes, not
+silently pip-installed.
+
 If the plugin is unavailable or the scan needs manual confirmation, fall back to
 fast local searches and dependency files:
 
@@ -79,6 +92,58 @@ If the project contains `requirements.txt`, `requirements-*.txt`,
 `pyproject.toml`, `setup.cfg`, `environment.yml`, or lock files, use those as
 stronger dependency sources than ad hoc imports. Call out dynamic imports,
 optional extras, import/package-name differences, and conditional imports.
+Prefer `hpc python inspect-deps` for this pass; it reports requirements,
+simple pyproject dependencies, conda dependencies, nested pip dependencies,
+channels, Python version pins, and likely binary/runtime dependencies.
+
+## Requirements Files
+
+When a project has `requirements.txt`, treat it as the dependency source of
+truth for discovery and status checks, but do not blindly turn it into
+`pip install -r requirements.txt`. First check which requirements are already
+satisfied by the selected site Python and bundle modules.
+
+If the requirements file includes large packages that the site already provides,
+such as `numpy`, `scipy`, `matplotlib`, or `pandas`, keep those satisfied by
+modules and install only the packages still missing into the venv. This avoids
+duplicating or overriding the site scientific stack.
+
+Using `python -m pip install -r requirements.txt` inside the venv is reasonable
+when the file is intentionally scoped to user-installed packages, or when live
+checks show the site modules do not satisfy the project. For mixed scientific
+projects, prefer splitting requirements into site-provided dependencies and
+user-installed dependencies, or pass explicit `--package <import-name>` entries
+for the missing imports that should be installed.
+
+## Conda Environment Files
+
+When a project has `environment.yml`, treat it as a stronger dependency source
+than imports, but do not automatically run `conda env create -f
+environment.yml`. First inspect the `dependencies:` list, nested `pip:` entries,
+Python version pins, channels, and binary stack requirements such as CUDA, MPI,
+HDF5, GDAL, or compiler/runtime packages.
+
+If the file mostly names packages already available through site modules, such
+as Python, `numpy`, `scipy`, `matplotlib`, or `pandas`, prefer the same
+modules-plus-venv workflow used for `requirements.txt`: load the site modules,
+create a venv with `--system-site-packages`, and install only missing pip-only
+packages.
+
+Use conda or micromamba only when the YAML depends on conda-specific packages,
+hard binary version pins, or package combinations the site module stack cannot
+reasonably reproduce. In that case, inspect site guidance first with
+`hpc --profile <profile> site-env`, install into project/data storage rather
+than home when the environment will be large, and avoid creating many-file
+conda environments on quota-sensitive filesystems without checking storage
+constraints.
+
+For mixed YAML files, separate the interpretation:
+
+- site modules for Python and large scientific/runtime libraries when they
+  satisfy the project;
+- venv pip installs for small pip-only packages still missing;
+- conda or micromamba only for the parts that truly require conda-managed
+  binaries.
 
 ## Check Remote Modules
 
@@ -135,8 +200,12 @@ remove.
 
 ## Compute-Node Install Workflow
 
-When packages may compile native extensions, prefer a short Slurm install job
-on the target partition over a login-node install. Use a pilot-first process:
+When packages may compile native extensions or the install involves many
+packages, prefer a short Slurm install job on the target partition over a
+login-node install. Login nodes often have process runtime limits, and long or
+parallel package installs can create load that affects other users. Keep
+login-node installs for small, quick, pure-Python additions only; otherwise use
+a batch install job. Use a pilot-first process:
 
 1. choose and verify the exact Python and bundle modules;
 2. generate a small install job for the intended partition and CPU class;

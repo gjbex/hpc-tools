@@ -36,6 +36,7 @@ installs.
 The bundled Python plugin covers:
 
 - `hpc python scan`
+- `hpc python inspect-deps`
 - `hpc python check`
 - `hpc python plan-install`
 - `hpc python submit-install`
@@ -105,12 +106,19 @@ core CLI. The next likely additions are:
 
 The current Python plugin covers:
 
-1. local dependency scanning from `import` statements, `requirements.txt`, and
-   simple `pyproject.toml` dependency lists
-2. remote import checks under an explicit module stack
-3. generation of Slurm install scripts that create or update a virtualenv
-4. staging, quoting, validating, submitting, and logging install jobs
-5. verification of completed install jobs from their output files
+1. local dependency scanning from `import` statements
+2. dependency-file inspection for `requirements.txt`, recursive requirement
+   includes, simple `pyproject.toml` dependency lists, and `environment.yml`
+   conda/pip sections
+3. remote import checks under an explicit module stack
+4. generation of Slurm install scripts that create or update a virtualenv
+5. staging, quoting, validating, submitting, and logging install jobs
+6. verification of completed install jobs from their output files
+
+`hpc python plan-install` reuses dependency-file inspection so requirements
+files, simple pyproject dependencies, and nested `environment.yml` `pip:`
+entries can feed the import check and generated install job. Conda dependencies
+from `environment.yml` are surfaced as notes instead of being pip-installed.
 
 For small missing packages, prefer a venv created with
 `python -m venv --system-site-packages` after loading the same site Python and
