@@ -55,6 +55,9 @@ Slurm-based HPC systems.
 - Use `hpc-slurm-benchmark` for remote Slurm benchmarks, scaling runs,
   pilot-first benchmark sweeps, artifact collection, and local analysis.
 - Use `hpc-deploy-build` for remote clone/build/test workflows.
+- Use `hpc-container-workflows` for Apptainer definition-file workflows,
+  especially HPCCM-generated recipes that must be regenerated before each
+  build, and for deciding when to build containers in a Slurm job.
 
 ## Validation
 

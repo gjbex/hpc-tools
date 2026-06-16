@@ -35,6 +35,7 @@ README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
 SUBMISSIONS_DOC = ROOT / "docs" / "submissions.md"
 SKILLS = [
+    "hpc-container-workflows",
     "hpc-cluster-onboarding",
     "hpc-cluster-discovery",
     "hpc-deploy-build",
@@ -103,6 +104,11 @@ class SkillTests(unittest.TestCase):
             ],
             "hpc-filesystem-environment": [
                 "hpc-storage-io.md",
+            ],
+            "hpc-container-workflows": [
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+                "hpc-slurm-concepts.md",
             ],
             "hpc-python-packages": [
                 "hpc-storage-io.md",
@@ -346,6 +352,19 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc_tools/data/cuda/", text)
         self.assertIn("pipx uninstall hpc-tools", text)
         self.assertNotIn("ln -s /home", text)
+
+    def test_container_workflows_skill_covers_hpccm_regeneration_and_job_builds(self) -> None:
+        text = (ROOT / "skills" / "hpc-container-workflows" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("hpccm", text)
+        self.assertIn("must be regenerated before each build", text)
+        self.assertIn("Apptainer definition-file workflows", text)
+        self.assertIn("hpc write-container --kind generic", text)
+        self.assertIn("hpc install-container --kind generic", text)
+        self.assertIn("build in a Slurm job", text)
+        self.assertIn("pilot job first", text)
 
     def test_agents_guidance_routes_hpc_workflows(self) -> None:
         text = AGENTS.read_text(encoding="utf-8")
