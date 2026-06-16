@@ -38,6 +38,11 @@ Slurm-based HPC systems.
 - Use `hpc-cluster-discovery` for partition limits, QoS/account limits, array
   limits, and hardware probe interpretation.
 - Use `hpc-filesystem-environment` for storage, quotas, modules, and conda.
+- Use `hpc-python-packages` for checking whether a Python script's imports are
+  already satisfied by site Python or bundle modules, and for planning a small
+  virtualenv install only for packages still missing. When available, prefer
+  the bundled `hpc python ...` plugin commands for reusable local dependency
+  scanning and venv install-job generation.
 - Use `hpc-r-packages` for checking whether an R script's CRAN or
   Bioconductor dependencies are already satisfied by site R modules or bundle
   modules, and for listing only the packages that still need installation. When

@@ -39,6 +39,7 @@ SKILLS = [
     "hpc-cluster-discovery",
     "hpc-deploy-build",
     "hpc-filesystem-environment",
+    "hpc-python-packages",
     "hpc-r-packages",
     "hpc-slurm-jobs",
     "hpc-slurm-job-arrays",
@@ -102,6 +103,11 @@ class SkillTests(unittest.TestCase):
             ],
             "hpc-filesystem-environment": [
                 "hpc-storage-io.md",
+            ],
+            "hpc-python-packages": [
+                "hpc-storage-io.md",
+                "hpc-accounting-safety.md",
+                "hpc-slurm-concepts.md",
             ],
             "hpc-deploy-build": [
                 "hpc-storage-io.md",
@@ -322,7 +328,9 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc storage inspect", text)
         self.assertIn("hpc repo status --directory", text)
         self.assertIn("hpc r scan", text)
+        self.assertIn("hpc python scan", text)
         self.assertIn("hpc --profile genius r check", text)
+        self.assertIn("hpc --profile genius python check", text)
         self.assertIn("hpc job 123456 --cluster wice", text)
         self.assertIn("hpc slurm-limits --cluster wice --partition batch", text)
         self.assertIn("hpc clone https://github.com/org/repo.git --branch main --directory", text)
@@ -348,6 +356,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc-cluster-onboarding", text)
         self.assertIn("hpc-cluster-discovery", text)
         self.assertIn("hpc-r-packages", text)
+        self.assertIn("hpc-python-packages", text)
         self.assertIn("hpc-slurm-job-arrays", text)
         self.assertIn("hpc-slurm-benchmark", text)
         self.assertIn("python3 -m unittest discover -s tests", text)
@@ -399,6 +408,26 @@ class SkillTests(unittest.TestCase):
         self.assertIn("archive-only", text)
         self.assertIn("archived tarball", text)
         self.assertIn("requireNamespace()", text)
+
+    def test_python_packages_skill_uses_venv_layered_on_site_modules(self) -> None:
+        text = (ROOT / "skills" / "hpc-python-packages" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("hpc python scan", text)
+        self.assertIn("hpc --profile <profile> python check", text)
+        self.assertIn("hpc --profile <profile> python plan-install", text)
+        self.assertIn("module-spider Python", text)
+        self.assertIn("Python-bundle-PyPI", text)
+        self.assertIn("SciPy-bundle", text)
+        self.assertIn("importlib.util.find_spec()", text)
+        self.assertIn("--system-site-packages", text)
+        self.assertIn("mmh3", text)
+        self.assertIn("Avoid `pip install --user`", text)
+        self.assertIn("runtime contract", text)
+        self.assertIn("Compute-Node Install Workflow", text)
+        self.assertIn("pilot-first", text)
+        self.assertIn("quote the pilot job", text)
 
     def test_partition_discovery_report_is_reusable(self) -> None:
         text = PARTITION_REPORT.read_text(encoding="utf-8")

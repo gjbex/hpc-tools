@@ -27,12 +27,21 @@ The first implementation slice provides:
 - plugin discovery through the `hpc_tools.plugins` entry-point group
 - a local `hpc plugins list` command
 - a local `hpc plugins info <name>` command
-- a bundled `r` plugin with `hpc r scan <path>`
+- bundled `python` and `r` plugins with local scan commands
 
-The bundled `r` plugin is packaged with the core distribution so the plugin
-contract is exercised immediately in development and release installs.
+The bundled `python` and `r` plugins are packaged with the core distribution so
+the plugin contract is exercised immediately in development and release
+installs.
 
-Its current subcommands are:
+The bundled Python plugin covers:
+
+- `hpc python scan`
+- `hpc python check`
+- `hpc python plan-install`
+- `hpc python submit-install`
+- `hpc python verify-install`
+
+The bundled R plugin covers:
 
 - `hpc r scan`
 - `hpc r check`
@@ -60,6 +69,7 @@ Use Python entry points:
 ```ini
 [options.entry_points]
 hpc_tools.plugins =
+    python = hpc_tools.plugins.python_support:get_plugin
     r = hpc_tools.plugins.r_support:get_plugin
 ```
 
@@ -93,13 +103,31 @@ core CLI. The next likely additions are:
 
 ## Python Plugin Follow-On Work
 
-Once the R plugin pattern is stable, the next likely external plugin is Python
-environment support for tasks such as:
+The current Python plugin covers:
+
+1. local dependency scanning from `import` statements, `requirements.txt`, and
+   simple `pyproject.toml` dependency lists
+2. remote import checks under an explicit module stack
+3. generation of Slurm install scripts that create or update a virtualenv
+4. staging, quoting, validating, submitting, and logging install jobs
+5. verification of completed install jobs from their output files
+
+For small missing packages, prefer a venv created with
+`python -m venv --system-site-packages` after loading the same site Python and
+bundle modules that will be used at runtime. This preserves site-provided
+scientific packages such as NumPy, SciPy, and Matplotlib while adding only the
+missing package. Treat the successful install module stack as part of the
+runtime contract: load the same modules before activating the venv in later job
+scripts.
+
+Follow-on Python work should continue in the plugin layer rather than expanding
+the core CLI. Likely additions are:
 
 - conda or micromamba environment checks
 - environment export and recreate helpers
 - architecture-appropriate wheel or build guidance
 - job-script snippets for activating environments
+- richer parsing of optional dependencies and package/import-name mismatches
 
 ## Notes
 

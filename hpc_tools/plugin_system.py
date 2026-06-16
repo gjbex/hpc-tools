@@ -11,6 +11,7 @@ from hpc_tools.config import Profile
 
 PLUGIN_ENTRY_POINT_GROUP = "hpc_tools.plugins"
 BUILTIN_PLUGIN_FACTORIES = {
+    "python": "hpc_tools.plugins.python_support:get_plugin",
     "r": "hpc_tools.plugins.r_support:get_plugin",
 }
 

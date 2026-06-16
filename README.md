@@ -33,12 +33,18 @@ python3 -m pip install --user -e .
 reference, and Slurm functionality, while language- or workflow-specific
 helpers can live in plugins.
 
-The repository currently ships a bundled `r` plugin, so after installation you
+The repository currently ships bundled `python` and `r` plugins, so after installation you
 can use:
 
 ```bash
 hpc plugins list
+hpc plugins info python
 hpc plugins info r
+hpc python scan path/to/script-or-project
+hpc --profile <profile> python check path/to/script-or-project --module Python/<version>
+hpc --profile <profile> python plan-install path/to/script-or-project --module Python/<version> --venv <remote-venv> --partition <partition> --output install-python-packages.slurm
+hpc --profile <profile> python submit-install install-python-packages.slurm --directory <remote-dir> --account <account>
+hpc --profile <profile> python verify-install --job-output <remote-job-output> --package <import-name>
 hpc r scan path/to/script-or-project
 hpc --profile <profile> r check path/to/script-or-project --module R/<version>
 hpc --profile <profile> r plan-install path/to/script-or-project --module R/<version> --partition <partition> --output install-r-packages.slurm
@@ -200,12 +206,18 @@ reference_set = "kuleuven-tier2"
 hpc doctor
 hpc paths
 hpc plugins list
+hpc plugins info python
 hpc plugins info r
 hpc doctor
 hpc site-env
 hpc storage inspect .
 hpc storage inspect $VSC_DATA/Projects/demo
 hpc repo status --directory $VSC_DATA/Projects/demo
+hpc python scan analysis.py
+hpc --profile genius python check analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b
+hpc --profile genius python plan-install analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b --venv ~/venvs/py313-scipy-mmh3 --partition batch_icelake --output install-python-packages.slurm
+hpc --profile genius python submit-install install-python-packages.slurm --directory $VSC_DATA/Projects/demo --account <account>
+hpc --profile genius python verify-install --job-output /path/to/job.out --package mmh3
 hpc r scan Script/Main_casestudy1.R
 hpc --profile genius r check Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2
 hpc --profile genius r plan-install Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2 --partition batch_icelake --output install-r-packages.slurm
@@ -500,6 +512,9 @@ configured `hpc-tools` profile:
   references, live commands, and hardware-probe output.
 - [skills/hpc-filesystem-environment](skills/hpc-filesystem-environment) for
   storage, quota, ownership, module, and conda environment inspection.
+- [skills/hpc-python-packages](skills/hpc-python-packages) for checking Python
+  import availability through site Python and bundle modules before planning a
+  small virtualenv install for packages still missing.
 - [skills/hpc-r-packages](skills/hpc-r-packages) for checking CRAN and
   Bioconductor dependency availability through site R and bundle modules before
   planning user package installs.
@@ -523,6 +538,7 @@ cp -R skills/_shared ~/.codex/skills/_shared
 cp -R skills/hpc-cluster-onboarding ~/.codex/skills/hpc-cluster-onboarding
 cp -R skills/hpc-cluster-discovery ~/.codex/skills/hpc-cluster-discovery
 cp -R skills/hpc-filesystem-environment ~/.codex/skills/hpc-filesystem-environment
+cp -R skills/hpc-python-packages ~/.codex/skills/hpc-python-packages
 cp -R skills/hpc-r-packages ~/.codex/skills/hpc-r-packages
 cp -R skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
 cp -R skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
