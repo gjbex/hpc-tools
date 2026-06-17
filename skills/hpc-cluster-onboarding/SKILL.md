@@ -75,6 +75,29 @@ works.
 Use `python3 -m pip install --user -e .` only when the user is developing
 `hpc-tools` itself.
 
+## MCP Installation
+
+For agent workflows that can use MCP, verify whether the optional FastMCP-based
+server is available after the CLI is installed:
+
+```bash
+command -v hpc-mcp
+hpc-mcp --help
+```
+
+In a development checkout that uses the repository uv environment, install the
+optional MCP dependencies with:
+
+```bash
+uv pip install -e ".[mcp]"
+```
+
+The MCP server is a read-only structured interface over active hpc-tools
+configuration, profile references, reference sets, and submission logs. It
+does not replace the Codex plugin installation, does not install skills, and
+does not authorize Slurm job submission. Keep using the `hpc` CLI for normal
+human-facing commands and profile setup.
+
 ## Remote Access
 
 Use the installed `hpc` CLI for remote commands after a profile exists:
