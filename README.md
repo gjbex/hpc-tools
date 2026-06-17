@@ -188,6 +188,16 @@ Local writes and remote installs require `confirm=true`. Remote install tools
 return command previews by default; they only execute when `confirm=true` and
 `dry_run=false`.
 
+Slurm submission is exposed only as an evidence-gated sequence:
+
+1. `hpc_quote_job`
+2. `hpc_validate_job`
+3. `hpc_submit_job`
+
+`hpc_submit_job` requires matching quote and validation evidence for the same
+profile, account, jobscript, remote directory, and Slurm resource shape, plus
+`confirm=true`. Stale or dry-run evidence is rejected.
+
 It also exposes durable local context as MCP resources:
 
 - `hpc://paths`
@@ -202,10 +212,6 @@ It also exposes durable local context as MCP resources:
 
 Profile and reference resources resolve from the active hpc-tools config tree
 and installed reference-set directory, not from repository examples.
-
-It does not expose Slurm job submission tools yet. Submission support should
-stay separate until quote, validation, account, and confirmation evidence can
-be enforced through the MCP interface.
 
 ## Plugins
 

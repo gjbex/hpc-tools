@@ -96,9 +96,11 @@ The MCP server is a guarded structured interface over active hpc-tools
 configuration, profile references, reference sets, submission logs, generated
 probe scripts, and container bundles. Local writes and remote installs require
 `confirm=true`; remote install tools preview commands unless `dry_run=false` is
-also set. It does not replace the Codex plugin installation, does not install
-skills, and does not authorize Slurm job submission. Keep using the `hpc` CLI
-for normal human-facing commands and profile setup.
+also set. Slurm submission is available only through the
+`hpc_quote_job` -> `hpc_validate_job` -> `hpc_submit_job` evidence chain, and
+`hpc_submit_job` rejects stale or dry-run quote/validation evidence. It does
+not replace the Codex plugin installation or install skills. Keep using the
+`hpc` CLI for normal human-facing commands and profile setup.
 
 ## Remote Access
 
