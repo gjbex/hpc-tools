@@ -13,7 +13,7 @@ from hpc_tools import mcp_server
 
 
 class McpServerTests(unittest.TestCase):
-    def test_read_only_tools_are_listed_without_submit_or_write_tools(self) -> None:
+    def test_guarded_tools_are_listed_without_slurm_submit_tool(self) -> None:
         names = set(mcp_server.TOOL_NAMES)
 
         self.assertIn("hpc_profiles_list", names)
@@ -21,9 +21,13 @@ class McpServerTests(unittest.TestCase):
         self.assertIn("hpc_jobs", names)
         self.assertIn("hpc_slurm_limits", names)
         self.assertIn("hpc_storage_inspect", names)
+        self.assertIn("hpc_references_create", names)
+        self.assertIn("hpc_submissions_close", names)
+        self.assertIn("hpc_write_probe", names)
+        self.assertIn("hpc_install_probe", names)
+        self.assertIn("hpc_write_container", names)
+        self.assertIn("hpc_install_container", names)
         self.assertNotIn("hpc_submit_job", names)
-        self.assertNotIn("hpc_install_probe", names)
-        self.assertNotIn("hpc_references_create", names)
 
     def test_read_only_resources_are_listed_without_write_resources(self) -> None:
         uris = set(mcp_server.RESOURCE_URIS)
@@ -141,6 +145,135 @@ class McpServerTests(unittest.TestCase):
 
         self.assertEqual(result["name"], "baseline")
         self.assertTrue(result["hardware_reference"].endswith("hardware.md"))
+
+    def test_references_create_requires_confirm_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
+                clear=False,
+            ):
+                preview = mcp_server.hpc_references_create("baseline")
+                self.assertTrue(preview["confirm_required"])
+                self.assertFalse((root / "hpc-tools" / "reference-sets" / "baseline").exists())
+
+                result = mcp_server.hpc_references_create("baseline", confirm=True)
+
+        self.assertTrue(result["created"])
+        self.assertEqual(result["reference_set"]["name"], "baseline")
+        self.assertFalse(result["confirm_required"])
+
+    def test_references_attach_requires_confirm_before_config_update(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            self._write_reference_set(root, "baseline")
+
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
+                clear=False,
+            ):
+                preview = mcp_server.hpc_references_attach("baseline")
+                self.assertTrue(preview["confirm_required"])
+                self.assertNotIn("reference_set", config_path.read_text(encoding="utf-8"))
+
+                result = mcp_server.hpc_references_attach("baseline", confirm=True)
+
+                self.assertTrue(result["attached"])
+                self.assertIn('reference_set = "baseline"', config_path.read_text(encoding="utf-8"))
+
+    def test_submissions_close_requires_confirm_before_append(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "submissions.jsonl"
+
+            preview = mcp_server.hpc_submissions_close(
+                "run-1",
+                reason="done",
+                log=str(log_path),
+            )
+            self.assertTrue(preview["confirm_required"])
+            self.assertFalse(log_path.exists())
+
+            result = mcp_server.hpc_submissions_close(
+                "run-1",
+                reason="done",
+                log=str(log_path),
+                confirm=True,
+            )
+
+            self.assertTrue(result["appended"])
+            self.assertIn('"event": "closed"', log_path.read_text(encoding="utf-8"))
+
+    def test_write_probe_requires_confirm_before_writing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "hardware-probe.slurm"
+
+            preview = mcp_server.hpc_write_probe(output=str(output), account="proj")
+            self.assertTrue(preview["confirm_required"])
+            self.assertIn("#SBATCH --account=proj", preview["contents"])
+            self.assertFalse(output.exists())
+
+            result = mcp_server.hpc_write_probe(
+                output=str(output),
+                account="proj",
+                confirm=True,
+            )
+
+            self.assertTrue(result["written"])
+            self.assertIn("#SBATCH --account=proj", output.read_text(encoding="utf-8"))
+
+    def test_write_container_requires_confirm_before_writing_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "bundle"
+
+            preview = mcp_server.hpc_write_container(output=str(output))
+            self.assertTrue(preview["confirm_required"])
+            self.assertIn("create_apptainer_container.slurm", preview["files"])
+            self.assertFalse(output.exists())
+
+            result = mcp_server.hpc_write_container(output=str(output), confirm=True)
+
+            self.assertTrue(result["written"])
+            self.assertTrue((output / "create_apptainer_container.slurm").exists())
+
+    def test_install_probe_preview_does_not_execute_without_confirm(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture") as remote:
+                result = mcp_server.hpc_install_probe(
+                    config=str(config_path),
+                    directory="$VSC_DATA/probes",
+                    account="proj",
+                    dry_run=False,
+                )
+
+        self.assertTrue(result["confirm_required"])
+        self.assertFalse(result["executed"])
+        self.assertIn("cat > hardware-probe.slurm", result["command"])
+        remote.assert_not_called()
+
+    def test_install_container_executes_only_with_confirm_and_not_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture", return_value=completed) as remote:
+                result = mcp_server.hpc_install_container(
+                    config=str(config_path),
+                    directory="$VSC_DATA/containers",
+                    confirm=True,
+                    dry_run=False,
+                )
+
+        self.assertTrue(result["executed"])
+        self.assertFalse(result["dry_run"])
+        self.assertIn("cat > create_apptainer_container.slurm", result["command"])
+        remote.assert_called_once()
 
     @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
     def test_fastmcp_server_lists_and_calls_tools_and_resources(self) -> None:

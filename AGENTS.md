@@ -36,11 +36,12 @@ release preparation.
 - Do not confuse the Codex plugin with the `hpc_tools.plugins` Python
   entry-point group. Document and validate both surfaces when a change affects
   both.
-- Treat `hpc-mcp` as the FastMCP-based structured agent interface for read-only
-  hpc-tools context, including active config, profile-reference, reference-set,
-  and submission-log resources. Keep CLI commands as the human interface, and
-  do not add MCP write or submit tools unless they preserve the
-  quote/account/validate/confirm safety model.
+- Treat `hpc-mcp` as the FastMCP-based structured agent interface for
+  hpc-tools context and confirm-gated local writes or remote installs,
+  including active config, profile-reference, reference-set, and submission-log
+  resources. Keep CLI commands as the human interface, and do not add MCP
+  Slurm submission tools unless they preserve the quote/account/validate/confirm
+  safety model.
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware

@@ -92,11 +92,13 @@ optional MCP dependencies with:
 uv pip install -e ".[mcp]"
 ```
 
-The MCP server is a read-only structured interface over active hpc-tools
-configuration, profile references, reference sets, and submission logs. It
-does not replace the Codex plugin installation, does not install skills, and
-does not authorize Slurm job submission. Keep using the `hpc` CLI for normal
-human-facing commands and profile setup.
+The MCP server is a guarded structured interface over active hpc-tools
+configuration, profile references, reference sets, submission logs, generated
+probe scripts, and container bundles. Local writes and remote installs require
+`confirm=true`; remote install tools preview commands unless `dry_run=false` is
+also set. It does not replace the Codex plugin installation, does not install
+skills, and does not authorize Slurm job submission. Keep using the `hpc` CLI
+for normal human-facing commands and profile setup.
 
 ## Remote Access
 

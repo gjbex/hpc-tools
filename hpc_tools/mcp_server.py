@@ -4,11 +4,23 @@ from dataclasses import asdict
 from importlib import resources
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 from typing import Any
 
 from hpc_tools import __version__, plugin_system, references, slurm, submissions
-from hpc_tools.cli import _site_env_command, _storage_inspect_command
+from hpc_tools.cli import (
+    _container_bundle,
+    _cuda_device_properties_bundle,
+    _hardware_probe_template,
+    _install_bundle_command,
+    _install_cuda_device_properties_command,
+    _install_hardware_probe_command,
+    _site_env_command,
+    _storage_inspect_command,
+    _write_bundle_assets,
+    _write_cuda_device_properties_bundle,
+)
 from hpc_tools.config import (
     Config,
     ConfigError,
@@ -39,6 +51,16 @@ TOOL_NAMES = (
     "hpc_slurm_limits",
     "hpc_storage_inspect",
     "hpc_site_env",
+    "hpc_references_create",
+    "hpc_references_import",
+    "hpc_references_attach",
+    "hpc_submissions_mark_collected",
+    "hpc_submissions_mark_analysed",
+    "hpc_submissions_close",
+    "hpc_write_probe",
+    "hpc_install_probe",
+    "hpc_write_container",
+    "hpc_install_container",
 )
 
 RESOURCE_URIS = (
@@ -58,7 +80,7 @@ RESOURCE_TEMPLATES = (
 
 
 def create_server():
-    """Create the FastMCP server for hpc-tools read-only tools."""
+    """Create the FastMCP server for hpc-tools guarded agent tools."""
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as error:  # pragma: no cover - depends on optional extra.
@@ -70,9 +92,10 @@ def create_server():
     server = FastMCP(
         "hpc-tools",
         instructions=(
-            "Read-only hpc-tools interface for agents. This server exposes "
-            "profile, reference, plugin, Slurm-inspection, and submission-log "
-            "context. It does not expose write, install, or Slurm submission tools."
+            "Guarded hpc-tools interface for agents. This server exposes "
+            "profile, reference, plugin, Slurm-inspection, submission-log, "
+            "and explicit confirm-gated local write and remote install tools. "
+            "It does not expose Slurm job submission tools."
         ),
     )
     for function in (
@@ -90,6 +113,16 @@ def create_server():
         hpc_slurm_limits,
         hpc_storage_inspect,
         hpc_site_env,
+        hpc_references_create,
+        hpc_references_import,
+        hpc_references_attach,
+        hpc_submissions_mark_collected,
+        hpc_submissions_mark_analysed,
+        hpc_submissions_close,
+        hpc_write_probe,
+        hpc_install_probe,
+        hpc_write_container,
+        hpc_install_container,
     ):
         server.tool()(function)
     for uri, function, mime_type in (
@@ -279,6 +312,276 @@ def hpc_site_env(
     return _remote_read_result(resolved, _site_env_command(), dry_run=dry_run)
 
 
+def hpc_references_create(
+    name: str,
+    profile: str | None = None,
+    config: str | None = None,
+    force: bool = False,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Create a reference set from the selected profile; requires confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    destination = default_reference_sets_dir() / name
+    preview = {
+        "operation": "references_create",
+        "name": name,
+        "profile": resolved.name,
+        "path": str(destination),
+        "force": force,
+        "confirm_required": not confirm,
+    }
+    if not confirm:
+        return preview
+
+    reference_set = references.create_reference_set(name, resolved, force=force)
+    return preview | {
+        "confirm_required": False,
+        "created": True,
+        "reference_set": _reference_set_to_dict(reference_set),
+    }
+
+
+def hpc_references_import(
+    archive: str,
+    force: bool = False,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Import a reference-set archive; requires confirm=true."""
+    archive_path = Path(archive).expanduser()
+    preview = {
+        "operation": "references_import",
+        "archive": str(archive_path),
+        "reference_sets": str(default_reference_sets_dir()),
+        "force": force,
+        "confirm_required": not confirm,
+    }
+    if not confirm:
+        return preview
+
+    reference_set = references.import_reference_set(archive_path, force=force)
+    return preview | {
+        "confirm_required": False,
+        "imported": True,
+        "reference_set": _reference_set_to_dict(reference_set),
+    }
+
+
+def hpc_references_attach(
+    name: str,
+    profile: str | None = None,
+    config: str | None = None,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Attach an installed reference set to a profile config; requires confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    reference_set = references.load_reference_set(name)
+    config_path = Path(config).expanduser() if config else default_config_path()
+    preview = {
+        "operation": "references_attach",
+        "name": name,
+        "profile": resolved.name,
+        "config": str(config_path),
+        "reference_set_path": str(reference_set.path),
+        "confirm_required": not confirm,
+    }
+    if not confirm:
+        return preview
+
+    references.set_profile_reference_set(config_path, resolved.name, name)
+    return preview | {
+        "confirm_required": False,
+        "attached": True,
+        "profile": _profile_to_dict(_resolve_profile(profile_name=resolved.name, config_path=str(config_path))),
+    }
+
+
+def hpc_submissions_mark_collected(
+    run_id: str,
+    path: str | None = None,
+    log: str | None = None,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Append a results_collected event to the submission log; requires confirm=true."""
+    return _append_submission_mark_event(
+        run_id,
+        "results_collected",
+        path=path,
+        log=log,
+        confirm=confirm,
+    )
+
+
+def hpc_submissions_mark_analysed(
+    run_id: str,
+    path: str | None = None,
+    log: str | None = None,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Append an analysed event to the submission log; requires confirm=true."""
+    return _append_submission_mark_event(
+        run_id,
+        "analysed",
+        path=path,
+        log=log,
+        confirm=confirm,
+    )
+
+
+def hpc_submissions_close(
+    run_id: str,
+    reason: str | None = None,
+    log: str | None = None,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Append a closed event to the submission log; requires confirm=true."""
+    event = submissions.mark_event(run_id, "closed", reason=reason)
+    return _append_submission_event(event, log=log, confirm=confirm)
+
+
+def hpc_write_probe(
+    kind: str = "hardware",
+    output: str = "-",
+    force: bool = False,
+    account: str | None = None,
+    cluster: str | None = None,
+    partition: str | None = None,
+    qos: str | None = None,
+    cpus_per_task: str | None = None,
+    time: str | None = None,
+    mail_user: str | None = None,
+    mail_notifications: bool = False,
+    profile: str | None = None,
+    config: str | None = None,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Generate or write a local probe script or bundle; writes require confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config) if profile or config else None
+    if kind == "hardware":
+        probe_args = _probe_args(
+            account=account,
+            cluster=cluster,
+            partition=partition,
+            qos=qos,
+            cpus_per_task=cpus_per_task,
+            time=time,
+            mail_user=mail_user,
+            mail_notifications=mail_notifications,
+        )
+        contents = _hardware_probe_template(probe_args, resolved)
+        preview = _write_preview("write_probe", kind, output, force, confirm) | {
+            "contents": contents,
+        }
+        if not confirm or output == "-":
+            if confirm and output == "-":
+                raise ConfigError("hpc_write_probe requires an output path when confirm=true")
+            return preview
+        output_path = Path(output).expanduser()
+        if output_path.exists() and not force:
+            raise ConfigError(f"output file already exists: {output_path}; use force=true to overwrite")
+        output_path.write_text(contents, encoding="utf-8")
+        return preview | {"confirm_required": False, "written": True, "path": str(output_path)}
+
+    if kind == "cuda-device-properties":
+        bundle = _cuda_device_properties_bundle()
+        preview = _write_preview("write_probe", kind, output, force, confirm) | {
+            "files": bundle,
+        }
+        if output == "-":
+            raise ConfigError("hpc_write_probe kind cuda-device-properties requires an output directory")
+        if not confirm:
+            return preview
+        output_dir = Path(output).expanduser()
+        _write_cuda_device_properties_bundle(output_dir, force=force)
+        return preview | {"confirm_required": False, "written": True, "path": str(output_dir)}
+
+    raise ConfigError(f"unsupported probe kind: {kind}")
+
+
+def hpc_install_probe(
+    directory: str,
+    kind: str = "hardware",
+    name: str | None = None,
+    force: bool = False,
+    account: str | None = None,
+    cluster: str | None = None,
+    partition: str | None = None,
+    qos: str | None = None,
+    cpus_per_task: str | None = None,
+    time: str | None = None,
+    mail_user: str | None = None,
+    mail_notifications: bool = False,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Install a generated probe on a remote profile; execution requires confirm=true and dry_run=false."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    if kind == "hardware":
+        probe_args = _probe_args(
+            account=account,
+            cluster=cluster,
+            partition=partition,
+            qos=qos,
+            cpus_per_task=cpus_per_task,
+            time=time,
+            mail_user=mail_user,
+            mail_notifications=mail_notifications,
+        )
+        command = _install_hardware_probe_command(
+            directory,
+            name or "hardware-probe.slurm",
+            _hardware_probe_template(probe_args, resolved),
+            force=force,
+        )
+    elif kind == "cuda-device-properties":
+        command = _install_cuda_device_properties_command(
+            directory,
+            name or "cuda-device-properties.slurm",
+            force=force,
+        )
+    else:
+        raise ConfigError(f"unsupported probe kind: {kind}")
+    return _remote_mutation_result(resolved, command, confirm=confirm, dry_run=dry_run)
+
+
+def hpc_write_container(
+    output: str,
+    kind: str = "generic",
+    force: bool = False,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Generate or write a local container bundle; writes require confirm=true."""
+    bundle = _container_bundle(kind)
+    preview = _write_preview("write_container", kind, output, force, confirm) | {
+        "files": bundle,
+    }
+    if not confirm:
+        return preview
+    output_dir = Path(output).expanduser()
+    _write_bundle_assets(output_dir, bundle, force=force)
+    return preview | {"confirm_required": False, "written": True, "path": str(output_dir)}
+
+
+def hpc_install_container(
+    directory: str,
+    kind: str = "generic",
+    force: bool = False,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Install a generated container bundle remotely; execution requires confirm=true and dry_run=false."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    command = _install_bundle_command(
+        directory=directory,
+        bundle=_container_bundle(kind),
+        force=force,
+    )
+    return _remote_mutation_result(resolved, command, confirm=confirm, dry_run=dry_run)
+
+
 def resource_paths() -> str:
     """Return hpc-tools local paths as JSON."""
     return _json_resource(hpc_paths())
@@ -362,6 +665,93 @@ def _remote_read_result(profile: Profile, command: str, *, dry_run: bool = False
         "stdout": completed.stdout,
         "stderr": completed.stderr,
     }
+
+
+def _remote_mutation_result(
+    profile: Profile,
+    command: str,
+    *,
+    confirm: bool,
+    dry_run: bool,
+) -> dict[str, Any]:
+    ssh_argv = build_ssh_argv(profile, command)
+    preview = {
+        "profile": profile.name,
+        "command": command,
+        "ssh_command": format_command(ssh_argv),
+        "confirm_required": not confirm,
+        "dry_run": dry_run,
+        "executed": False,
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+    }
+    if not confirm or dry_run:
+        return preview
+
+    completed = run_remote_capture(profile, command)
+    return preview | {
+        "confirm_required": False,
+        "executed": True,
+        "returncode": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def _append_submission_mark_event(
+    run_id: str,
+    event_name: str,
+    *,
+    path: str | None,
+    log: str | None,
+    confirm: bool,
+) -> dict[str, Any]:
+    event = submissions.mark_event(run_id, event_name, path=path)
+    return _append_submission_event(event, log=log, confirm=confirm)
+
+
+def _append_submission_event(
+    event: dict[str, Any],
+    *,
+    log: str | None,
+    confirm: bool,
+) -> dict[str, Any]:
+    log_path = Path(log).expanduser() if log else submissions.default_log_path()
+    preview = {
+        "operation": event["event"],
+        "log": str(log_path),
+        "event": event,
+        "confirm_required": not confirm,
+    }
+    if not confirm:
+        return preview
+
+    submissions.append_event(event, path=log_path)
+    return preview | {
+        "confirm_required": False,
+        "appended": True,
+    }
+
+
+def _write_preview(
+    operation: str,
+    kind: str,
+    output: str,
+    force: bool,
+    confirm: bool,
+) -> dict[str, Any]:
+    return {
+        "operation": operation,
+        "kind": kind,
+        "output": output,
+        "force": force,
+        "confirm_required": not confirm,
+    }
+
+
+def _probe_args(**kwargs: Any) -> SimpleNamespace:
+    return SimpleNamespace(**kwargs)
 
 
 def _profile_summary(profile: Profile) -> dict[str, Any]:

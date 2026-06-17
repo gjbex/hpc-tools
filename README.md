@@ -138,9 +138,9 @@ Start a new Codex thread after reinstalling.
 ## MCP Server
 
 `hpc-tools` includes an experimental `hpc-mcp` console command that exposes a
-read-only MCP interface for agents through the official FastMCP framework. This
+guarded MCP interface for agents through the official FastMCP framework. This
 is a structured interface over the same profile, reference, plugin,
-Slurm-inspection, and submission-log helpers used by the CLI.
+Slurm-inspection, submission-log, probe, and container helpers used by the CLI.
 
 Install the optional MCP dependency in a development checkout with:
 
@@ -154,7 +154,7 @@ Run the server with:
 hpc-mcp
 ```
 
-The MCP interface supports read-only tools such as:
+The MCP interface supports read-only context tools such as:
 
 - `hpc_profiles_list`
 - `hpc_paths`
@@ -171,6 +171,23 @@ The MCP interface supports read-only tools such as:
 - `hpc_storage_inspect`
 - `hpc_site_env`
 
+It also supports confirm-gated write and install tools:
+
+- `hpc_references_create`
+- `hpc_references_import`
+- `hpc_references_attach`
+- `hpc_submissions_mark_collected`
+- `hpc_submissions_mark_analysed`
+- `hpc_submissions_close`
+- `hpc_write_probe`
+- `hpc_install_probe`
+- `hpc_write_container`
+- `hpc_install_container`
+
+Local writes and remote installs require `confirm=true`. Remote install tools
+return command previews by default; they only execute when `confirm=true` and
+`dry_run=false`.
+
 It also exposes durable local context as MCP resources:
 
 - `hpc://paths`
@@ -186,9 +203,9 @@ It also exposes durable local context as MCP resources:
 Profile and reference resources resolve from the active hpc-tools config tree
 and installed reference-set directory, not from repository examples.
 
-It does not expose write, install, or Slurm submission tools yet. Submission
-support should stay separate until quote, validation, account, and confirmation
-evidence can be enforced through the MCP interface.
+It does not expose Slurm job submission tools yet. Submission support should
+stay separate until quote, validation, account, and confirmation evidence can
+be enforced through the MCP interface.
 
 ## Plugins
 
