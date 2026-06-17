@@ -1,11 +1,51 @@
 ---
 name: hpc-cluster-onboarding
-description: Guide a first-time hpc-tools setup for an arbitrary Slurm-based HPC system. Use when the user wants to onboard a new cluster/profile, collect site facts, discover Slurm partitions and limits, identify storage and quota commands, run hardware probes, or create reusable hardware, Slurm, and storage reference notes for hpc-tools skills.
+description: Guide a first-time hpc-tools setup for the Codex plugin, the hpc CLI, and an arbitrary Slurm-based HPC system. Use when the user wants to install or update the hpc-tools Codex skills plugin, verify the local hpc CLI, onboard a new cluster/profile, collect site facts, discover Slurm partitions and limits, identify storage and quota commands, run hardware probes, or create reusable hardware, Slurm, and storage reference notes for hpc-tools skills.
 ---
 
 # HPC Cluster Onboarding
 
-## Local Installation
+## Codex Plugin Installation
+
+Before remote cluster onboarding, verify whether the user needs the hpc-tools
+Codex plugin installed or updated. The plugin provides these skills to Codex;
+it does not install the `hpc` command, configure SSH, or authorize Slurm job
+submission.
+
+For a normal local plugin checkout, use:
+
+```bash
+mkdir -p ~/plugins
+git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
+codex plugin add hpc-tools@personal
+```
+
+If `~/plugins/hpc-tools` already exists, inspect it before installing. A valid
+checkout should contain `.git`, `.codex-plugin/plugin.json`, `skills/`, and
+`hpc_tools/`:
+
+```bash
+find ~/plugins/hpc-tools -maxdepth 2 -type f -print
+```
+
+If it is already a Git checkout, update and reinstall it instead of cloning:
+
+```bash
+git -C ~/plugins/hpc-tools pull --ff-only
+python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
+  ~/plugins/hpc-tools
+codex plugin add hpc-tools@personal
+```
+
+If it is an old scaffold with only `.codex-plugin/plugin.json`, move it aside
+before cloning the real repository. Do not run `create_basic_plugin.py --force`
+against this repository because it can overwrite the real checkout with an
+empty scaffold.
+
+After installing or reinstalling the plugin, start a new Codex thread so the
+newly installed skills are available in the session.
+
+## CLI Installation
 
 Before creating or using a remote profile, verify that `hpc-tools` is installed
 and that the `hpc` command is on `PATH`:
@@ -110,13 +150,16 @@ Other users can then `hpc references import <archive>` and
 
 ## Guided Process
 
-Work in phases and stop after each phase if required access, local installation,
-or user context is missing.
+Work in phases and stop after each phase if required access, plugin
+installation, CLI installation, or user context is missing.
 
-### 0. Verify Local Installation
+### 0. Verify Codex Plugin and CLI Installation
 
-Run the local installation checks above. If `hpc-tools` is not installed, help
-the user install it with `pipx` before collecting remote cluster facts.
+Run the Codex plugin and CLI installation checks above. If the user is setting
+up Codex access to the skills, install or update the plugin first and tell them
+to start a new Codex thread after installation. If `hpc-tools` is not installed,
+help the user install the CLI with `pipx` before collecting remote cluster
+facts.
 
 ### 1. Establish a Minimal Profile
 

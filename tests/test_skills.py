@@ -297,7 +297,13 @@ class SkillTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("Verify Local Installation", text)
+        self.assertIn("Verify Codex Plugin and CLI Installation", text)
+        self.assertIn("Codex Plugin Installation", text)
+        self.assertIn("codex plugin add hpc-tools@personal", text)
+        self.assertIn("update_plugin_cachebuster.py", text)
+        self.assertIn("start a new Codex thread", text)
+        self.assertIn("create_basic_plugin.py --force", text)
+        self.assertIn("CLI Installation", text)
         self.assertIn("command -v hpc", text)
         self.assertIn("pipx install hpc-tools", text)
         self.assertIn("pipx install .", text)
@@ -384,6 +390,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("not\n  by symlinking", text)
         self.assertIn("hpc paths", text)
         self.assertIn("hpc-cluster-onboarding", text)
+        self.assertIn("hpc-tools Codex\n  plugin", text)
+        self.assertIn("local `hpc` CLI verification", text)
         self.assertIn("hpc-cluster-discovery", text)
         self.assertIn("hpc-r-packages", text)
         self.assertIn("hpc-python-packages", text)

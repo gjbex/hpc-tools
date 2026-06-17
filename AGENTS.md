@@ -50,7 +50,8 @@ release preparation.
   top-level `hpc-*` skills action-oriented around `hpc-tools` commands, and
   link to shared references for Slurm concepts, accounting safety, storage/I/O,
   and benchmark methodology instead of duplicating broad advice.
-- Use `hpc-cluster-onboarding` for first-time setup of a new Slurm cluster.
+- Use `hpc-cluster-onboarding` for first-time setup of the hpc-tools Codex
+  plugin, local `hpc` CLI verification, or a new Slurm cluster profile.
 - Use `hpc-cluster-discovery` for partition limits, QoS/account limits, array
   limits, and hardware probe interpretation.
 - Use `hpc-filesystem-environment` for storage, quotas, modules, and conda.
