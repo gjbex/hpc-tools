@@ -141,6 +141,9 @@ Start a new Codex thread after reinstalling.
 guarded MCP interface for agents through the official FastMCP framework. This
 is a structured interface over the same profile, reference, plugin,
 Slurm-inspection, submission-log, probe, and container helpers used by the CLI.
+The Codex plugin manifest points at `.mcp.json`, which starts the MCP server
+with the `hpc-mcp` command. Installing the Codex plugin does not install that
+command; install the Python package first.
 
 Install the optional MCP dependency in a development checkout with:
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import unittest
 
@@ -49,6 +50,16 @@ SKILLS = [
 
 
 class SkillTests(unittest.TestCase):
+    def test_plugin_manifest_declares_mcp_server_companion(self) -> None:
+        manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        mcp_config = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["mcpServers"], "./.mcp.json")
+        self.assertEqual(
+            mcp_config["mcpServers"]["hpc-tools"],
+            {"command": "hpc-mcp", "args": []},
+        )
+
     def test_skills_have_required_frontmatter(self) -> None:
         for skill in SKILLS:
             with self.subTest(skill=skill):
@@ -350,6 +361,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc plugins info benchmark", text)
         self.assertIn("hpc-mcp", text)
         self.assertIn("guarded MCP interface", text)
+        self.assertIn("plugin manifest points at `.mcp.json`", text)
+        self.assertIn("install the Python package first", text)
         self.assertIn("confirm-gated write and install tools", text)
         self.assertIn("hpc_references_create", text)
         self.assertIn("hpc_install_container", text)
@@ -410,6 +423,8 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc_tools.plugins", text)
         self.assertIn("hpc-mcp", text)
         self.assertIn("structured agent interface", text)
+        self.assertIn(".mcp.json", text)
+        self.assertIn("Python package's `hpc-mcp` console script", text)
         self.assertIn("confirm-gated local writes", text)
         self.assertIn("hpc_quote_job", text)
         self.assertIn("hpc_submit_job", text)

@@ -33,6 +33,9 @@ release preparation.
 - Treat the Codex plugin as a skills distribution layer. Installing the Codex
   plugin does not install the `hpc` CLI, configure SSH, or authorize Slurm job
   submission.
+- The Codex plugin may declare MCP configuration through `.mcp.json`, but that
+  configuration starts the Python package's `hpc-mcp` console script. Keep the
+  Python package install instructions and plugin install instructions separate.
 - Do not confuse the Codex plugin with the `hpc_tools.plugins` Python
   entry-point group. Document and validate both surfaces when a change affects
   both.
