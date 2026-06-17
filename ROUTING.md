@@ -18,6 +18,20 @@ executable through `pipx install hpc-tools`.
 Do not treat installing the Codex plugin as installing the CLI, configuring SSH,
 or authorizing Slurm submissions.
 
+## Related Plugins
+
+`hpc-tools` is complementary to `scientific-computing-skills`, but it is not a
+dependency of that plugin and does not depend on it. Route operational cluster
+work here: SSH access, Slurm policy, accounts, quotas, modules, filesystems,
+job submission, job arrays, probes, and site-specific runtime workflows.
+
+Route broader scientific software engineering work to
+`scientific-computing-skills`: testing strategy, CI, profiling, benchmark
+methodology, numerical review, packaging, reproducibility, documentation, and
+release preparation. If a task spans both, use `hpc-tools` for remote execution
+and cluster safety, then use the scientific skills for code-quality or
+methodology decisions.
+
 ## Skill Selection
 
 - `hpc-cluster-onboarding`: first-time setup for a Slurm cluster profile,

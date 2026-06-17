@@ -10,6 +10,12 @@ The repository is also a Codex plugin. `.codex-plugin/plugin.json` packages the
 skills for Codex, while `setup.cfg` packages the Python CLI. Keep those
 distribution surfaces separate.
 
+This plugin is related to, but separate from, `scientific-computing-skills`.
+Use `hpc-tools` for operational HPC workflows and cluster safety; refer to
+`scientific-computing-skills` for general scientific software engineering such
+as testing, CI, profiling, numerical review, packaging, reproducibility, and
+release preparation.
+
 ## Repository Rules
 
 - Treat `examples/` as templates and sample data.

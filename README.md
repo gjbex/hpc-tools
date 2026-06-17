@@ -103,6 +103,20 @@ See [ROUTING.md](ROUTING.md) for skill selection, safety rules, and the
 difference between Codex plugin packaging and the `hpc_tools.plugins` Python
 entry-point group.
 
+## Related Plugins
+
+`hpc-tools` is intentionally separate from
+[`scientific-computing-skills`](https://github.com/gjbex/scientific-computing-skills).
+Use this plugin for operational HPC work: SSH profiles, Slurm jobs, accounting,
+site filesystems, modules, job arrays, probes, and cluster-specific workflows.
+Use `scientific-computing-skills` for broader scientific software engineering:
+testing, CI, profiling, benchmarking methodology, numerical review, packaging,
+reproducibility, documentation, and release preparation.
+
+The two plugins can complement each other, but neither depends on the other.
+Keep `hpc-tools` separate because it guides actions that may touch real
+clusters, charge accounts, or modify remote state.
+
 Do not run `create_basic_plugin.py --force` against this repository. That helper
 is for creating a new plugin scaffold, and can overwrite a real checkout with an
 empty scaffold.
