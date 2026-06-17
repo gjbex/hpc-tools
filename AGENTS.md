@@ -6,6 +6,10 @@ This repository contains the `hpc-tools` Python CLI, example Slurm probe
 scripts, example reference files, and Codex skills for working with remote
 Slurm-based HPC systems.
 
+The repository is also a Codex plugin. `.codex-plugin/plugin.json` packages the
+skills for Codex, while `setup.cfg` packages the Python CLI. Keep those
+distribution surfaces separate.
+
 ## Repository Rules
 
 - Treat `examples/` as templates and sample data.
@@ -20,6 +24,12 @@ Slurm-based HPC systems.
   `python3 -m pip install --user -e .`
 - Register CLI extensions through the `hpc_tools.plugins` entry-point group
   instead of hardcoding every workflow into the core CLI.
+- Treat the Codex plugin as a skills distribution layer. Installing the Codex
+  plugin does not install the `hpc` CLI, configure SSH, or authorize Slurm job
+  submission.
+- Do not confuse the Codex plugin with the `hpc_tools.plugins` Python
+  entry-point group. Document and validate both surfaces when a change affects
+  both.
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
@@ -64,5 +74,8 @@ Slurm-based HPC systems.
 After changing skills, README onboarding instructions, examples, or tests, run:
 
 ```bash
+python3 tools/validate_plugin.py .
+python3 tools/validate_skills.py .
+python3 tools/check_repo_hygiene.py .
 python3 -m unittest discover -s tests
 ```

@@ -1,0 +1,37 @@
+{
+  "name": "hpc-tools",
+  "version": "0.1.0",
+  "description": "Codex skills for safe, profile-driven HPC operations with the hpc-tools CLI.",
+  "author": {
+    "name": "Geert Jan Bex"
+  },
+  "homepage": "https://github.com/gjbex/hpc-tools",
+  "repository": "https://github.com/gjbex/hpc-tools",
+  "keywords": [
+    "hpc",
+    "slurm",
+    "ssh",
+    "clusters",
+    "benchmarking",
+    "codex-skills"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "HPC Tools",
+    "shortDescription": "Skills for safe Slurm, SSH, and cluster workflows.",
+    "longDescription": "A Codex plugin companion for hpc-tools: cluster onboarding, profile-driven reference management, Slurm job submission and monitoring, job arrays, benchmarking, Python and R package checks, containers, and remote build workflows.",
+    "developerName": "Geert Jan Bex",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Onboard this Slurm cluster with hpc-tools.",
+      "Review this Slurm job script before submission.",
+      "Diagnose why this HPC job failed.",
+      "Plan a pilot-first benchmark sweep on this cluster."
+    ],
+    "brandColor": "#315C8C"
+  }
+}

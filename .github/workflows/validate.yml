@@ -1,0 +1,32 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Validate Codex plugin manifest
+        run: python3 tools/validate_plugin.py .
+
+      - name: Validate Codex skills
+        run: python3 tools/validate_skills.py .
+
+      - name: Check repository hygiene
+        run: python3 tools/check_repo_hygiene.py .
+
+      - name: Compile Python modules
+        run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py tests/*.py tools/*.py
+
+      - name: Run tests
+        run: python3 -m unittest discover -s tests

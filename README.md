@@ -4,6 +4,10 @@
 with remote HPC systems. Hosts are configured as named profiles, so the same
 commands can target `genius`, another login node, or a local SSH alias.
 
+This repository is also structured as a Codex plugin. The Codex plugin ships
+skills for safe, profile-driven HPC work; it does not install the `hpc` CLI,
+configure SSH, or authorize Slurm submissions.
+
 ## Install
 
 For normal released use, install the CLI with `pipx`:
@@ -26,6 +30,28 @@ Use an editable install only when developing `hpc-tools` itself:
 ```bash
 python3 -m pip install --user -e .
 ```
+
+## Codex Plugin
+
+The Codex plugin metadata lives in
+[.codex-plugin/plugin.json](.codex-plugin/plugin.json) and points Codex at the
+skills under [skills](skills). Install or update the Codex plugin separately
+from the Python package. After installing the plugin, install the CLI with
+`pipx install hpc-tools` if the `hpc` command is not already available.
+
+Keep these surfaces separate:
+
+- Codex plugin: cluster, Slurm, filesystem, package, benchmark, and container
+  workflow skills for Codex.
+- Python package: the `hpc` executable, packaged probe templates, and the
+  `hpc_tools.plugins` CLI extension API.
+- User state: profile configuration, reference sets, submission logs, and
+  consolidated cluster notes under `$XDG_CONFIG_HOME/hpc-tools` or
+  `~/.config/hpc-tools`.
+
+See [ROUTING.md](ROUTING.md) for skill selection, safety rules, and the
+difference between Codex plugin packaging and the `hpc_tools.plugins` Python
+entry-point group.
 
 ## Plugins
 
@@ -503,7 +529,7 @@ account/QoS inspection, storage discovery, and hardware probing.
 
 ## Codex Skills
 
-The repository also includes reusable Codex skills under [skills](skills). They
+The Codex plugin exposes reusable skills under [skills](skills). They
 generalize the original Genius-specific workflows so agents can work with any
 configured `hpc-tools` profile:
 
@@ -536,10 +562,14 @@ configured `hpc-tools` profile:
   reruns of failed array elements, and output aggregation.
 - [skills/hpc-slurm-benchmark](skills/hpc-slurm-benchmark) for Slurm-backed
   benchmark runs, pilot-first sweeps, result collection, and local analysis.
+- [skills/hpc-container-workflows](skills/hpc-container-workflows) for
+  Apptainer definition-file workflows, especially HPCCM-generated recipes and
+  container builds that should run through Slurm.
 
-Install them into a Codex skills directory by copying the skill directories and
-the shared reference directory. Copying, rather than symlinking, lets the user
-delete the `hpc-tools` checkout after installation:
+If a Codex plugin install path is not available, the skills can still be
+installed manually by copying the skill directories and shared reference
+directory. Copying, rather than symlinking, lets the user delete the
+`hpc-tools` checkout after installation:
 
 ```bash
 mkdir -p ~/.codex/skills
@@ -553,8 +583,20 @@ cp -R skills/hpc-deploy-build ~/.codex/skills/hpc-deploy-build
 cp -R skills/hpc-slurm-jobs ~/.codex/skills/hpc-slurm-jobs
 cp -R skills/hpc-slurm-job-arrays ~/.codex/skills/hpc-slurm-job-arrays
 cp -R skills/hpc-slurm-benchmark ~/.codex/skills/hpc-slurm-benchmark
+cp -R skills/hpc-container-workflows ~/.codex/skills/hpc-container-workflows
 ```
 
 Each skill assumes the `hpc` CLI is installed and the relevant profile is
 configured. Optional commands such as `hpc quota` and `hpc queue` are used only
 when the selected profile exposes them.
+
+## Validation
+
+Before publishing plugin or skill changes, run the repo-local checks:
+
+```bash
+python3 tools/validate_plugin.py .
+python3 tools/validate_skills.py .
+python3 tools/check_repo_hygiene.py .
+python3 -m unittest discover -s tests
+```
