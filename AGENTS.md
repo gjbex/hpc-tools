@@ -36,6 +36,11 @@ release preparation.
 - Do not confuse the Codex plugin with the `hpc_tools.plugins` Python
   entry-point group. Document and validate both surfaces when a change affects
   both.
+- Treat `hpc-mcp` as the FastMCP-based structured agent interface for read-only
+  hpc-tools context, including active config, profile-reference, reference-set,
+  and submission-log resources. Keep CLI commands as the human interface, and
+  do not add MCP write or submit tools unless they preserve the
+  quote/account/validate/confirm safety model.
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
@@ -84,5 +89,6 @@ After changing skills, README onboarding instructions, examples, or tests, run:
 python3 tools/validate_plugin.py .
 python3 tools/validate_skills.py .
 python3 tools/check_repo_hygiene.py .
+python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py tests/*.py tools/*.py
 python3 -m unittest discover -s tests
 ```

@@ -42,6 +42,7 @@ from hpc_tools.cli import (
     cmd_write_probe,
     main,
 )
+from hpc_tools import mcp_server
 from hpc_tools.plugins import benchmark_support
 from hpc_tools.hardware import render_hardware_context
 from hpc_tools.ssh import build_ssh_argv
@@ -555,6 +556,9 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(args.command, "plugins")
         self.assertEqual(args.plugins_command, "list")
+
+    def test_mcp_console_script_entry_point_is_available(self) -> None:
+        self.assertTrue(callable(mcp_server.main))
 
     def test_benchmark_parser(self) -> None:
         parser = build_parser()

@@ -135,6 +135,61 @@ codex plugin add hpc-tools@personal
 
 Start a new Codex thread after reinstalling.
 
+## MCP Server
+
+`hpc-tools` includes an experimental `hpc-mcp` console command that exposes a
+read-only MCP interface for agents through the official FastMCP framework. This
+is a structured interface over the same profile, reference, plugin,
+Slurm-inspection, and submission-log helpers used by the CLI.
+
+Install the optional MCP dependency in a development checkout with:
+
+```bash
+uv pip install -e ".[mcp]"
+```
+
+Run the server with:
+
+```bash
+hpc-mcp
+```
+
+The MCP interface supports read-only tools such as:
+
+- `hpc_profiles_list`
+- `hpc_paths`
+- `hpc_profile_show`
+- `hpc_hardware_context`
+- `hpc_hardware_sources`
+- `hpc_references_list`
+- `hpc_references_show`
+- `hpc_plugins_list`
+- `hpc_submissions_list`
+- `hpc_jobs`
+- `hpc_job`
+- `hpc_slurm_limits`
+- `hpc_storage_inspect`
+- `hpc_site_env`
+
+It also exposes durable local context as MCP resources:
+
+- `hpc://paths`
+- `hpc://config`
+- `hpc://profiles/{profile}`
+- `hpc://profiles/{profile}/hardware`
+- `hpc://profiles/{profile}/slurm`
+- `hpc://profiles/{profile}/storage`
+- `hpc://reference-sets/{name}`
+- `hpc://submissions/active`
+- `hpc://submissions/all`
+
+Profile and reference resources resolve from the active hpc-tools config tree
+and installed reference-set directory, not from repository examples.
+
+It does not expose write, install, or Slurm submission tools yet. Submission
+support should stay separate until quote, validation, account, and confirmation
+evidence can be enforced through the MCP interface.
+
 ## Plugins
 
 `hpc-tools` now supports plugin commands. The core CLI keeps generic SSH,
