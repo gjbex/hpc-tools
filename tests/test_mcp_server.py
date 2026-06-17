@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import inspect
 import json
 import tempfile
 import textwrap
@@ -13,6 +14,159 @@ from hpc_tools import mcp_server
 
 
 class McpServerTests(unittest.TestCase):
+    def test_mcp_tool_and_resource_registries_are_stable(self) -> None:
+        self.assertEqual(
+            mcp_server.TOOL_NAMES,
+            (
+                "hpc_profiles_list",
+                "hpc_paths",
+                "hpc_profile_show",
+                "hpc_hardware_context",
+                "hpc_hardware_sources",
+                "hpc_references_list",
+                "hpc_references_show",
+                "hpc_plugins_list",
+                "hpc_submissions_list",
+                "hpc_jobs",
+                "hpc_job",
+                "hpc_slurm_limits",
+                "hpc_storage_inspect",
+                "hpc_site_env",
+                "hpc_references_create",
+                "hpc_references_import",
+                "hpc_references_attach",
+                "hpc_submissions_mark_collected",
+                "hpc_submissions_mark_analysed",
+                "hpc_submissions_close",
+                "hpc_write_probe",
+                "hpc_install_probe",
+                "hpc_write_container",
+                "hpc_install_container",
+                "hpc_quote_job",
+                "hpc_validate_job",
+                "hpc_submit_job",
+            ),
+        )
+        self.assertEqual(
+            mcp_server.RESOURCE_URIS,
+            (
+                "hpc://paths",
+                "hpc://config",
+                "hpc://submissions/active",
+                "hpc://submissions/all",
+            ),
+        )
+        self.assertEqual(
+            mcp_server.RESOURCE_TEMPLATES,
+            (
+                "hpc://profiles/{profile}",
+                "hpc://profiles/{profile}/hardware",
+                "hpc://profiles/{profile}/slurm",
+                "hpc://profiles/{profile}/storage",
+                "hpc://reference-sets/{name}",
+            ),
+        )
+
+    def test_mcp_tool_schemas_are_stable_for_guarded_submission(self) -> None:
+        expected = {
+            "hpc_quote_job": [
+                "jobscript",
+                "directory",
+                "account",
+                "array",
+                "cluster",
+                "dependency",
+                "error",
+                "export",
+                "gpu_bind",
+                "gpus",
+                "gpus_per_node",
+                "gpus_per_task",
+                "gres",
+                "job_name",
+                "mem",
+                "mem_per_cpu",
+                "nodes",
+                "ntasks",
+                "ntasks_per_node",
+                "output",
+                "partition",
+                "reservation",
+                "time",
+                "cpus_per_task",
+                "profile",
+                "config",
+                "dry_run",
+            ],
+            "hpc_validate_job": [
+                "jobscript",
+                "directory",
+                "account",
+                "array",
+                "cluster",
+                "dependency",
+                "error",
+                "export",
+                "gpu_bind",
+                "gpus",
+                "gpus_per_node",
+                "gpus_per_task",
+                "gres",
+                "job_name",
+                "mem",
+                "mem_per_cpu",
+                "nodes",
+                "ntasks",
+                "ntasks_per_node",
+                "output",
+                "partition",
+                "reservation",
+                "time",
+                "cpus_per_task",
+                "profile",
+                "config",
+                "dry_run",
+            ],
+            "hpc_submit_job": [
+                "jobscript",
+                "directory",
+                "quote_evidence",
+                "validation_evidence",
+                "account",
+                "array",
+                "cluster",
+                "dependency",
+                "error",
+                "export",
+                "gpu_bind",
+                "gpus",
+                "gpus_per_node",
+                "gpus_per_task",
+                "gres",
+                "job_name",
+                "mem",
+                "mem_per_cpu",
+                "nodes",
+                "ntasks",
+                "ntasks_per_node",
+                "output",
+                "partition",
+                "reservation",
+                "time",
+                "cpus_per_task",
+                "profile",
+                "config",
+                "dry_run",
+                "confirm",
+            ],
+        }
+
+        for name, parameter_names in expected.items():
+            with self.subTest(name=name):
+                signature = inspect.signature(getattr(mcp_server, name))
+                self.assertEqual(list(signature.parameters), parameter_names)
+                self.assertNotIn("overrides", signature.parameters)
+
     def test_guarded_tools_include_evidence_gated_slurm_submit_workflow(self) -> None:
         names = set(mcp_server.TOOL_NAMES)
 
@@ -147,6 +301,61 @@ class McpServerTests(unittest.TestCase):
 
         self.assertEqual(result["name"], "baseline")
         self.assertTrue(result["hardware_reference"].endswith("hardware.md"))
+
+    def test_local_mcp_tools_work_without_profile_config(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            log_path = root / "submissions.jsonl"
+
+            with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(root)}, clear=True):
+                paths = mcp_server.hpc_paths()
+                references = mcp_server.hpc_references_list()
+                plugins = mcp_server.hpc_plugins_list()
+                submissions = mcp_server.hpc_submissions_list(log=str(log_path))
+                probe = mcp_server.hpc_write_probe(output="-")
+                container = mcp_server.hpc_write_container(output=str(root / "bundle"))
+
+        self.assertTrue(paths["config"].endswith("hpc-tools/config.toml"))
+        self.assertEqual(references["reference_sets"], [])
+        self.assertIn("plugins", plugins)
+        self.assertEqual(submissions["submissions"], [])
+        self.assertIn("#SBATCH --job-name=hardware-probe", probe["contents"])
+        self.assertIn("create_apptainer_container.slurm", container["files"])
+        self.assertFalse(log_path.exists())
+        self.assertFalse((root / "bundle").exists())
+
+    def test_profile_required_tools_reject_missing_or_unknown_profiles(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+
+            with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(root / "missing")}, clear=True):
+                with self.assertRaisesRegex(ValueError, "configuration file not found"):
+                    mcp_server.hpc_jobs(dry_run=True)
+
+            with self.assertRaisesRegex(ValueError, "unknown profile"):
+                mcp_server.hpc_jobs(profile="missing", config=str(config_path), dry_run=True)
+
+    def test_read_only_tools_do_not_write_local_or_remote_state_when_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            log_path = root / "hpc-tools" / "submissions.jsonl"
+
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
+                clear=False,
+            ), mock.patch("hpc_tools.mcp_server.run_remote_capture") as remote:
+                jobs = mcp_server.hpc_jobs(cluster="wice", dry_run=True)
+                hardware_sources = mcp_server.hpc_hardware_sources()
+                active = mcp_server.hpc_submissions_list()
+
+        self.assertTrue(jobs["dry_run"])
+        self.assertEqual(hardware_sources["profile"], "genius")
+        self.assertEqual(active["submissions"], [])
+        self.assertFalse(log_path.exists())
+        remote.assert_not_called()
 
     def test_references_create_requires_confirm_before_writing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -354,6 +563,126 @@ class McpServerTests(unittest.TestCase):
                     cluster="wice",
                     partition="other",
                     quote_evidence=quote["quote_evidence"],
+                    validation_evidence=validation["validation_evidence"],
+                    confirm=True,
+                    dry_run=False,
+                )
+
+    def test_submit_job_refuses_missing_account_quote_validation_or_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            quote_completed = mock.Mock(returncode=0, stdout="2730\n", stderr="")
+            validate_completed = mock.Mock(returncode=0, stdout="sbatch: ok\n", stderr="")
+
+            with self.assertRaisesRegex(ValueError, "requires an account"):
+                mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                )
+
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture", side_effect=[quote_completed, validate_completed]):
+                quote = mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                )
+                validation = mcp_server.hpc_validate_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                )
+
+            with self.assertRaisesRegex(ValueError, "expected quote evidence"):
+                mcp_server.hpc_submit_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                    quote_evidence={},
+                    validation_evidence=validation["validation_evidence"],
+                    confirm=True,
+                    dry_run=False,
+                )
+
+            with self.assertRaisesRegex(ValueError, "expected validation evidence"):
+                mcp_server.hpc_submit_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                    quote_evidence=quote["quote_evidence"],
+                    validation_evidence={},
+                    confirm=True,
+                    dry_run=False,
+                )
+
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture") as remote:
+                preview = mcp_server.hpc_submit_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                    quote_evidence=quote["quote_evidence"],
+                    validation_evidence=validation["validation_evidence"],
+                    dry_run=False,
+                    confirm=False,
+                )
+
+        self.assertTrue(preview["confirm_required"])
+        self.assertFalse(preview["executed"])
+        remote.assert_not_called()
+
+    def test_submit_job_rejects_dry_run_or_tampered_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            dry_quote = mcp_server.hpc_quote_job(
+                config=str(config_path),
+                directory="$VSC_DATA/Projects/demo",
+                jobscript="job.slurm",
+                account="proj",
+                cluster="wice",
+                dry_run=True,
+            )
+            validate_completed = mock.Mock(returncode=0, stdout="sbatch: ok\n", stderr="")
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture", return_value=validate_completed):
+                validation = mcp_server.hpc_validate_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                )
+
+            with self.assertRaisesRegex(ValueError, "dry run"):
+                mcp_server.hpc_submit_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                    quote_evidence=dry_quote["quote_evidence"],
+                    validation_evidence=validation["validation_evidence"],
+                    confirm=True,
+                    dry_run=False,
+                )
+
+            tampered_quote = dict(validation["validation_evidence"]) | {"type": "quote"}
+            with self.assertRaisesRegex(ValueError, "token is invalid"):
+                mcp_server.hpc_submit_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                    quote_evidence=tampered_quote,
                     validation_evidence=validation["validation_evidence"],
                     confirm=True,
                     dry_run=False,

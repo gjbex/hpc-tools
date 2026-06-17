@@ -101,7 +101,8 @@ def create_server():
             "Guarded hpc-tools interface for agents. This server exposes "
             "profile, reference, plugin, Slurm-inspection, submission-log, "
             "and explicit confirm-gated local write and remote install tools. "
-            "It does not expose Slurm job submission tools."
+            "Slurm job submission is exposed only through quote, validation, "
+            "and confirm-gated submit tools with matching evidence."
         ),
     )
     for function in (
