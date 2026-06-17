@@ -36,8 +36,58 @@ python3 -m pip install --user -e .
 The Codex plugin metadata lives in
 [.codex-plugin/plugin.json](.codex-plugin/plugin.json) and points Codex at the
 skills under [skills](skills). Install or update the Codex plugin separately
-from the Python package. After installing the plugin, install the CLI with
-`pipx install hpc-tools` if the `hpc` command is not already available.
+from the Python package. The plugin makes the skills available to Codex; it does
+not install the `hpc` command.
+
+Clone the plugin into the standard local plugin directory:
+
+```bash
+mkdir -p ~/plugins
+git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
+```
+
+If `~/plugins/hpc-tools` already exists, inspect it before installing. A valid
+checkout should contain `.git`, `.codex-plugin/plugin.json`, `skills/`, and
+`hpc_tools/`:
+
+```bash
+find ~/plugins/hpc-tools -maxdepth 2 -type f -print
+```
+
+If it is already a Git checkout, update it instead of cloning:
+
+```bash
+git -C ~/plugins/hpc-tools pull --ff-only
+```
+
+If it is an old scaffold with only `.codex-plugin/plugin.json`, move it aside
+before cloning the real repository:
+
+```bash
+mv ~/plugins/hpc-tools \
+  ~/plugins/hpc-tools.scaffold-backup-$(date -u +%Y%m%dT%H%M%SZ)
+
+git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
+```
+
+Install or reinstall the plugin from the personal marketplace:
+
+```bash
+codex plugin add hpc-tools@personal
+```
+
+Verify the installed source contains the bundled skills:
+
+```bash
+codex plugin list
+test -f ~/plugins/hpc-tools/skills/hpc-slurm-jobs/SKILL.md
+```
+
+Start a new Codex thread after installation so the newly installed skills are
+available in the session.
+
+After installing the Codex plugin, install the CLI with `pipx install hpc-tools`
+if the `hpc` command is not already available.
 
 Keep these surfaces separate:
 
@@ -52,6 +102,24 @@ Keep these surfaces separate:
 See [ROUTING.md](ROUTING.md) for skill selection, safety rules, and the
 difference between Codex plugin packaging and the `hpc_tools.plugins` Python
 entry-point group.
+
+Do not run `create_basic_plugin.py --force` against this repository. That helper
+is for creating a new plugin scaffold, and can overwrite a real checkout with an
+empty scaffold.
+
+To update the plugin later, update the local checkout, refresh the plugin
+version cachebuster, and reinstall from the personal marketplace:
+
+```bash
+git -C ~/plugins/hpc-tools pull --ff-only
+
+python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
+  ~/plugins/hpc-tools
+
+codex plugin add hpc-tools@personal
+```
+
+Start a new Codex thread after reinstalling.
 
 ## Plugins
 
