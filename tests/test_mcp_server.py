@@ -27,6 +27,7 @@ class McpServerTests(unittest.TestCase):
                 "hpc_references_show",
                 "hpc_plugins_list",
                 "hpc_submissions_list",
+                "hpc_status",
                 "hpc_jobs",
                 "hpc_job",
                 "hpc_slurm_limits",
@@ -173,6 +174,7 @@ class McpServerTests(unittest.TestCase):
 
         self.assertIn("hpc_profiles_list", names)
         self.assertIn("hpc_paths", names)
+        self.assertIn("hpc_status", names)
         self.assertIn("hpc_jobs", names)
         self.assertIn("hpc_slurm_limits", names)
         self.assertIn("hpc_module_spider", names)
@@ -243,6 +245,38 @@ class McpServerTests(unittest.TestCase):
         self.assertFalse(result["dry_run"])
         self.assertIn("squeue -M wice -j 123", result["command"])
         remote.assert_called_once()
+
+    def test_status_tool_returns_structured_combined_report(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            completed_quota = mock.Mock(
+                returncode=0,
+                stdout="file system: $VSC_DATA\nBlocks: 573G* of 600G\n",
+                stderr="",
+            )
+            completed_balance = mock.Mock(
+                returncode=0,
+                stdout="ID Name Balance\n142 geniusdefaultslurmaccount 0\n",
+                stderr="",
+            )
+
+            with mock.patch("hpc_tools.cli._fetch_status_page", return_value="All systems running fine"), \
+                    mock.patch("hpc_tools.cli.run_remote_capture", side_effect=[completed_quota, completed_balance]), \
+                    mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]):
+                result = mcp_server.hpc_status(config=str(config_path))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["failures"], 0)
+        self.assertEqual([section["title"] for section in result["sections"]], [
+            "status page",
+            "quota",
+            "balance",
+            "submissions",
+        ])
+        self.assertIn("All systems running fine", result["sections"][0]["lines"])
+        self.assertIn("Blocks: 573G* of 600G", result["sections"][1]["lines"])
+        self.assertIn("geniusdefaultslurmaccount", "\n".join(result["sections"][2]["lines"]))
+        self.assertEqual(result["submissions"], [])
 
     def test_module_spider_tool_searches_remote_lmod_modules(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -861,6 +895,8 @@ class McpServerTests(unittest.TestCase):
                 storage_reference = "{profile_dir / 'storage.md'}"
                 storage_url = "https://example.org/storage"
                 status_url = "https://status.example.org/"
+                quota_command = "myquota"
+                sam_balance_command = "sam-balance"
                 sam_quote_command = "sam-quote"
                 default_cluster = "wice"
                 """

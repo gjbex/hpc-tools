@@ -24,6 +24,7 @@ from hpc_tools.cli import (
     _storage_inspect_command,
     _write_bundle_assets,
     _write_cuda_device_properties_bundle,
+    build_status_report,
 )
 from hpc_tools.config import (
     Config,
@@ -50,6 +51,7 @@ TOOL_NAMES = (
     "hpc_references_show",
     "hpc_plugins_list",
     "hpc_submissions_list",
+    "hpc_status",
     "hpc_jobs",
     "hpc_job",
     "hpc_slurm_limits",
@@ -117,6 +119,7 @@ def create_server():
         hpc_references_show,
         hpc_plugins_list,
         hpc_submissions_list,
+        hpc_status,
         hpc_jobs,
         hpc_job,
         hpc_slurm_limits,
@@ -262,6 +265,16 @@ def hpc_submissions_list(all: bool = False, log: str | None = None) -> dict[str,
         "all": all,
         "submissions": [_submission_record_to_dict(record) for record in records],
     }
+
+
+def hpc_status(
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Show site status, quota, balance, and local submissions for a profile."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    return build_status_report(resolved, dry_run=dry_run)
 
 
 def hpc_jobs(

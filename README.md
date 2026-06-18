@@ -177,6 +177,7 @@ The MCP interface supports read-only context tools such as:
 - `hpc_references_show`
 - `hpc_plugins_list`
 - `hpc_submissions_list`
+- `hpc_status`
 - `hpc_jobs`
 - `hpc_job`
 - `hpc_slurm_limits`
