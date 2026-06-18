@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import unittest
 
@@ -33,6 +34,7 @@ SHARED_CONCEPTS = {
 }
 README = ROOT / "README.md"
 AGENTS = ROOT / "AGENTS.md"
+ROUTING = ROOT / "ROUTING.md"
 SUBMISSIONS_DOC = ROOT / "docs" / "submissions.md"
 SKILLS = [
     "hpc-container-workflows",
@@ -49,6 +51,16 @@ SKILLS = [
 
 
 class SkillTests(unittest.TestCase):
+    def test_plugin_manifest_declares_mcp_server_companion(self) -> None:
+        manifest = json.loads((ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        mcp_config = json.loads((ROOT / ".mcp.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(manifest["mcpServers"], "./.mcp.json")
+        self.assertEqual(
+            mcp_config["mcpServers"]["hpc-tools"],
+            {"command": "hpc-mcp", "args": []},
+        )
+
     def test_skills_have_required_frontmatter(self) -> None:
         for skill in SKILLS:
             with self.subTest(skill=skill):
@@ -292,6 +304,21 @@ class SkillTests(unittest.TestCase):
         self.assertIn("MaxArraySize", text)
         self.assertIn("--array=0-<N-1>", text)
 
+    def test_slurm_job_skill_covers_dmtcp_for_long_jobs(self) -> None:
+        text = (ROOT / "skills" / "hpc-slurm-jobs" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        shared = (ROOT / "skills" / "_shared" / "hpc-slurm-concepts.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Long Jobs and Checkpointing", text)
+        self.assertIn("hpc --profile <profile> module-spider DMTCP", text)
+        self.assertIn("small\npilot job on the target partition", text)
+        self.assertIn("MPI, accelerator, licensed, networked", text)
+        self.assertIn("Long Runtime and Checkpointing", shared)
+        self.assertIn("DMTCP", shared)
+
     def test_cluster_onboarding_skill_guides_first_run_collection(self) -> None:
         text = (ROOT / "skills" / "hpc-cluster-onboarding" / "SKILL.md").read_text(
             encoding="utf-8"
@@ -299,6 +326,7 @@ class SkillTests(unittest.TestCase):
 
         self.assertIn("Verify Codex Plugin and CLI Installation", text)
         self.assertIn("Codex Plugin Installation", text)
+        self.assertIn("register_personal_marketplace.py", text)
         self.assertIn("codex plugin add hpc-tools@personal", text)
         self.assertIn("update_plugin_cachebuster.py", text)
         self.assertIn("start a new Codex thread", text)
@@ -307,6 +335,15 @@ class SkillTests(unittest.TestCase):
         self.assertIn("command -v hpc", text)
         self.assertIn("pipx install hpc-tools", text)
         self.assertIn("pipx install .", text)
+        self.assertIn("MCP Installation", text)
+        self.assertIn("command -v hpc-mcp", text)
+        self.assertIn('uv pip install -e ".[mcp]"', text)
+        self.assertIn("guarded structured interface", text)
+        self.assertIn("Local writes and remote installs require", text)
+        self.assertIn("hpc_quote_job", text)
+        self.assertIn("hpc_validate_job", text)
+        self.assertIn("hpc_submit_job", text)
+        self.assertIn("rejects stale or dry-run", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("hardware_reference", text)
         self.assertIn("Establish a Minimal Profile", text)
@@ -339,6 +376,24 @@ class SkillTests(unittest.TestCase):
         self.assertIn("cp -R skills/hpc-slurm-job-arrays", text)
         self.assertIn("hpc plugins list", text)
         self.assertIn("hpc plugins info benchmark", text)
+        self.assertIn("hpc-mcp", text)
+        self.assertIn('uv pip install -e ".[mcp]"', text)
+        self.assertIn("Run the server with", text)
+        self.assertIn("guarded MCP interface", text)
+        self.assertIn("plugin manifest points at `.mcp.json`", text)
+        self.assertIn("install the Python package first", text)
+        self.assertIn("confirm-gated write and install tools", text)
+        self.assertIn("hpc_references_create", text)
+        self.assertIn("hpc_install_container", text)
+        self.assertIn("hpc_quote_job", text)
+        self.assertIn("hpc_validate_job", text)
+        self.assertIn("hpc_submit_job", text)
+        self.assertIn("Stale or dry-run evidence is rejected", text)
+        self.assertIn("hpc://profiles/{profile}/hardware", text)
+        self.assertIn("active hpc-tools config tree", text)
+        self.assertIn("hpc_status", text)
+        self.assertIn("hpc_slurm_limits", text)
+        self.assertIn("hpc_module_spider", text)
         self.assertIn("hpc doctor", text)
         self.assertIn("hpc site-env", text)
         self.assertIn("hpc storage inspect", text)
@@ -367,6 +422,20 @@ class SkillTests(unittest.TestCase):
         self.assertIn("pipx uninstall hpc-tools", text)
         self.assertNotIn("ln -s /home", text)
 
+    def test_routing_documents_mcp_agent_interface(self) -> None:
+        text = ROUTING.read_text(encoding="utf-8")
+
+        self.assertIn("MCP Versus CLI", text)
+        self.assertIn("Prefer MCP when an agent needs structured", text)
+        self.assertIn("The MCP server is the structured agent\ninterface", text)
+        self.assertIn("Prefer the CLI when a human is actively operating", text)
+        self.assertIn("hpc-mcp", text)
+        self.assertIn("confirm-gated", text)
+        self.assertIn("hpc_quote_job", text)
+        self.assertIn("hpc_validate_job", text)
+        self.assertIn("hpc_submit_job", text)
+        self.assertIn("stale or dry-run quote/validation evidence", text)
+
     def test_container_workflows_skill_covers_hpccm_regeneration_and_job_builds(self) -> None:
         text = (ROOT / "skills" / "hpc-container-workflows" / "SKILL.md").read_text(
             encoding="utf-8"
@@ -387,6 +456,14 @@ class SkillTests(unittest.TestCase):
         self.assertIn("pipx install hpc-tools", text)
         self.assertIn("pipx install .", text)
         self.assertIn("hpc_tools.plugins", text)
+        self.assertIn("hpc-mcp", text)
+        self.assertIn("structured agent interface", text)
+        self.assertIn(".mcp.json", text)
+        self.assertIn("Python package's `hpc-mcp` console script", text)
+        self.assertIn("confirm-gated local writes", text)
+        self.assertIn("hpc_quote_job", text)
+        self.assertIn("hpc_submit_job", text)
+        self.assertIn("profile-reference, reference-set", text)
         self.assertIn("not\n  by symlinking", text)
         self.assertIn("hpc paths", text)
         self.assertIn("hpc-cluster-onboarding", text)

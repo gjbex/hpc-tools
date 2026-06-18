@@ -16,6 +16,7 @@ from hpc_tools.cli import (
     _install_cuda_device_properties_command,
     _install_hardware_probe_command,
     _log_submission,
+    _module_spider_command,
     _quote_command,
     _repo_status_command,
     _fetch_status_page,
@@ -42,6 +43,7 @@ from hpc_tools.cli import (
     cmd_write_probe,
     main,
 )
+from hpc_tools import mcp_server
 from hpc_tools.plugins import benchmark_support
 from hpc_tools.hardware import render_hardware_context
 from hpc_tools.ssh import build_ssh_argv
@@ -174,6 +176,13 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(args.path, ".")
         self.assertIn("df -hT .", _storage_inspect_command(args.path))
+
+    def test_module_spider_parser_and_command_quotes_name(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["module-spider", "DMTCP; rm -rf /"])
+
+        self.assertEqual(args.name, "DMTCP; rm -rf /")
+        self.assertEqual(_module_spider_command(args.name), "module spider 'DMTCP; rm -rf /' 2>&1")
 
     def test_repo_status_parser_and_command(self) -> None:
         parser = build_parser(make_profile())
@@ -555,6 +564,9 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(args.command, "plugins")
         self.assertEqual(args.plugins_command, "list")
+
+    def test_mcp_console_script_entry_point_is_available(self) -> None:
+        self.assertTrue(callable(mcp_server.main))
 
     def test_benchmark_parser(self) -> None:
         parser = build_parser()

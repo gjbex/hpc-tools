@@ -17,6 +17,8 @@ For a normal local plugin checkout, use:
 ```bash
 mkdir -p ~/plugins
 git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
 codex plugin add hpc-tools@personal
 ```
 
@@ -32,6 +34,8 @@ If it is already a Git checkout, update and reinstall it instead of cloning:
 
 ```bash
 git -C ~/plugins/hpc-tools pull --ff-only
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
 python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
   ~/plugins/hpc-tools
 codex plugin add hpc-tools@personal
@@ -74,6 +78,33 @@ works.
 
 Use `python3 -m pip install --user -e .` only when the user is developing
 `hpc-tools` itself.
+
+## MCP Installation
+
+For agent workflows that can use MCP, verify whether the optional FastMCP-based
+server is available after the CLI is installed:
+
+```bash
+command -v hpc-mcp
+hpc-mcp --help
+```
+
+In a development checkout that uses the repository uv environment, install the
+optional MCP dependencies with:
+
+```bash
+uv pip install -e ".[mcp]"
+```
+
+The MCP server is a guarded structured interface over active hpc-tools
+configuration, profile references, reference sets, submission logs, generated
+probe scripts, and container bundles. Local writes and remote installs require
+`confirm=true`; remote install tools preview commands unless `dry_run=false` is
+also set. Slurm submission is available only through the
+`hpc_quote_job` -> `hpc_validate_job` -> `hpc_submit_job` evidence chain, and
+`hpc_submit_job` rejects stale or dry-run quote/validation evidence. It does
+not replace the Codex plugin installation or install skills. Keep using the
+`hpc` CLI for normal human-facing commands and profile setup.
 
 ## Remote Access
 

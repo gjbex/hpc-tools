@@ -2,13 +2,15 @@
 
 Use these routing notes when this repository is installed as a Codex plugin.
 The Codex plugin ships skills; the Python package still ships the `hpc`
-executable through `pipx install hpc-tools`.
+executable through `pipx install hpc-tools`. The Python package also ships the
+`hpc-mcp` server when installed with the MCP extra.
 
 ## Boundary
 
 - Codex plugin: skill guidance for using and extending `hpc-tools`.
 - Python package: the `hpc` CLI, packaged Slurm templates, and the
-  `hpc_tools.plugins` command-extension API.
+  `hpc-mcp` server, packaged Slurm templates, and the `hpc_tools.plugins`
+  command-extension API.
 - User state: profiles, reference sets, submission logs, and consolidated
   cluster notes under `~/.config/hpc-tools`.
 - Remote state: cluster checkouts, job scripts, raw probe output, and benchmark
@@ -16,7 +18,25 @@ executable through `pipx install hpc-tools`.
   copied back for local analysis.
 
 Do not treat installing the Codex plugin as installing the CLI, configuring SSH,
-or authorizing Slurm submissions.
+starting the MCP server, or authorizing Slurm submissions.
+
+## MCP Versus CLI
+
+Prefer MCP when an agent needs structured, reusable context from `hpc-tools`:
+profiles, durable profile references, reference sets, submission-log records,
+Slurm queue/status inspection, bounded storage checks, generated probe previews,
+or evidence-gated submit workflows. The MCP server is the structured agent
+interface and is started through `hpc-mcp`.
+
+Prefer the CLI when a human is actively operating the workflow, when shell
+output is the desired artifact, when the MCP dependency is not installed, or
+when bootstrapping the local environment with `pipx install hpc-tools`,
+`hpc paths`, or initial profile setup.
+
+MCP write and remote-install tools must stay confirm-gated. MCP Slurm
+submission must use the `hpc_quote_job` -> `hpc_validate_job` ->
+`hpc_submit_job` evidence chain, and stale or dry-run quote/validation evidence
+must be rejected before any real submission.
 
 ## Related Plugins
 

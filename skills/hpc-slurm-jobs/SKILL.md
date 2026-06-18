@@ -161,6 +161,35 @@ For compiled-code jobs, follow the module and reproducibility guidance in
 and verify candidate versions with `hpc module-spider <tool>` or a remote
 `module avail` query before pinning them.
 
+## Long Jobs and Checkpointing
+
+When a job may exceed the partition `MaxTime`, first check whether the workload
+can be decomposed into independent jobs or a Slurm array. If the application has
+native checkpoint/restart support, prefer that over wrapper-level checkpointing.
+
+For software that does not support checkpointing, check whether DMTCP is
+available through the site module stack before recommending an exception to
+walltime policy:
+
+```bash
+hpc --profile <profile> module-spider DMTCP
+```
+
+If DMTCP is available, treat it as a candidate that must be tested with a small
+pilot job on the target partition. Load the same cluster/partition module and
+DMTCP module in the job script, write checkpoints to durable or staged storage,
+and verify that the application restarts correctly before relying on it for a
+long production run. DMTCP is transparent for many user-space programs, but it
+can fail or be unsuitable for some MPI, accelerator, licensed, networked, or
+filesystem-heavy applications.
+
+If DMTCP is not available or the pilot restart fails, report that the remaining
+options are reducing runtime, decomposing the workflow externally, using another
+system with a longer limit, or asking the site admins for an exception or
+reservation. On charge-accounting systems, quote and re-quote any pilot,
+restart, or extended run whenever the walltime, partition, account, node count,
+CPU count, GPU request, or job count changes.
+
 Validate before submission:
 
 ```bash

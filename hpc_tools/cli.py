@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import argparse
+from dataclasses import asdict
 import html
 import io
 import json
@@ -894,8 +895,7 @@ def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
-    command = f"module spider {shlex.quote(args.name)} 2>&1"
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_remote(profile, _module_spider_command(args.name), dry_run=args.dry_run)
 
 
 def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
@@ -1252,59 +1252,150 @@ def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_status(args: argparse.Namespace, profile: Profile) -> int:
-    failures = 0
-    sections: list[tuple[str, list[str]]] = []
+    report = build_status_report(profile, dry_run=args.dry_run)
 
-    if profile.status_url:
-        try:
-            status_text = _fetch_status_page(profile.status_url)
-        except ConfigError as error:
-            sections.append(("status page", [f"status page unavailable: {error}"]))
-            failures += 1
-        else:
-            sections.append(("status page", status_text.splitlines()))
-    else:
-        sections.append(("status page", [f"profile '{profile.name}' does not define status_url"]))
-        failures += 1
-
-    if profile.quota_command:
-        quota_result = run_remote_capture(profile, profile.quota_command, dry_run=args.dry_run)
-        if quota_result.returncode != 0:
-            failures += 1
-            sections.append(("quota", [f"quota check failed with return code {quota_result.returncode}"]))
-        else:
-            quota_text = quota_result.stdout.strip()
-            sections.append(("quota", quota_text.splitlines() if quota_text else []))
-    else:
-        sections.append(("quota", [f"profile '{profile.name}' does not define quota_command"]))
-        failures += 1
-
-    if profile.sam_balance_command:
-        balance_result = run_remote_capture(profile, profile.sam_balance_command, dry_run=args.dry_run)
-        if balance_result.returncode != 0:
-            failures += 1
-            sections.append(("balance", [f"balance check failed with return code {balance_result.returncode}"]))
-        else:
-            balance_text = balance_result.stdout.strip()
-            sections.append(("balance", balance_text.splitlines() if balance_text else []))
-    else:
-        sections.append(("balance", [f"profile '{profile.name}' does not define sam_balance_command"]))
-        failures += 1
-
-    records = submissions.active_records(submissions.read_events())
-    sections.append(("submissions", submissions.format_records(records).splitlines()))
-
-    for index, (title, lines) in enumerate(sections):
+    for index, section in enumerate(report["sections"]):
         if index:
             print()
-        print(f"== {title} ==")
+        print(f"== {section['title']} ==")
+        lines = section["lines"]
         if lines:
             for line in lines:
                 print(line)
         else:
             print("No data.")
 
-    return 0 if failures == 0 else 1
+    return 0 if report["failures"] == 0 else 1
+
+
+def build_status_report(profile: Profile, *, dry_run: bool = False) -> dict[str, object]:
+    failures = 0
+    sections: list[dict[str, object]] = []
+
+    if profile.status_url:
+        try:
+            status_text = _fetch_status_page(profile.status_url)
+        except ConfigError as error:
+            sections.append(
+                {
+                    "title": "status page",
+                    "ok": False,
+                    "source": profile.status_url,
+                    "lines": [f"status page unavailable: {error}"],
+                }
+            )
+            failures += 1
+        else:
+            sections.append(
+                {
+                    "title": "status page",
+                    "ok": True,
+                    "source": profile.status_url,
+                    "lines": status_text.splitlines(),
+                }
+            )
+    else:
+        sections.append(
+            {
+                "title": "status page",
+                "ok": False,
+                "source": None,
+                "lines": [f"profile '{profile.name}' does not define status_url"],
+            }
+        )
+        failures += 1
+
+    if profile.quota_command:
+        quota_result = run_remote_capture(profile, profile.quota_command, dry_run=dry_run)
+        if quota_result.returncode != 0:
+            failures += 1
+            sections.append(
+                {
+                    "title": "quota",
+                    "ok": False,
+                    "command": profile.quota_command,
+                    "returncode": quota_result.returncode,
+                    "stderr": quota_result.stderr,
+                    "lines": [f"quota check failed with return code {quota_result.returncode}"],
+                }
+            )
+        else:
+            quota_text = quota_result.stdout.strip()
+            sections.append(
+                {
+                    "title": "quota",
+                    "ok": True,
+                    "command": profile.quota_command,
+                    "returncode": quota_result.returncode,
+                    "stderr": quota_result.stderr,
+                    "lines": quota_text.splitlines() if quota_text else [],
+                }
+            )
+    else:
+        sections.append(
+            {
+                "title": "quota",
+                "ok": False,
+                "command": None,
+                "lines": [f"profile '{profile.name}' does not define quota_command"],
+            }
+        )
+        failures += 1
+
+    if profile.sam_balance_command:
+        balance_result = run_remote_capture(profile, profile.sam_balance_command, dry_run=dry_run)
+        if balance_result.returncode != 0:
+            failures += 1
+            sections.append(
+                {
+                    "title": "balance",
+                    "ok": False,
+                    "command": profile.sam_balance_command,
+                    "returncode": balance_result.returncode,
+                    "stderr": balance_result.stderr,
+                    "lines": [f"balance check failed with return code {balance_result.returncode}"],
+                }
+            )
+        else:
+            balance_text = balance_result.stdout.strip()
+            sections.append(
+                {
+                    "title": "balance",
+                    "ok": True,
+                    "command": profile.sam_balance_command,
+                    "returncode": balance_result.returncode,
+                    "stderr": balance_result.stderr,
+                    "lines": balance_text.splitlines() if balance_text else [],
+                }
+            )
+    else:
+        sections.append(
+            {
+                "title": "balance",
+                "ok": False,
+                "command": None,
+                "lines": [f"profile '{profile.name}' does not define sam_balance_command"],
+            }
+        )
+        failures += 1
+
+    records = submissions.active_records(submissions.read_events())
+    sections.append(
+        {
+            "title": "submissions",
+            "ok": True,
+            "lines": submissions.format_records(records).splitlines(),
+        }
+    )
+
+    return {
+        "profile": profile.name,
+        "dry_run": dry_run,
+        "failures": failures,
+        "ok": failures == 0,
+        "sections": sections,
+        "submissions": [asdict(record) for record in records],
+    }
 
 
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
@@ -1576,6 +1667,10 @@ def _site_env_command() -> str:
             _section_command("module-system", "module --version 2>&1 || true"),
         ]
     )
+
+
+def _module_spider_command(name: str) -> str:
+    return f"module spider {shlex.quote(name)} 2>&1"
 
 
 def _storage_inspect_command(path: str) -> str:

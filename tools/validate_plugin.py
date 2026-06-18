@@ -38,6 +38,7 @@ ALLOWED_TOP_LEVEL = {
     "license",
     "keywords",
     "skills",
+    "mcpServers",
     "interface",
 }
 
@@ -92,6 +93,9 @@ def main(argv: list[str]) -> int:
     if root not in skills_path.parents and skills_path != root:
         fail(f"skills path escapes repository: {skills}")
 
+    if "mcpServers" in manifest:
+        validate_mcp_manifest(root, manifest["mcpServers"])
+
     interface = manifest["interface"]
     for key, expected_type in REQUIRED_INTERFACE.items():
         require_type(interface, key, expected_type)
@@ -109,6 +113,52 @@ def main(argv: list[str]) -> int:
 
     print(f"validated {manifest_path}")
     return 0
+
+
+def validate_mcp_manifest(root: Path, manifest_value: object) -> None:
+    if not isinstance(manifest_value, str):
+        fail("mcpServers must be a string path")
+    if manifest_value != "./.mcp.json":
+        fail("mcpServers path must be ./.mcp.json")
+
+    mcp_path = root / ".mcp.json"
+    if not mcp_path.is_file():
+        fail("mcpServers is configured but .mcp.json is missing")
+    try:
+        payload = json.loads(mcp_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        fail(f"invalid JSON in {mcp_path}: {exc}")
+    if not isinstance(payload, dict):
+        fail(".mcp.json root must be an object")
+    if set(payload) != {"mcpServers"}:
+        fail(".mcp.json must contain only mcpServers")
+
+    servers = payload["mcpServers"]
+    if not isinstance(servers, dict) or not servers:
+        fail(".mcp.json mcpServers must be a non-empty object")
+    for name, server in servers.items():
+        if not isinstance(name, str) or not name:
+            fail(".mcp.json server names must be non-empty strings")
+        if not isinstance(server, dict):
+            fail(f".mcp.json server {name!r} must be an object")
+        command = server.get("command")
+        if not isinstance(command, str) or not command:
+            fail(f".mcp.json server {name!r} must define command")
+        args = server.get("args", [])
+        if not isinstance(args, list) or not all(isinstance(item, str) for item in args):
+            fail(f".mcp.json server {name!r} args must be a list of strings")
+        env = server.get("env", {})
+        if not isinstance(env, dict) or not all(
+            isinstance(key, str) and isinstance(value, str)
+            for key, value in env.items()
+        ):
+            fail(f".mcp.json server {name!r} env must be an object of strings")
+        unsupported = sorted(set(server) - {"command", "args", "env"})
+        if unsupported:
+            fail(
+                f".mcp.json server {name!r} has unsupported keys: "
+                + ", ".join(unsupported)
+            )
 
 
 if __name__ == "__main__":

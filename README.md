@@ -70,9 +70,15 @@ mv ~/plugins/hpc-tools \
 git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
 ```
 
-Install or reinstall the plugin from the personal marketplace:
+Register the checkout in the default personal Codex marketplace, then install
+the plugin from that marketplace. The registration command creates or updates
+the `hpc-tools` entry in `~/.agents/plugins/marketplace.json`; it does not
+modify the plugin checkout:
 
 ```bash
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
+
 codex plugin add hpc-tools@personal
 ```
 
@@ -127,6 +133,9 @@ version cachebuster, and reinstall from the personal marketplace:
 ```bash
 git -C ~/plugins/hpc-tools pull --ff-only
 
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
+
 python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
   ~/plugins/hpc-tools
 
@@ -134,6 +143,89 @@ codex plugin add hpc-tools@personal
 ```
 
 Start a new Codex thread after reinstalling.
+
+## MCP Server
+
+`hpc-tools` includes an experimental `hpc-mcp` console command that exposes a
+guarded MCP interface for agents through the official FastMCP framework. This
+is a structured interface over the same profile, reference, plugin,
+Slurm-inspection, submission-log, probe, and container helpers used by the CLI.
+The Codex plugin manifest points at `.mcp.json`, which starts the MCP server
+with the `hpc-mcp` command. Installing the Codex plugin does not install that
+command; install the Python package first.
+
+Install the optional MCP dependency in a development checkout with:
+
+```bash
+uv pip install -e ".[mcp]"
+```
+
+Run the server with:
+
+```bash
+hpc-mcp
+```
+
+The MCP interface supports read-only context tools such as:
+
+- `hpc_profiles_list`
+- `hpc_paths`
+- `hpc_profile_show`
+- `hpc_hardware_context`
+- `hpc_hardware_sources`
+- `hpc_references_list`
+- `hpc_references_show`
+- `hpc_plugins_list`
+- `hpc_submissions_list`
+- `hpc_status`
+- `hpc_jobs`
+- `hpc_job`
+- `hpc_slurm_limits`
+- `hpc_module_spider`
+- `hpc_storage_inspect`
+- `hpc_site_env`
+
+It also supports confirm-gated write and install tools:
+
+- `hpc_references_create`
+- `hpc_references_import`
+- `hpc_references_attach`
+- `hpc_submissions_mark_collected`
+- `hpc_submissions_mark_analysed`
+- `hpc_submissions_close`
+- `hpc_write_probe`
+- `hpc_install_probe`
+- `hpc_write_container`
+- `hpc_install_container`
+
+Local writes and remote installs require `confirm=true`. Remote install tools
+return command previews by default; they only execute when `confirm=true` and
+`dry_run=false`.
+
+Slurm submission is exposed only as an evidence-gated sequence:
+
+1. `hpc_quote_job`
+2. `hpc_validate_job`
+3. `hpc_submit_job`
+
+`hpc_submit_job` requires matching quote and validation evidence for the same
+profile, account, jobscript, remote directory, and Slurm resource shape, plus
+`confirm=true`. Stale or dry-run evidence is rejected.
+
+It also exposes durable local context as MCP resources:
+
+- `hpc://paths`
+- `hpc://config`
+- `hpc://profiles/{profile}`
+- `hpc://profiles/{profile}/hardware`
+- `hpc://profiles/{profile}/slurm`
+- `hpc://profiles/{profile}/storage`
+- `hpc://reference-sets/{name}`
+- `hpc://submissions/active`
+- `hpc://submissions/all`
+
+Profile and reference resources resolve from the active hpc-tools config tree
+and installed reference-set directory, not from repository examples.
 
 ## Plugins
 

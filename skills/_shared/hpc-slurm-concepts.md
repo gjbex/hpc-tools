@@ -61,6 +61,20 @@ Validate Slurm parsing before submission with `sbatch --test-only` or the
 profile's equivalent wrapper. A parse-only validation does not prove that module
 loads or runtime commands will work on the allocated node.
 
+## Long Runtime and Checkpointing
+
+When expected runtime is longer than a partition's `MaxTime`, prefer native
+application checkpoint/restart or workload decomposition into separate jobs. If
+the application cannot checkpoint itself, DMTCP can be a useful transparent
+checkpoint/restart wrapper when the site provides it as a module. Treat DMTCP as
+workload-specific: verify module availability, run a short pilot on the target
+partition, store checkpoints where they survive job termination, and confirm a
+real restart before depending on it for production.
+
+If neither native checkpointing, DMTCP, nor external decomposition works, the
+remaining path is an admin-supported exception, reservation, dedicated resource,
+or a system with a longer walltime policy.
+
 ## Probe Jobs
 
 Submit one probe per representative node class or partition, not one per node.

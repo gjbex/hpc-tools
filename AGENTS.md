@@ -33,9 +33,21 @@ release preparation.
 - Treat the Codex plugin as a skills distribution layer. Installing the Codex
   plugin does not install the `hpc` CLI, configure SSH, or authorize Slurm job
   submission.
+- Register the local plugin checkout in the personal Codex marketplace with
+  `tools/register_personal_marketplace.py` before documenting or running
+  `codex plugin add hpc-tools@personal`.
+- The Codex plugin may declare MCP configuration through `.mcp.json`, but that
+  configuration starts the Python package's `hpc-mcp` console script. Keep the
+  Python package install instructions and plugin install instructions separate.
 - Do not confuse the Codex plugin with the `hpc_tools.plugins` Python
   entry-point group. Document and validate both surfaces when a change affects
   both.
+- Treat `hpc-mcp` as the FastMCP-based structured agent interface for
+  hpc-tools context and confirm-gated local writes or remote installs,
+  including active config, profile-reference, reference-set, and submission-log
+  resources. Keep CLI commands as the human interface, and expose MCP Slurm
+  submission only through the `hpc_quote_job` -> `hpc_validate_job` ->
+  `hpc_submit_job` evidence chain with quote/account/validate/confirm safety.
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
@@ -84,5 +96,6 @@ After changing skills, README onboarding instructions, examples, or tests, run:
 python3 tools/validate_plugin.py .
 python3 tools/validate_skills.py .
 python3 tools/check_repo_hygiene.py .
+python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py tests/*.py tools/*.py
 python3 -m unittest discover -s tests
 ```
