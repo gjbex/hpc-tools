@@ -70,18 +70,15 @@ mv ~/plugins/hpc-tools \
 git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
 ```
 
-Register the checkout in the default personal Codex marketplace. This creates
-or updates the `hpc-tools` entry in `~/.agents/plugins/marketplace.json`; it
-does not modify the plugin checkout:
+Register the checkout in the default personal Codex marketplace, then install
+the plugin from that marketplace. The registration command creates or updates
+the `hpc-tools` entry in `~/.agents/plugins/marketplace.json`; it does not
+modify the plugin checkout:
 
 ```bash
 python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
   ~/plugins/hpc-tools
-```
 
-Install or reinstall the plugin from the personal marketplace:
-
-```bash
 codex plugin add hpc-tools@personal
 ```
 
