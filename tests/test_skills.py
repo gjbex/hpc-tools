@@ -311,6 +311,7 @@ class SkillTests(unittest.TestCase):
 
         self.assertIn("Verify Codex Plugin and CLI Installation", text)
         self.assertIn("Codex Plugin Installation", text)
+        self.assertIn("register_personal_marketplace.py", text)
         self.assertIn("codex plugin add hpc-tools@personal", text)
         self.assertIn("update_plugin_cachebuster.py", text)
         self.assertIn("start a new Codex thread", text)

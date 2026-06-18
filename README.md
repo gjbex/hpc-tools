@@ -70,6 +70,15 @@ mv ~/plugins/hpc-tools \
 git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
 ```
 
+Register the checkout in the default personal Codex marketplace. This creates
+or updates the `hpc-tools` entry in `~/.agents/plugins/marketplace.json`; it
+does not modify the plugin checkout:
+
+```bash
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
+```
+
 Install or reinstall the plugin from the personal marketplace:
 
 ```bash
@@ -126,6 +135,9 @@ version cachebuster, and reinstall from the personal marketplace:
 
 ```bash
 git -C ~/plugins/hpc-tools pull --ff-only
+
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
 
 python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
   ~/plugins/hpc-tools

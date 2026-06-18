@@ -17,6 +17,8 @@ For a normal local plugin checkout, use:
 ```bash
 mkdir -p ~/plugins
 git clone https://github.com/gjbex/hpc-tools.git ~/plugins/hpc-tools
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
 codex plugin add hpc-tools@personal
 ```
 
@@ -32,6 +34,8 @@ If it is already a Git checkout, update and reinstall it instead of cloning:
 
 ```bash
 git -C ~/plugins/hpc-tools pull --ff-only
+python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
+  ~/plugins/hpc-tools
 python3 ~/.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py \
   ~/plugins/hpc-tools
 codex plugin add hpc-tools@personal

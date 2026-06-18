@@ -33,6 +33,9 @@ release preparation.
 - Treat the Codex plugin as a skills distribution layer. Installing the Codex
   plugin does not install the `hpc` CLI, configure SSH, or authorize Slurm job
   submission.
+- Register the local plugin checkout in the personal Codex marketplace with
+  `tools/register_personal_marketplace.py` before documenting or running
+  `codex plugin add hpc-tools@personal`.
 - The Codex plugin may declare MCP configuration through `.mcp.json`, but that
   configuration starts the Python package's `hpc-mcp` console script. Keep the
   Python package install instructions and plugin install instructions separate.
