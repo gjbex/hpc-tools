@@ -30,6 +30,7 @@ class McpServerTests(unittest.TestCase):
                 "hpc_jobs",
                 "hpc_job",
                 "hpc_slurm_limits",
+                "hpc_module_spider",
                 "hpc_storage_inspect",
                 "hpc_site_env",
                 "hpc_references_create",
@@ -174,6 +175,7 @@ class McpServerTests(unittest.TestCase):
         self.assertIn("hpc_paths", names)
         self.assertIn("hpc_jobs", names)
         self.assertIn("hpc_slurm_limits", names)
+        self.assertIn("hpc_module_spider", names)
         self.assertIn("hpc_storage_inspect", names)
         self.assertIn("hpc_references_create", names)
         self.assertIn("hpc_submissions_close", names)
@@ -240,6 +242,26 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(result["stderr"], "")
         self.assertFalse(result["dry_run"])
         self.assertIn("squeue -M wice -j 123", result["command"])
+        remote.assert_called_once()
+
+    def test_module_spider_tool_searches_remote_lmod_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            completed = mock.Mock(
+                returncode=0,
+                stdout="DMTCP/3.0.0-GCCcore-12.3.0\n",
+                stderr="",
+            )
+
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture", return_value=completed) as remote:
+                result = mcp_server.hpc_module_spider(
+                    config=str(config_path),
+                    name="DMTCP; rm -rf /",
+                )
+
+        self.assertEqual(result["stdout"], "DMTCP/3.0.0-GCCcore-12.3.0\n")
+        self.assertIn("module spider 'DMTCP; rm -rf /' 2>&1", result["command"])
+        self.assertFalse(result["dry_run"])
         remote.assert_called_once()
 
     def test_resource_config_reads_active_config_path(self) -> None:

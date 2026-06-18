@@ -18,6 +18,7 @@ from hpc_tools.cli import (
     _install_bundle_command,
     _install_cuda_device_properties_command,
     _install_hardware_probe_command,
+    _module_spider_command,
     _quote_command as _sam_quote_command,
     _site_env_command,
     _storage_inspect_command,
@@ -52,6 +53,7 @@ TOOL_NAMES = (
     "hpc_jobs",
     "hpc_job",
     "hpc_slurm_limits",
+    "hpc_module_spider",
     "hpc_storage_inspect",
     "hpc_site_env",
     "hpc_references_create",
@@ -118,6 +120,7 @@ def create_server():
         hpc_jobs,
         hpc_job,
         hpc_slurm_limits,
+        hpc_module_spider,
         hpc_storage_inspect,
         hpc_site_env,
         hpc_references_create,
@@ -298,6 +301,17 @@ def hpc_slurm_limits(
     resolved = _resolve_profile(profile_name=profile, config_path=config)
     command = slurm.slurm_limits_command(cluster=cluster, partition=partition, qos=qos)
     return _remote_read_result(resolved, command, dry_run=dry_run)
+
+
+def hpc_module_spider(
+    name: str,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Search Lmod modules on the remote profile."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    return _remote_read_result(resolved, _module_spider_command(name), dry_run=dry_run)
 
 
 def hpc_storage_inspect(

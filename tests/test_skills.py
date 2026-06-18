@@ -392,6 +392,7 @@ class SkillTests(unittest.TestCase):
         self.assertIn("hpc://profiles/{profile}/hardware", text)
         self.assertIn("active hpc-tools config tree", text)
         self.assertIn("hpc_slurm_limits", text)
+        self.assertIn("hpc_module_spider", text)
         self.assertIn("hpc doctor", text)
         self.assertIn("hpc site-env", text)
         self.assertIn("hpc storage inspect", text)

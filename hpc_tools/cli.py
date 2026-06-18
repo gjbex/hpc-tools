@@ -894,8 +894,7 @@ def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
 
 
 def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
-    command = f"module spider {shlex.quote(args.name)} 2>&1"
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_remote(profile, _module_spider_command(args.name), dry_run=args.dry_run)
 
 
 def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
@@ -1576,6 +1575,10 @@ def _site_env_command() -> str:
             _section_command("module-system", "module --version 2>&1 || true"),
         ]
     )
+
+
+def _module_spider_command(name: str) -> str:
+    return f"module spider {shlex.quote(name)} 2>&1"
 
 
 def _storage_inspect_command(path: str) -> str:

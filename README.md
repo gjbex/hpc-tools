@@ -180,6 +180,7 @@ The MCP interface supports read-only context tools such as:
 - `hpc_jobs`
 - `hpc_job`
 - `hpc_slurm_limits`
+- `hpc_module_spider`
 - `hpc_storage_inspect`
 - `hpc_site_env`
 

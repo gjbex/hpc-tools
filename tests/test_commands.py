@@ -16,6 +16,7 @@ from hpc_tools.cli import (
     _install_cuda_device_properties_command,
     _install_hardware_probe_command,
     _log_submission,
+    _module_spider_command,
     _quote_command,
     _repo_status_command,
     _fetch_status_page,
@@ -175,6 +176,13 @@ class CommandTests(unittest.TestCase):
 
         self.assertEqual(args.path, ".")
         self.assertIn("df -hT .", _storage_inspect_command(args.path))
+
+    def test_module_spider_parser_and_command_quotes_name(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(["module-spider", "DMTCP; rm -rf /"])
+
+        self.assertEqual(args.name, "DMTCP; rm -rf /")
+        self.assertEqual(_module_spider_command(args.name), "module spider 'DMTCP; rm -rf /' 2>&1")
 
     def test_repo_status_parser_and_command(self) -> None:
         parser = build_parser(make_profile())
