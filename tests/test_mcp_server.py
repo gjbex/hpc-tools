@@ -278,12 +278,74 @@ class McpServerTests(unittest.TestCase):
         self.assertIn("geniusdefaultslurmaccount", "\n".join(result["sections"][2]["lines"]))
         self.assertEqual(result["submissions"], [])
 
+    def test_slurm_limits_tool_returns_best_effort_parsed_fields(self) -> None:
+        stdout = textwrap.dedent(
+            """
+            ## controller
+            ClusterName             = wice
+            MaxArraySize            = 1001
+
+            ## partitions
+            PartitionName=batch
+               AllowGroups=ALL AllowAccounts=ALL DenyQos=lp_big_tier2
+               DefaultTime=01:00:00 MaxTime=3-00:00:00 State=UP TotalCPUs=12384 TotalNodes=172
+               DefMemPerCPU=3400 MaxMemPerCPU=3400
+               TRES=cpu=12384,mem=42793600M,node=172,billing=31533
+
+            PartitionName=gpu_a100
+               DefaultTime=01:00:00 MaxTime=3-00:00:00 State=UP TotalCPUs=288 TotalNodes=4
+               TRES=cpu=288,mem=2016000M,node=4,gres/gpu=16,gres/gpu:a100-sxm4-80gb=16
+
+            ## partition-summary
+            CLUSTER: wice
+            PARTITION|AVAIL|TIMELIMIT|NODES|CPUS|MEMORY|GRES|AVAIL_FEATURES
+            batch*|up|3-00:00:00|172|72|248800|(null)|icelake
+            gpu_a100|up|3-00:00:00|4|72|504000|gpu:a100-sxm4-80gb:4(S:0-3)|icelake
+
+            ## partition-nodes
+            CLUSTER: wice
+            NODELIST|CPUS|MEMORY|GRES|STATE
+            l33c20n1|72|248800|(null)|idle
+
+            ## qos
+            normal||500|||||
+            long||20|node=10||||7-00:00:00
+
+            ## associations
+            wice|lpt2_sysadmin|vsc30140||lpt2_sysadmin|||||||
+            """
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            completed = mock.Mock(returncode=0, stdout=stdout, stderr="")
+
+            with mock.patch("hpc_tools.mcp_server.run_remote_capture", return_value=completed):
+                result = mcp_server.hpc_slurm_limits(config=str(config_path), cluster="wice")
+
+        self.assertEqual(result["parse_warnings"], [])
+        self.assertEqual(result["parsed"]["controller"]["ClusterName"], "wice")
+        self.assertEqual(result["parsed"]["controller"]["MaxArraySize"], "1001")
+        partitions = {partition["PartitionName"]: partition for partition in result["parsed"]["partitions"]}
+        self.assertEqual(partitions["batch"]["MaxTime"], "3-00:00:00")
+        self.assertFalse(partitions["batch"]["has_gpu"])
+        self.assertTrue(partitions["gpu_a100"]["has_gpu"])
+        self.assertEqual(result["parsed"]["partition_summary"][0]["partition"], "batch*")
+        self.assertEqual(result["parsed"]["partition_summary"][0]["nodes"], 172)
+        self.assertEqual(result["parsed"]["partition_nodes"][0]["state"], "idle")
+        self.assertEqual(result["parsed"]["qos"][0]["name"], "normal")
+        self.assertEqual(result["parsed"]["associations"][0]["account"], "lpt2_sysadmin")
+
     def test_module_spider_tool_searches_remote_lmod_modules(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config_path = self._write_config(Path(directory))
             completed = mock.Mock(
                 returncode=0,
-                stdout="DMTCP/3.0.0-GCCcore-12.3.0\n",
+                stdout=(
+                    "DMTCP: DMTCP/3.0.0-GCCcore-12.3.0\n"
+                    "  You will need to load all module(s) on any one of the lines below.\n"
+                    "    cluster/wice/batch_long\n"
+                    "    cluster/genius/batch_skylake\n"
+                ),
                 stderr="",
             )
 
@@ -293,8 +355,14 @@ class McpServerTests(unittest.TestCase):
                     name="DMTCP; rm -rf /",
                 )
 
-        self.assertEqual(result["stdout"], "DMTCP/3.0.0-GCCcore-12.3.0\n")
+        self.assertIn("DMTCP/3.0.0-GCCcore-12.3.0", result["stdout"])
         self.assertIn("module spider 'DMTCP; rm -rf /' 2>&1", result["command"])
+        self.assertEqual(result["parsed"]["modules"], ["DMTCP/3.0.0-GCCcore-12.3.0"])
+        self.assertEqual(result["parsed"]["availability_contexts"], [
+            "cluster/genius/batch_skylake",
+            "cluster/wice/batch_long",
+        ])
+        self.assertEqual(result["parse_warnings"], [])
         self.assertFalse(result["dry_run"])
         remote.assert_called_once()
 
