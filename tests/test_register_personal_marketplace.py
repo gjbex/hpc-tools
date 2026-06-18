@@ -46,7 +46,7 @@ class RegisterPersonalMarketplaceTests(unittest.TestCase):
                         "name": "hpc-tools",
                         "source": {
                             "source": "local",
-                            "path": "./plugins/hpc-tools",
+                            "path": str(plugin_root),
                         },
                         "policy": {
                             "installation": "AVAILABLE",

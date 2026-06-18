@@ -48,12 +48,12 @@ def default_marketplace() -> dict[str, Any]:
     }
 
 
-def marketplace_entry(plugin_name: str) -> dict[str, Any]:
+def marketplace_entry(plugin_name: str, plugin_root: Path) -> dict[str, Any]:
     return {
         "name": plugin_name,
         "source": {
             "source": "local",
-            "path": f"./plugins/{plugin_name}",
+            "path": str(plugin_root),
         },
         "policy": {
             "installation": "AVAILABLE",
@@ -75,8 +75,7 @@ def register_plugin(plugin_root: Path, marketplace_path: Path) -> bool:
     if not isinstance(plugins, list):
         raise ValueError(f"{marketplace_path} field 'plugins' must be an array")
 
-    entry = marketplace_entry(plugin_name)
-    entry["source"]["path"] = str(plugin_root)
+    entry = marketplace_entry(plugin_name, plugin_root)
     changed = False
     for index, existing in enumerate(plugins):
         if isinstance(existing, dict) and existing.get("name") == plugin_name:
