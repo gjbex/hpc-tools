@@ -304,6 +304,21 @@ class SkillTests(unittest.TestCase):
         self.assertIn("MaxArraySize", text)
         self.assertIn("--array=0-<N-1>", text)
 
+    def test_slurm_job_skill_covers_dmtcp_for_long_jobs(self) -> None:
+        text = (ROOT / "skills" / "hpc-slurm-jobs" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        shared = (ROOT / "skills" / "_shared" / "hpc-slurm-concepts.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Long Jobs and Checkpointing", text)
+        self.assertIn("hpc --profile <profile> module-spider DMTCP", text)
+        self.assertIn("small\npilot job on the target partition", text)
+        self.assertIn("MPI, accelerator, licensed, networked", text)
+        self.assertIn("Long Runtime and Checkpointing", shared)
+        self.assertIn("DMTCP", shared)
+
     def test_cluster_onboarding_skill_guides_first_run_collection(self) -> None:
         text = (ROOT / "skills" / "hpc-cluster-onboarding" / "SKILL.md").read_text(
             encoding="utf-8"
