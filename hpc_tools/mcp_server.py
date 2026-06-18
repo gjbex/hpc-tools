@@ -1301,15 +1301,28 @@ def _submission_evidence(
     return evidence
 
 
+_EVIDENCE_SECRET: bytes | None = None
+
+
+def _evidence_secret() -> bytes:
+    global _EVIDENCE_SECRET
+    if _EVIDENCE_SECRET is None:
+        import secrets
+
+        _EVIDENCE_SECRET = secrets.token_bytes(32)
+    return _EVIDENCE_SECRET
+
+
 def _evidence_token(evidence: dict[str, Any]) -> str:
+    import hmac
+
     token_evidence = {
         key: value
         for key, value in evidence.items()
         if key != "evidence_token"
     }
     encoded = json.dumps(token_evidence, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
+    return hmac.new(_evidence_secret(), encoded, hashlib.sha256).hexdigest()
 
 def _require_evidence(
     evidence_type: str,
