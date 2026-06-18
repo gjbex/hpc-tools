@@ -76,6 +76,7 @@ def register_plugin(plugin_root: Path, marketplace_path: Path) -> bool:
         raise ValueError(f"{marketplace_path} field 'plugins' must be an array")
 
     entry = marketplace_entry(plugin_name)
+    entry["source"]["path"] = str(plugin_root)
     changed = False
     for index, existing in enumerate(plugins):
         if isinstance(existing, dict) and existing.get("name") == plugin_name:
