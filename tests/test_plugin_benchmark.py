@@ -9,6 +9,7 @@ class PluginFeatureTests(unittest.TestCase):
         names = [plugin.name for plugin in plugins]
 
         self.assertIn("benchmark", names)
+        self.assertIn("cxx", names)
         self.assertIn("r", names)
         self.assertIn("python", names)
 
@@ -74,4 +75,3 @@ class PluginFeatureTests(unittest.TestCase):
                 "--candidate-threads",
                 "0",
             ])
-

@@ -4,6 +4,32 @@ from test_cli_fixtures import *
 
 
 class CliCoreTests(unittest.TestCase):
+    def test_cxx_scan_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["cxx", "scan", "."])
+
+        self.assertEqual(args.command, "cxx")
+        self.assertEqual(args.cxx_command, "scan")
+
+    def test_cxx_fetchcontent_parser(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "cxx",
+                "fetchcontent",
+                "CLI11",
+                "--project-option-prefix",
+                "DEMO",
+                "--default-off",
+            ]
+        )
+
+        self.assertEqual(args.command, "cxx")
+        self.assertEqual(args.cxx_command, "fetchcontent")
+        self.assertEqual(args.package, "CLI11")
+        self.assertEqual(args.project_option_prefix, "DEMO")
+        self.assertTrue(args.default_off)
+
     def test_r_scan_parser(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["r", "scan", "Script/Main.R"])
@@ -109,4 +135,3 @@ class CliCoreTests(unittest.TestCase):
 
         self.assertEqual(args.command, "references")
         self.assertEqual(args.references_command, "list")
-

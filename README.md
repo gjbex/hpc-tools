@@ -233,16 +233,19 @@ and installed reference-set directory, not from repository examples.
 reference, and Slurm functionality, while language- or workflow-specific
 helpers can live in plugins.
 
-The repository currently ships bundled `benchmark`, `python`, and `r` plugins, so after installation you
+The repository currently ships bundled `benchmark`, `cxx`, `python`, and `r` plugins, so after installation you
 can use:
 
 ```bash
 hpc plugins list
 hpc plugins info benchmark
+hpc plugins info cxx
 hpc plugins info python
 hpc plugins info r
 hpc benchmark summarize results/
 hpc benchmark compare baseline.csv candidate.csv --candidate-threads 8
+hpc cxx scan path/to/cmake-project
+hpc cxx fetchcontent CLI11 --project-option-prefix MYPROJECT
 hpc python scan path/to/script-or-project
 hpc python inspect-deps path/to/script-or-project
 hpc --profile <profile> python check path/to/script-or-project --module Python/<version>
@@ -410,6 +413,7 @@ reference_set = "kuleuven-tier2"
 hpc doctor
 hpc paths
 hpc plugins list
+hpc plugins info cxx
 hpc plugins info python
 hpc plugins info r
 hpc doctor
@@ -423,6 +427,8 @@ hpc --profile genius python check analysis.py --module SciPy-bundle/2025.07-gfbf
 hpc --profile genius python plan-install analysis.py --module SciPy-bundle/2025.07-gfbf-2025b --module matplotlib/3.10.5-gfbf-2025b --venv /path/to/remote/project/.venv-icelake-scipy-mmh3 --partition batch_icelake --output install-python-packages.slurm
 hpc --profile genius python submit-install install-python-packages.slurm --directory $VSC_DATA/Projects/demo --account <account>
 hpc --profile genius python verify-install --job-output /path/to/job.out --package mmh3
+hpc cxx scan path/to/cmake-project
+hpc cxx fetchcontent CLI11 --project-option-prefix MYPROJECT
 hpc r scan Script/Main_casestudy1.R
 hpc --profile genius r check Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2
 hpc --profile genius r plan-install Script/Main_casestudy1.R --module R/4.4.2-gfbf-2024a --cran-bundle R-bundle-CRAN/2024.11-foss-2024a --bioc-bundle R-bundle-Bioconductor/3.20-foss-2024a-R-4.4.2 --partition batch_icelake --output install-r-packages.slurm

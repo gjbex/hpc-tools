@@ -116,6 +116,7 @@ CONTAINER_KINDS = {"generic", "r", "conda"}
 JSON_NATIVE_HANDLERS = {
     "cmd_benchmark_summarize",
     "cmd_benchmark_compare",
+    "cmd_cxx_scan",
     "cmd_python_scan",
     "cmd_python_inspect_deps",
     "cmd_python_check",

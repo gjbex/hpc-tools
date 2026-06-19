@@ -96,6 +96,6 @@ After changing skills, README onboarding instructions, examples, or tests, run:
 python3 tools/validate_plugin.py .
 python3 tools/validate_skills.py .
 python3 tools/check_repo_hygiene.py .
-python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py tests/*.py tools/*.py
+python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
 python3 -m unittest discover -s tests
 ```

@@ -61,6 +61,7 @@ class CliCoreTests(unittest.TestCase):
             "    submissions",
             "  Workflow plugins:",
             "    benchmark",
+            "    cxx",
             "    python",
             "    r",
         ]
@@ -249,4 +250,3 @@ class CliCoreTests(unittest.TestCase):
             "storage_url: https://example.org/storage\n"
             "status_url: https://status.example.org/",
         )
-

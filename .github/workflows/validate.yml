@@ -31,7 +31,7 @@ jobs:
           python3 -m pip install -e .
 
       - name: Compile Python modules
-        run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
+        run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
 
       - name: Run tests
         run: python3 -m unittest discover -s tests
