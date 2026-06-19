@@ -123,12 +123,14 @@ Acceptance criteria:
 
 ## Phase 3: Organize Python and R Plugin Workflows
 
+Status: implemented.
+
 Target files:
 
 - `hpc_tools/plugins/python_support.py`
 - `hpc_tools/plugins/r_support.py`
 
-Proposed module shape:
+Implemented module shape:
 
 - `hpc_tools/plugins/python/commands.py`
 - `hpc_tools/plugins/python/dependencies.py`
@@ -138,15 +140,22 @@ Proposed module shape:
 - `hpc_tools/plugins/r/dependencies.py`
 - `hpc_tools/plugins/r/install_plan.py`
 - `hpc_tools/plugins/r/remote_verify.py`
+- `hpc_tools/plugins/python_support.py`: compatibility re-export wrapper for
+  the existing entry point and legacy imports.
+- `hpc_tools/plugins/r_support.py`: compatibility re-export wrapper for the
+  existing entry point and legacy imports.
 
-Suggested approach:
+Completed:
 
-1. Move dependency scanning first. It is mostly pure and already well tested.
-2. Move install-script rendering next.
-3. Move remote check/verify output parsing after rendering is isolated.
-4. Keep the entry-point group unchanged:
+1. Moved dependency scanning and dependency-file parsing into
+   `dependencies.py`.
+2. Moved install-script rendering, quote arguments, remote staging, and
+   submission logging helpers into `install_plan.py`.
+3. Moved remote check and verify output parsing into `remote_verify.py`.
+4. Moved CLI plugin registration and command handlers into `commands.py`.
+5. Kept the entry-point group unchanged:
    `hpc_tools.plugins = python = hpc_tools.plugins.python_support:get_plugin`
-   and `r = hpc_tools.plugins.r_support:get_plugin`, at least initially.
+   and `r = hpc_tools.plugins.r_support:get_plugin`.
 
 Acceptance criteria:
 
@@ -224,7 +233,7 @@ After each phase, run:
 python3 tools/validate_plugin.py .
 python3 tools/validate_skills.py .
 python3 tools/check_repo_hygiene.py .
-python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
+python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
 python3 -m unittest discover -s tests
 ```
 

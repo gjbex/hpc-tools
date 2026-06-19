@@ -312,7 +312,7 @@ dependencies:
             stdout = io.StringIO()
 
             with mock.patch(
-                "hpc_tools.plugins.python_support.run_remote_capture",
+                "hpc_tools.plugins.python.remote_verify.run_remote_capture",
                 return_value=completed,
             ) as remote, contextlib.redirect_stdout(stdout):
                 exit_code = python_support.cmd_python_plan_install(args, profile)
@@ -383,9 +383,9 @@ Python sys.path:
             )
 
             with mock.patch(
-                "hpc_tools.plugins.python_support.run_remote_capture",
+                "hpc_tools.plugins.python.commands.run_remote_capture",
                 side_effect=[stage, quote, validate, submit],
-            ) as remote, mock.patch("hpc_tools.plugins.python_support.submissions.append_event") as append_event:
+            ) as remote, mock.patch("hpc_tools.plugins.python.install_plan.submissions.append_event") as append_event:
                 exit_code = python_support.cmd_python_submit_install(args, profile)
 
         self.assertEqual(exit_code, 0)
@@ -567,7 +567,7 @@ Session info:
             )
             stdout = io.StringIO()
             profile = type("Profile", (), {})()
-            with mock.patch("hpc_tools.plugins.r_support.run_remote_capture", return_value=completed) as remote, \
+            with mock.patch("hpc_tools.plugins.r.remote_verify.run_remote_capture", return_value=completed) as remote, \
                  contextlib.redirect_stdout(stdout):
                 exit_code = r_support.cmd_r_check(args, profile)
 
@@ -614,9 +614,9 @@ Session info:
             )
 
             with mock.patch(
-                "hpc_tools.plugins.r_support.run_remote_capture",
+                "hpc_tools.plugins.r.commands.run_remote_capture",
                 side_effect=[stage, quote, validate, submit],
-            ) as remote, mock.patch("hpc_tools.plugins.r_support.submissions.append_event") as append_event:
+            ) as remote, mock.patch("hpc_tools.plugins.r.install_plan.submissions.append_event") as append_event:
                 exit_code = r_support.cmd_r_submit_install(args, profile)
 
         self.assertEqual(exit_code, 0)
