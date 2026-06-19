@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from hpc_tools import references
+from hpc_tools.config import Profile, default_config_path
+
 
 def register(subparsers: Any, handlers: Any) -> None:
     references_parser = subparsers.add_parser(
@@ -88,3 +91,60 @@ def register(subparsers: Any, handlers: Any) -> None:
         help="Detach any shared reference set from the selected profile",
     )
     references_detach_parser.set_defaults(handler=handlers.cmd_references_detach)
+
+def cmd_references_list(args: argparse.Namespace, profile: Profile | None) -> int:
+    del args, profile
+    print(references.format_reference_set_list(references.list_reference_sets()))
+    return 0
+
+def cmd_references_show(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    print(references.format_reference_set(references.load_reference_set(args.name)))
+    return 0
+
+def cmd_references_validate(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    reference_set = references.validate_reference_set(args.name)
+    print(f"Reference set '{reference_set.name}' is valid: {reference_set.path}")
+    return 0
+
+def cmd_references_create(args: argparse.Namespace, profile: Profile) -> int:
+    reference_set = references.create_reference_set(args.name, profile, force=args.force)
+    print(f"Reference set created: {reference_set.path}")
+    return 0
+
+def cmd_references_export(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    archive_path = references.export_reference_set(
+        args.name,
+        output=args.output,
+        force=args.force,
+    )
+    print(f"Reference set archive written: {archive_path}")
+    return 0
+
+def cmd_references_import(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    reference_set = references.import_reference_set(args.archive, force=args.force)
+    print(f"Reference set imported: {reference_set.path}")
+    return 0
+
+def cmd_references_attach(args: argparse.Namespace, profile: Profile) -> int:
+    references.load_reference_set(args.name)
+    references.set_profile_reference_set(
+        Path(args.config).expanduser() if args.config else default_config_path(),
+        profile.name,
+        args.name,
+    )
+    print(f"Attached reference set '{args.name}' to profile '{profile.name}'.")
+    return 0
+
+def cmd_references_detach(args: argparse.Namespace, profile: Profile) -> int:
+    references.set_profile_reference_set(
+        Path(args.config).expanduser() if args.config else default_config_path(),
+        profile.name,
+        None,
+    )
+    print(f"Detached any reference set from profile '{profile.name}'.")
+    return 0
+

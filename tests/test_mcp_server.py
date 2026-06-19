@@ -260,9 +260,9 @@ class McpServerTests(unittest.TestCase):
                 stderr="",
             )
 
-            with mock.patch("hpc_tools.cli._fetch_status_page", return_value="All systems running fine"), \
-                    mock.patch("hpc_tools.cli.run_remote_capture", side_effect=[completed_quota, completed_balance]), \
-                    mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]):
+            with mock.patch("hpc_tools.commands.slurm._fetch_status_page", return_value="All systems running fine"), \
+                    mock.patch("hpc_tools.commands.slurm.run_remote_capture", side_effect=[completed_quota, completed_balance]), \
+                    mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]):
                 result = mcp_server.hpc_status(config=str(config_path))
 
         self.assertTrue(result["ok"])

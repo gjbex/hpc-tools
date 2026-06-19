@@ -26,7 +26,7 @@ unless a specific issue is called out and covered by tests.
 
 ## Phase 1: Split CLI Command Families
 
-Status: partially implemented.
+Status: implemented.
 
 Target files:
 
@@ -51,30 +51,30 @@ Completed:
 
 1. Moved built-in parser registration into small command-family modules under
    `hpc_tools/commands/`.
-2. Kept handler functions in `hpc_tools/cli.py` to avoid changing command
-   behavior while reducing the size of `build_parser()`.
+2. Moved command handlers and command-family helper functions into the same
+   command-family modules.
 3. Reordered the top-level command list by operator workflow.
 4. Added grouped top-level `hpc --help` output for:
    local setup and metadata, cluster inspection, remote workspace, packaged
    assets, Slurm accounting and safety, Slurm job lifecycle, and workflow
    plugins.
 5. Added regression coverage for the grouped help headings and command order.
+6. Kept compatibility imports in `hpc_tools/cli.py` for tests and callers that
+   import command helpers from the old module path.
 
-Remaining work:
+Ongoing constraints:
 
-1. Move handler functions out of `hpc_tools/cli.py` into the command-family
-   modules once parser registration is stable.
-2. Keep `cli.py` responsible for pre-parsing, config resolution, plugin
+1. Keep `cli.py` responsible for pre-parsing, config resolution, plugin
    loading, JSON wrapping, and top-level error handling.
-3. Do not rename commands, arguments, handler names exposed in tests, or output
+2. Do not rename commands, arguments, handler names exposed in tests, or output
    shapes unless the change is explicitly intentional.
 
 Acceptance criteria:
 
 - `hpc_tools/cli.py` becomes a composition layer rather than the owner of all
-  command behavior. This is partially true: parser registration has moved, but
-  command handlers still live in `cli.py`.
-- Existing command tests pass; imports may move if tests reach private helpers.
+  command behavior.
+- Existing command tests pass. Tests that mock command execution patch the new
+  command-family module boundaries.
 - `hpc --help` intentionally uses grouped command headings, while plugin command
   visibility remains stable under the "Workflow plugins" group.
 

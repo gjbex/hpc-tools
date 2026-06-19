@@ -3,6 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import argparse
+
+from hpc_tools import submissions
+from hpc_tools.config import Profile
+from hpc_tools.ssh import run_remote_capture
+
 
 def register(subparsers: Any, handlers: Any) -> None:
     submissions_parser = subparsers.add_parser(
@@ -69,3 +75,86 @@ def register(subparsers: Any, handlers: Any) -> None:
     submissions_close_parser.add_argument("run_id", help="Run ID")
     submissions_close_parser.add_argument("--reason", help="Reason for closing this run")
     submissions_close_parser.set_defaults(handler=handlers.cmd_submissions_close)
+
+def cmd_submissions_list(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    events = submissions.read_events(args.log)
+    records = (
+        submissions.records_from_events(events)
+        if args.all
+        else submissions.active_records(events)
+    )
+    print(submissions.format_records(records))
+    return 0
+
+def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
+    events = submissions.read_events(args.log)
+    records = submissions.active_records(events)
+    if args.run_id:
+        records = [record for record in records if record.run_id == args.run_id]
+    records = [record for record in records if record.profile == profile.name]
+    if not records:
+        print("No active submissions to observe.")
+        return 0
+
+    observed_records = []
+    for record in records:
+        command = submissions.sacct_observe_command(record.job_id, record.cluster)
+        completed = run_remote_capture(profile, command, dry_run=args.dry_run)
+        if args.dry_run:
+            continue
+        if completed.returncode != 0:
+            if completed.stderr:
+                print(completed.stderr, end="", file=sys.stderr)
+            continue
+        raw_output = completed.stdout
+        state, exit_code, elapsed = submissions.parse_sacct_observation(raw_output, record.job_id)
+        submissions.append_event(
+            submissions.observed_event(
+                record,
+                state=state,
+                exit_code=exit_code,
+                elapsed=elapsed,
+                raw_output=raw_output,
+            ),
+            path=args.log,
+        )
+        observed_records.append(record)
+
+    if args.dry_run:
+        print("Dry run; no observations appended.")
+        return 0
+
+    refreshed_events = submissions.read_events(args.log)
+    observed_run_ids = {record.run_id for record in observed_records}
+    refreshed_records = [
+        record for record in submissions.records_from_events(refreshed_events)
+        if record.run_id in observed_run_ids
+    ]
+    print(submissions.format_records(refreshed_records))
+    return 0
+
+def cmd_submissions_mark_collected(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    submissions.append_event(
+        submissions.mark_event(args.run_id, "results_collected", path=args.path),
+        path=args.log,
+    )
+    return 0
+
+def cmd_submissions_mark_analysed(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    submissions.append_event(
+        submissions.mark_event(args.run_id, "analysed", path=args.path),
+        path=args.log,
+    )
+    return 0
+
+def cmd_submissions_close(args: argparse.Namespace, profile: Profile | None) -> int:
+    del profile
+    submissions.append_event(
+        submissions.mark_event(args.run_id, "closed", reason=args.reason),
+        path=args.log,
+    )
+    return 0
+

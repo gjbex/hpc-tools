@@ -349,8 +349,8 @@ class CommandTests(unittest.TestCase):
         )
 
         stdout = io.StringIO()
-        with mock.patch("hpc_tools.cli.run_remote_capture", side_effect=[validation, submitted]) as run_remote_capture, \
-             mock.patch("hpc_tools.cli.submissions.append_event") as append_event, \
+        with mock.patch("hpc_tools.commands.slurm.run_remote_capture", side_effect=[validation, submitted]) as run_remote_capture, \
+             mock.patch("hpc_tools.commands.slurm.submissions.append_event") as append_event, \
              contextlib.redirect_stdout(stdout):
             result = cmd_submit(args, profile)
 
@@ -377,8 +377,8 @@ class CommandTests(unittest.TestCase):
         )
 
         stderr = io.StringIO()
-        with mock.patch("hpc_tools.cli.run_remote_capture", return_value=validation) as run_remote_capture, \
-             mock.patch("hpc_tools.cli.submissions.append_event") as append_event, \
+        with mock.patch("hpc_tools.commands.slurm.run_remote_capture", return_value=validation) as run_remote_capture, \
+             mock.patch("hpc_tools.commands.slurm.submissions.append_event") as append_event, \
              contextlib.redirect_stderr(stderr):
             result = cmd_submit(args, profile)
 
@@ -403,7 +403,7 @@ class CommandTests(unittest.TestCase):
             ]
         )
 
-        with mock.patch("hpc_tools.cli.submissions.append_event") as append_event:
+        with mock.patch("hpc_tools.commands.slurm.submissions.append_event") as append_event:
             _log_submission(
                 profile=profile,
                 args=args,
@@ -460,7 +460,7 @@ class CommandTests(unittest.TestCase):
             ]
         )
 
-        with mock.patch("hpc_tools.cli.run_remote") as run_remote:
+        with mock.patch("hpc_tools.commands.remote.run_remote") as run_remote:
             cmd_clone(args, profile)
 
         self.assertEqual(
@@ -472,7 +472,7 @@ class CommandTests(unittest.TestCase):
         profile = make_profile(projects_dir="/data/My Projects")
         args = type("Args", (), {"dry_run": False})()
 
-        with mock.patch("hpc_tools.cli.run_remote") as run_remote:
+        with mock.patch("hpc_tools.commands.remote.run_remote") as run_remote:
             cmd_projects(args, profile)
 
         self.assertEqual(
@@ -526,9 +526,9 @@ class CommandTests(unittest.TestCase):
         response.read.return_value = html_body.encode("utf-8")
         response.headers.get_content_charset.return_value = "utf-8"
 
-        with mock.patch("hpc_tools.cli.urlopen", return_value=response) as urlopen, \
-             mock.patch("hpc_tools.cli.run_remote_capture") as run_remote_capture, \
-             mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]) as read_events:
+        with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response) as urlopen, \
+             mock.patch("hpc_tools.commands.slurm.run_remote_capture") as run_remote_capture, \
+             mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]) as read_events:
             run_remote_capture.side_effect = [
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 573G* of 600G\n", stderr=""),
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="ID Name Balance Reserved Available\n142 geniusdefaultslurmaccount 0 0 0\n", stderr=""),
@@ -574,9 +574,9 @@ class CommandTests(unittest.TestCase):
         response.read.return_value = html_body.encode("utf-8")
         response.headers.get_content_charset.return_value = "utf-8"
 
-        with mock.patch("hpc_tools.cli.urlopen", return_value=response), \
-             mock.patch("hpc_tools.cli.run_remote_capture") as run_remote_capture, \
-             mock.patch("hpc_tools.cli.submissions.read_events", return_value=[]):
+        with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response), \
+             mock.patch("hpc_tools.commands.slurm.run_remote_capture") as run_remote_capture, \
+             mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]):
             run_remote_capture.side_effect = [
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 599G of 600G\n", stderr=""),
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="ID Name Balance Reserved Available\n142 geniusdefaultslurmaccount 0 0 0\n", stderr=""),
@@ -1042,7 +1042,7 @@ class CommandTests(unittest.TestCase):
         parser = build_parser(profile)
         args = parser.parse_args(["install-container", "--kind", "generic", "--directory", "$VSC_DATA/containers"])
 
-        with mock.patch("hpc_tools.cli.run_remote", return_value=0) as run_remote:
+        with mock.patch("hpc_tools.commands.probes.run_remote", return_value=0) as run_remote:
             result = cmd_install_container(args, profile)
 
         self.assertEqual(result, 0)
