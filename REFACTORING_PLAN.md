@@ -80,11 +80,13 @@ Acceptance criteria:
 
 ## Phase 2: Split MCP Server Responsibilities
 
+Status: implemented.
+
 Target file:
 
 - `hpc_tools/mcp_server.py`
 
-Proposed modules:
+Implemented modules:
 
 - `hpc_tools/mcp/resources.py`: config, profile, reference-set, submission-log
   resources.
@@ -95,15 +97,21 @@ Proposed modules:
 - `hpc_tools/mcp/parsers.py`: Slurm limits, module spider, and other remote
   command-output parsers.
 - `hpc_tools/mcp/server.py`: FastMCP app creation and registration.
+- `hpc_tools/mcp/common.py`: shared config/profile resolution, remote result
+  formatting, confirm-gated mutation previews, and serialization helpers.
+- `hpc_tools/mcp_server.py`: compatibility wrapper that preserves the
+  `hpc-mcp = hpc_tools.mcp_server:main` entry point and legacy imports.
 
-Suggested approach:
+Completed:
 
-1. Extract pure parser helpers first and pin them with focused tests.
-2. Extract guarded submission as a cohesive module; keep the evidence chain
-   together.
-3. Extract resource and tool handlers after the submit path is isolated.
-4. Keep `hpc-mcp = hpc_tools.mcp_server:main` working until the final step,
-   then make `mcp_server.py` a compatibility wrapper if useful.
+1. Extracted pure parser helpers into `hpc_tools/mcp/parsers.py`.
+2. Extracted guarded submission into `hpc_tools/mcp/submit.py`; the quote ->
+   validate -> submit evidence chain remains cohesive.
+3. Extracted read/write MCP tool handlers into `hpc_tools/mcp/tools.py`.
+4. Extracted resource handlers into `hpc_tools/mcp/resources.py`.
+5. Extracted FastMCP registration and constants into `hpc_tools/mcp/server.py`.
+6. Kept `hpc-mcp = hpc_tools.mcp_server:main` working through a compatibility
+   wrapper.
 
 Acceptance criteria:
 
@@ -216,7 +224,7 @@ After each phase, run:
 python3 tools/validate_plugin.py .
 python3 tools/validate_skills.py .
 python3 tools/check_repo_hygiene.py .
-python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/commands/*.py tests/*.py tools/*.py
+python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
 python3 -m unittest discover -s tests
 ```
 
