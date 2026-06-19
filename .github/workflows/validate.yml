@@ -16,6 +16,11 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Install package dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e .
+
       - name: Validate Codex plugin manifest
         run: python3 tools/validate_plugin.py .
 
@@ -26,7 +31,7 @@ jobs:
         run: python3 tools/check_repo_hygiene.py .
 
       - name: Compile Python modules
-        run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py tests/*.py tools/*.py
+        run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/commands/*.py tests/*.py tools/*.py
 
       - name: Run tests
         run: python3 -m unittest discover -s tests
