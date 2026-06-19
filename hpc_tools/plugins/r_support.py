@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from email.parser import Parser
 import json
 from pathlib import Path
 import re
@@ -19,8 +20,6 @@ PACKAGE_CALL_RE = re.compile(
 )
 PACKAGE_OPERATOR_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9._]*):::{0,2}[A-Za-z][A-Za-z0-9._]*")
 SOURCE_CALL_RE = re.compile(r"\bsource\(\s*[\"']([^\"']+)[\"']")
-DESCRIPTION_FIELD_RE = re.compile(r"^(Imports|Depends|LinkingTo):\s*(.*)$")
-DESCRIPTION_CONTINUATION_RE = re.compile(r"^\s+(.*)$")
 STATUS_LINE_RE = re.compile(r"^(?P<package>[A-Za-z][A-Za-z0-9._]*)\t(?P<status>OK|MISSING)$")
 BASE_PACKAGES = {
     "base",
@@ -822,30 +821,13 @@ def _scan_project_metadata(
 
 
 def _scan_description(path: Path, packages: dict[str, list[PackageHit]]) -> None:
-    current_field: str | None = None
-    values: list[str] = []
-
-    def flush() -> None:
-        if current_field is None:
-            return
-        for package in _split_description_packages(",".join(values)):
-            _record_package(packages, package, path, 1, f"DESCRIPTION {current_field}")
-
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = DESCRIPTION_FIELD_RE.match(line)
-        if match:
-            flush()
-            current_field = match.group(1)
-            values = [match.group(2)]
+    message = Parser().parsestr(path.read_text(encoding="utf-8"))
+    for field in ("Imports", "Depends", "LinkingTo"):
+        value = message.get(field)
+        if value is None:
             continue
-        continuation = DESCRIPTION_CONTINUATION_RE.match(line)
-        if current_field and continuation:
-            values.append(continuation.group(1))
-            continue
-        flush()
-        current_field = None
-        values = []
-    flush()
+        for package in _split_description_packages(value):
+            _record_package(packages, package, path, 1, f"DESCRIPTION {field}")
 
 
 def _scan_renv_lock(path: Path, packages: dict[str, list[PackageHit]], notes: list[str]) -> None:

@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-import json
 from pathlib import Path
 import os
-import re
 import shutil
 import tarfile
 import tempfile
 from typing import Any
+
+import tomlkit
+from tomlkit.exceptions import TOMLKitError
 
 from hpc_tools.config import ConfigError, Profile, default_reference_sets_dir, _load_toml
 
@@ -300,22 +301,25 @@ def format_reference_set(reference_set: ReferenceSet) -> str:
 def set_profile_reference_set(config_path: Path, profile_name: str, reference_set: str | None) -> None:
     path = config_path.expanduser()
     contents = path.read_text(encoding="utf-8")
-    lines = contents.splitlines()
-    start, end = _profile_block_range(lines, profile_name, path)
-    field_pattern = re.compile(r"^\s*reference_set\s*=")
+    try:
+        document = tomlkit.parse(contents)
+    except TOMLKitError as error:
+        raise ConfigError(f"invalid TOML in {path}: {error}") from error
 
-    for index in range(start + 1, end):
-        if field_pattern.match(lines[index]):
-            if reference_set is None:
-                del lines[index]
-            else:
-                lines[index] = f"reference_set = {json.dumps(reference_set)}"
-            path.write_text("\n".join(lines) + ("\n" if contents.endswith("\n") else ""), encoding="utf-8")
+    profiles = document.get("profiles")
+    if not isinstance(profiles, dict) or profile_name not in profiles:
+        raise ConfigError(f"profile '{profile_name}' not found in {path}")
+    profile = profiles[profile_name]
+    if not isinstance(profile, dict):
+        raise ConfigError(f"profile '{profile_name}' must be a table in {path}")
+
+    if reference_set is None:
+        if "reference_set" not in profile:
             return
-
-    if reference_set is not None:
-        lines.insert(start + 1, f"reference_set = {json.dumps(reference_set)}")
-        path.write_text("\n".join(lines) + ("\n" if contents.endswith("\n") else ""), encoding="utf-8")
+        del profile["reference_set"]
+    else:
+        profile["reference_set"] = reference_set
+    path.write_text(tomlkit.dumps(document), encoding="utf-8")
 
 
 def _profile_probe_hardware_report(profile: Profile) -> str | None:
@@ -373,23 +377,6 @@ def _safe_relative_path(root: Path, relative: str) -> Path:
     return path
 
 
-def _profile_block_range(lines: list[str], profile_name: str, path: Path) -> tuple[int, int]:
-    header = f"[profiles.{profile_name}]"
-    start = None
-    end = len(lines)
-    for index, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped == header:
-            start = index
-            continue
-        if start is not None and stripped.startswith("[") and stripped.endswith("]"):
-            end = index
-            break
-    if start is None:
-        raise ConfigError(f"profile '{profile_name}' not found in {path}")
-    return start, end
-
-
 def _safe_extract_reference_archive(archive: tarfile.TarFile, destination: Path) -> None:
     for member in archive.getmembers():
         parts = Path(member.name).parts
@@ -420,26 +407,27 @@ def _write_manifest(
     sources: dict[str, str | None],
     include_probe: bool,
 ) -> None:
-    lines = [
-        f'name = "{name}"',
-        f"format_version = {FORMAT_VERSION}",
-        f'created_at = "{created_at}"',
-    ]
+    document = tomlkit.document()
+    document.add("name", name)
+    document.add("format_version", FORMAT_VERSION)
+    document.add("created_at", created_at)
     if source_profile:
-        lines.append(f'source_profile = "{source_profile}"')
-    lines.append("")
-    lines.append("[files]")
+        document.add("source_profile", source_profile)
+
+    files = tomlkit.table()
     for key, filename in REFERENCE_FILE_KEYS.items():
-        lines.append(f'{key} = "{filename}"')
+        files.add(key, filename)
     if include_probe:
-        lines.append(f'probe_hardware_report = "{OPTIONAL_FILE_KEYS["probe_hardware_report"]}"')
-    lines.append("")
-    lines.append("[sources]")
+        files.add("probe_hardware_report", OPTIONAL_FILE_KEYS["probe_hardware_report"])
+    document.add("files", files)
+
+    source_table = tomlkit.table()
     for key in REFERENCE_URL_KEYS:
         value = sources.get(key)
         if value:
-            lines.append(f'{key} = "{value}"')
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            source_table.add(key, value)
+    document.add("sources", source_table)
+    path.write_text(tomlkit.dumps(document), encoding="utf-8")
 
 
 def _optional_string(data: dict[str, Any], key: str) -> str | None:

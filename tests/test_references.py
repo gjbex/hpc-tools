@@ -98,6 +98,25 @@ class ReferenceSetTests(unittest.TestCase):
 
         self.assertEqual(resolve_profile(config, "genius").reference_set, value)
 
+    def test_set_profile_reference_set_preserves_existing_toml_comments(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            original = config_path.read_text(encoding="utf-8")
+            config_path.write_text(
+                original.replace(
+                    '[profiles.genius]\n',
+                    '[profiles.genius]\n# operator-owned profile notes\n',
+                ),
+                encoding="utf-8",
+            )
+
+            set_profile_reference_set(config_path, "genius", "baseline")
+            updated = config_path.read_text(encoding="utf-8")
+
+        self.assertIn("# operator-owned profile notes", updated)
+        self.assertIn('reference_set = "baseline"', updated)
+
     def test_import_reference_set_rejects_symlink_members(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

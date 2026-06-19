@@ -124,7 +124,17 @@ class PluginTests(unittest.TestCase):
             )
             (root / "extra-requirements.txt").write_text("mmh3==5.1.0\n-e .\n", encoding="utf-8")
             (root / "pyproject.toml").write_text(
-                '[project]\ndependencies = ["matplotlib>=3.10", "scikit-learn"]\n',
+                """[project]
+dependencies = [
+  "matplotlib>=3.10",
+  "scikit-learn",
+]
+
+[project.optional-dependencies]
+plot = [
+  "Pillow",
+]
+""",
                 encoding="utf-8",
             )
             (root / "environment.yml").write_text(
@@ -148,7 +158,7 @@ dependencies:
         self.assertEqual([spec.name for spec in result.requirements], ["numpy", "mmh3"])
         self.assertEqual(
             [spec.name for spec in result.pyproject_dependencies],
-            ["matplotlib", "scikit_learn"],
+            ["matplotlib", "scikit_learn", "Pillow"],
         )
         self.assertEqual(
             [spec.name for spec in result.conda_dependencies],
@@ -403,6 +413,24 @@ Python sys.path:
 
         self.assertEqual(sorted(result.packages), ["dplyr", "readxl", "sf"])
         self.assertEqual(len(result.scanned_files), 2)
+
+    def test_r_scan_reads_description_with_continuation_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "DESCRIPTION").write_text(
+                """Package: demo
+Imports: dplyr,
+    ggplot2
+Depends: R (>= 4.3),
+    Matrix
+LinkingTo: Rcpp
+""",
+                encoding="utf-8",
+            )
+
+            result = r_support.scan_target(root)
+
+        self.assertEqual(sorted(result.packages), ["Matrix", "Rcpp", "dplyr", "ggplot2"])
 
     def test_r_scan_command_runs_without_profile(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

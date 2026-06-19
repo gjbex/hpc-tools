@@ -10,12 +10,14 @@ import shlex
 import subprocess
 import sys
 
-from hpc_tools.config import ConfigError, Profile
+from packaging.requirements import InvalidRequirement, Requirement
+import yaml
+
+from hpc_tools.config import ConfigError, Profile, _load_toml
 from hpc_tools import slurm, submissions
 from hpc_tools.ssh import run_remote_capture
 
 
-REQUIREMENT_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)")
 STATUS_LINE_RE = re.compile(r"^(?P<package>[A-Za-z0-9_.-]+)\t(?P<status>OK|MISSING)$")
 IMPORT_NAME_ALIASES = {
     "beautifulsoup4": "bs4",
@@ -972,7 +974,7 @@ def _scan_project_metadata(
     pyproject = directory / "pyproject.toml"
     if pyproject.exists():
         scanned_files.append(pyproject)
-        _scan_pyproject_lightweight(pyproject, packages, notes)
+        _scan_pyproject_dependencies(pyproject, packages, notes)
 
 
 def _requirement_files(directory: Path) -> list[Path]:
@@ -986,21 +988,18 @@ def _requirement_files(directory: Path) -> list[Path]:
 
 def _scan_requirements(path: Path, packages: dict[str, list[PackageHit]], notes: list[str]) -> None:
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        stripped = line.split("#", 1)[0].strip()
+        stripped = _strip_requirement_comment(line)
         if not stripped or stripped.startswith(("-", "git+", "http://", "https://")):
             continue
-        match = REQUIREMENT_RE.match(stripped)
-        if match:
-            raw_name = match.group(1)
+        requirement = _parse_requirement(stripped, path, line_number, notes)
+        if requirement:
             _record_package(
                 packages,
-                _dependency_import_name_from_raw(raw_name, _normalize_requirement_name(raw_name)),
+                _dependency_import_name_from_raw(stripped, _normalize_requirement_name(requirement.name)),
                 path,
                 line_number,
                 "requirements",
             )
-        else:
-            notes.append(f"{path}:{line_number} contains a requirement that was not statically resolved.")
 
 
 def _inspect_requirements_file(
@@ -1024,7 +1023,7 @@ def _inspect_requirements_file(
         notes.append(f"Read {resolved} as latin-1 after UTF-8 decoding failed.")
 
     for line_number, line in enumerate(lines, start=1):
-        stripped = line.split("#", 1)[0].strip()
+        stripped = _strip_requirement_comment(line)
         if not stripped:
             continue
         if stripped.startswith(("-r ", "--requirement ")):
@@ -1050,41 +1049,30 @@ def _inspect_requirements_file(
         if stripped.startswith(("-", "git+", "http://", "https://")):
             notes.append(f"{resolved}:{line_number} contains a non-package requirement: {stripped}")
             continue
-        match = REQUIREMENT_RE.match(stripped)
-        if match:
+        requirement = _parse_requirement(stripped, resolved, line_number, notes)
+        if requirement:
             _append_dependency_spec(
                 requirements,
-                name=_normalize_requirement_name(match.group(1)),
+                name=_normalize_requirement_name(requirement.name),
                 source="requirements",
                 file=resolved,
                 line_number=line_number,
                 raw=stripped,
             )
-        else:
-            notes.append(f"{resolved}:{line_number} contains a requirement that was not statically resolved.")
 
 
-def _scan_pyproject_lightweight(path: Path, packages: dict[str, list[PackageHit]], notes: list[str]) -> None:
-    in_dependencies = False
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            in_dependencies = False
+def _scan_pyproject_dependencies(path: Path, packages: dict[str, list[PackageHit]], notes: list[str]) -> None:
+    for raw, line_number, source in _iter_pyproject_dependency_strings(path, notes):
+        requirement = _parse_requirement(raw, path, line_number, notes)
+        if not requirement:
             continue
-        if stripped.startswith("dependencies") and "[" in stripped:
-            in_dependencies = True
-        if in_dependencies:
-            for match in re.finditer(r'["\']([A-Za-z0-9_.-]+)', stripped):
-                raw_name = match.group(1)
-                _record_package(
-                    packages,
-                    _dependency_import_name_from_raw(raw_name, _normalize_requirement_name(raw_name)),
-                    path,
-                    line_number,
-                    "pyproject dependencies",
-                )
-            if "]" in stripped:
-                in_dependencies = False
+        _record_package(
+            packages,
+            _dependency_import_name_from_raw(raw, _normalize_requirement_name(requirement.name)),
+            path,
+            line_number,
+            source,
+        )
 
 
 def _inspect_pyproject_dependencies(
@@ -1092,31 +1080,18 @@ def _inspect_pyproject_dependencies(
     dependencies: list[DependencySpec],
     notes: list[str],
 ) -> None:
-    in_dependencies = False
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.startswith("[") and stripped.endswith("]"):
-            in_dependencies = False
+    for raw, line_number, source in _iter_pyproject_dependency_strings(path, notes):
+        requirement = _parse_requirement(raw, path, line_number, notes)
+        if not requirement:
             continue
-        if stripped.startswith("dependencies") and "[" in stripped:
-            in_dependencies = True
-        if in_dependencies:
-            for match in re.finditer(r'["\']([^"\']+)["\']', stripped):
-                raw = match.group(1).strip()
-                name = _dependency_name_from_requirement(raw)
-                if name:
-                    _append_dependency_spec(
-                        dependencies,
-                        name=_normalize_requirement_name(name),
-                        source="pyproject dependencies",
-                        file=path,
-                        line_number=line_number,
-                        raw=raw,
-                    )
-                else:
-                    notes.append(f"{path}:{line_number} contains a dependency that was not statically resolved.")
-            if "]" in stripped:
-                in_dependencies = False
+        _append_dependency_spec(
+            dependencies,
+            name=_normalize_requirement_name(requirement.name),
+            source=source,
+            file=path,
+            line_number=line_number,
+            raw=raw,
+        )
 
 
 def _inspect_environment_file(
@@ -1129,56 +1104,158 @@ def _inspect_environment_file(
     binary_hints: list[str],
     notes: list[str],
 ) -> None:
-    section: str | None = None
-    in_pip = False
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-        stripped = raw_line.strip()
-        if not stripped or stripped.startswith("#"):
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as error:
+        notes.append(f"Could not parse {path}: {error}")
+        return
+    if data is None:
+        return
+    if not isinstance(data, dict):
+        notes.append(f"{path} must contain a YAML mapping at the top level.")
+        return
+
+    raw_channels = data.get("channels", [])
+    if raw_channels is None:
+        raw_channels = []
+    if isinstance(raw_channels, list):
+        channels.extend(str(channel) for channel in raw_channels if channel is not None)
+    else:
+        notes.append(f"{path}: channels must be a list.")
+
+    raw_dependencies = data.get("dependencies", [])
+    if raw_dependencies is None:
+        raw_dependencies = []
+    if not isinstance(raw_dependencies, list):
+        notes.append(f"{path}: dependencies must be a list.")
+        return
+
+    for entry in raw_dependencies:
+        if isinstance(entry, str):
+            line_number = _line_number_containing(path, entry)
+            name = _dependency_name_from_conda(entry)
+            if not name:
+                notes.append(f"{path}:{line_number} contains a conda dependency that was not statically resolved.")
+                continue
+            _append_dependency_spec(
+                conda_dependencies,
+                name=_normalize_requirement_name(name),
+                source="environment.yml conda",
+                file=path,
+                line_number=line_number,
+                raw=entry,
+            )
+            if name == "python":
+                python_versions.append(entry)
+            if _looks_like_binary_dependency(name):
+                binary_hints.append(entry)
             continue
-        if not raw_line.startswith((" ", "-")) and stripped.endswith(":"):
-            section = stripped[:-1]
-            in_pip = False
-            continue
-        if section == "channels" and stripped.startswith("- "):
-            channels.append(stripped[2:].strip())
-            continue
-        if section != "dependencies" or not stripped.startswith("- "):
-            continue
-        value = stripped[2:].strip()
-        if value == "pip:":
-            in_pip = True
-            continue
-        if in_pip and raw_line.startswith("    - "):
-            name = _dependency_name_from_requirement(value)
-            if name:
+
+        if isinstance(entry, dict) and "pip" in entry:
+            pip_entries = entry["pip"]
+            if not isinstance(pip_entries, list):
+                notes.append(f"{path}: environment.yml pip dependencies must be a list.")
+                continue
+            for value in pip_entries:
+                line_number = _line_number_containing(path, str(value))
+                if not isinstance(value, str):
+                    notes.append(f"{path}:{line_number} contains a non-string pip dependency.")
+                    continue
+                requirement = _parse_requirement(value, path, line_number, notes)
+                if not requirement:
+                    continue
                 _append_dependency_spec(
                     pip_dependencies,
-                    name=_normalize_requirement_name(name),
+                    name=_normalize_requirement_name(requirement.name),
                     source="environment.yml pip",
                     file=path,
                     line_number=line_number,
                     raw=value,
                 )
-            else:
-                notes.append(f"{path}:{line_number} contains a pip dependency that was not statically resolved.")
             continue
-        in_pip = False
-        name = _dependency_name_from_conda(value)
-        if not name:
-            notes.append(f"{path}:{line_number} contains a conda dependency that was not statically resolved.")
-            continue
-        _append_dependency_spec(
-            conda_dependencies,
-            name=_normalize_requirement_name(name),
-            source="environment.yml conda",
-            file=path,
-            line_number=line_number,
-            raw=value,
+
+        notes.append(f"{path} contains an environment dependency that was not statically resolved: {entry!r}")
+
+
+def _strip_requirement_comment(line: str) -> str:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return ""
+    for marker in (" #", "\t#"):
+        index = stripped.find(marker)
+        if index != -1:
+            return stripped[:index].strip()
+    return stripped
+
+
+def _parse_requirement(
+    value: str,
+    path: Path,
+    line_number: int,
+    notes: list[str],
+) -> Requirement | None:
+    try:
+        return Requirement(value)
+    except InvalidRequirement:
+        notes.append(f"{path}:{line_number} contains a requirement that was not statically resolved.")
+        return None
+
+
+def _iter_pyproject_dependency_strings(
+    path: Path,
+    notes: list[str],
+) -> list[tuple[str, int, str]]:
+    try:
+        data = _load_toml(path)
+    except ConfigError as error:
+        notes.append(str(error))
+        return []
+    project = data.get("project")
+    if project is None:
+        return []
+    if not isinstance(project, dict):
+        notes.append(f"{path}: [project] must be a table.")
+        return []
+
+    dependencies: list[tuple[str, int, str]] = []
+    raw_dependencies = project.get("dependencies", [])
+    if raw_dependencies is None:
+        raw_dependencies = []
+    if isinstance(raw_dependencies, list) and all(isinstance(item, str) for item in raw_dependencies):
+        dependencies.extend(
+            (raw, _line_number_containing(path, raw), "pyproject dependencies")
+            for raw in raw_dependencies
         )
-        if name == "python":
-            python_versions.append(value)
-        if _looks_like_binary_dependency(name):
-            binary_hints.append(value)
+    elif raw_dependencies:
+        notes.append(f"{path}: project.dependencies must be a list of strings.")
+
+    optional = project.get("optional-dependencies", {})
+    if optional is None:
+        optional = {}
+    if isinstance(optional, dict):
+        for extra, values in optional.items():
+            if isinstance(values, list) and all(isinstance(item, str) for item in values):
+                dependencies.extend(
+                    (raw, _line_number_containing(path, raw), f"pyproject optional-dependencies.{extra}")
+                    for raw in values
+                )
+            else:
+                notes.append(f"{path}: project.optional-dependencies.{extra} must be a list of strings.")
+    elif optional:
+        notes.append(f"{path}: project.optional-dependencies must be a table.")
+
+    return dependencies
+
+
+def _line_number_containing(path: Path, needle: str) -> int:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        lines = path.read_text(encoding="latin-1").splitlines()
+    for line_number, line in enumerate(lines, start=1):
+        if needle in line:
+            return line_number
+    return 1
 
 
 def _normalize_requirement_name(name: str) -> str:
@@ -1186,10 +1263,11 @@ def _normalize_requirement_name(name: str) -> str:
 
 
 def _dependency_name_from_requirement(value: str) -> str | None:
-    match = REQUIREMENT_RE.match(value)
-    if not match:
+    try:
+        requirement = Requirement(value)
+    except InvalidRequirement:
         return None
-    return match.group(1)
+    return requirement.name
 
 
 def _dependency_install_name_from_raw(raw: str, fallback: str) -> str:
