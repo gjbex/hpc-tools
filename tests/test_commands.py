@@ -83,6 +83,62 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args.cluster, "wice")
         self.assertIn("-M wice", slurm.squeue_user_command(args.cluster))
 
+    def test_top_level_help_groups_commands_by_workflow(self) -> None:
+        parser = build_parser(make_profile())
+
+        help_text = parser.format_help()
+
+        self.assertIn("commands:", help_text)
+        self.assertNotIn("positional arguments:\n  <command>", help_text)
+        expected_order = [
+            "  Local setup and metadata:",
+            "    paths",
+            "    plugins",
+            "    references",
+            "  Cluster inspection:",
+            "    doctor",
+            "    status",
+            "    site-env",
+            "    hardware",
+            "    storage",
+            "    quota",
+            "    module-spider",
+            "    slurm-limits",
+            "  Remote workspace:",
+            "    projects",
+            "    repo",
+            "    clone",
+            "    run",
+            "  Packaged assets:",
+            "    write-probe",
+            "    write-hardware-probe",
+            "    install-probe",
+            "    install-hardware-probe",
+            "    write-container",
+            "    install-container",
+            "  Slurm accounting and safety:",
+            "    quote",
+            "    balance",
+            "    statement",
+            "  Slurm job lifecycle:",
+            "    submit",
+            "    jobs",
+            "    job",
+            "    queue",
+            "    sacct",
+            "    submissions",
+            "  Workflow plugins:",
+            "    benchmark",
+            "    python",
+            "    r",
+        ]
+        help_lines = help_text.splitlines()
+        previous_index = -1
+        for text in expected_order:
+            index = _find_help_line(help_lines, text, previous_index + 1)
+            self.assertGreater(index, previous_index)
+            previous_index = index
+
     def test_squeue_job_command_uses_standard_status_format(self) -> None:
         command = slurm.squeue_job_command("12345", "wice")
 
@@ -1153,6 +1209,16 @@ class CommandTests(unittest.TestCase):
             "storage_url: https://example.org/storage\n"
             "status_url: https://status.example.org/",
         )
+
+
+def _find_help_line(lines: list[str], text: str, start: int) -> int:
+    for index in range(start, len(lines)):
+        line = lines[index]
+        if text.endswith(":") and line == text:
+            return index
+        if not text.endswith(":") and line.startswith(f"{text} "):
+            return index
+    raise AssertionError(f"help line not found after {start}: {text}")
 
 
 def make_profile(

@@ -9,12 +9,15 @@ import json
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
+from types import SimpleNamespace
 import re
 import shlex
 import sys
+import textwrap
 from urllib.error import URLError
 from urllib.request import urlopen
 
+from hpc_tools.commands import register_builtin_commands
 from hpc_tools.config import (
     ConfigError,
     Profile,
@@ -24,7 +27,7 @@ from hpc_tools.config import (
     load_config,
     resolve_profile,
 )
-from hpc_tools.hardware import profile_has_hardware_context, render_hardware_context
+from hpc_tools.hardware import render_hardware_context
 from hpc_tools import plugin_system
 from hpc_tools import references
 from hpc_tools.ssh import run_remote, run_remote_capture
@@ -55,8 +58,52 @@ JSON_NATIVE_HANDLERS = {
 }
 
 
+class GroupedCommandParser(argparse.ArgumentParser):
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self.command_groups: list[CommandGroup] = []
+
+    def format_help(self) -> str:
+        help_text = super().format_help()
+        if not self.command_groups:
+            return help_text
+        return _replace_command_help_section(help_text, self.command_groups)
+
+
+class CommandGroup(SimpleNamespace):
+    title: str
+    commands: list[tuple[str, str]]
+
+
+class GroupedSubparsers:
+    def __init__(self, subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+        self._subparsers = subparsers
+        self.groups: list[CommandGroup] = []
+        self._current_group: CommandGroup | None = None
+
+    def add_parser(self, name: str, **kwargs: object) -> argparse.ArgumentParser:
+        parser = self._subparsers.add_parser(name, **kwargs)
+        if self._current_group is not None:
+            self._current_group.commands.append((name, str(kwargs.get("help", ""))))
+        return parser
+
+    @contextlib.contextmanager
+    def group(self, title: str) -> object:
+        group = CommandGroup(title=title, commands=[])
+        self.groups.append(group)
+        previous_group = self._current_group
+        self._current_group = group
+        try:
+            yield
+        finally:
+            self._current_group = previous_group
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._subparsers, name)
+
+
 def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="hpc")
+    parser = GroupedCommandParser(prog="hpc")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     parser.add_argument("--profile", help="Profile name from the configuration file")
     parser.add_argument(
@@ -69,519 +116,107 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
         help="Print the SSH command without executing it",
     )
 
-    subparsers = parser.add_subparsers(dest="command", metavar="<command>", required=True)
-
-    run_parser = subparsers.add_parser("run", help="Run a command on the remote host")
-    run_parser.add_argument("remote_command", help="Command to run through the configured login shell")
-    run_parser.set_defaults(handler=cmd_run)
-
-    doctor_parser = subparsers.add_parser(
-        "doctor",
-        help="Check remote login identity and core Slurm tool availability",
-    )
-    doctor_parser.set_defaults(handler=cmd_doctor)
-
-    site_env_parser = subparsers.add_parser(
-        "site-env",
-        help="Inspect remote site environment variables and common HPC helper tools",
-    )
-    site_env_parser.set_defaults(handler=cmd_site_env)
-
-    storage_parser = subparsers.add_parser(
-        "storage",
-        help="Inspect remote filesystem paths and storage context",
-    )
-    storage_subparsers = storage_parser.add_subparsers(
-        dest="storage_command",
-        metavar="<subcommand>",
-        required=True,
-    )
-    storage_inspect_parser = storage_subparsers.add_parser(
-        "inspect",
-        help="Inspect one remote path with bounded storage checks",
-    )
-    storage_inspect_parser.add_argument(
-        "path",
-        nargs="?",
-        default=".",
-        help="Remote path to inspect; defaults to the remote current directory",
-    )
-    storage_inspect_parser.set_defaults(handler=cmd_storage_inspect)
-
-    repo_parser = subparsers.add_parser(
-        "repo",
-        help="Inspect remote source-code repositories",
-    )
-    repo_subparsers = repo_parser.add_subparsers(
-        dest="repo_command",
-        metavar="<subcommand>",
-        required=True,
-    )
-    repo_status_parser = repo_subparsers.add_parser(
-        "status",
-        help="Show remote Git repository status, remotes, and latest commit",
-    )
-    repo_status_parser.add_argument(
-        "--directory",
-        "-C",
-        required=True,
-        help="Remote repository directory to inspect",
-    )
-    repo_status_parser.set_defaults(handler=cmd_repo_status)
-
-    paths_parser = subparsers.add_parser(
-        "paths",
-        help="Show hpc-tools config, reference, skill, and package paths",
-    )
-    paths_parser.set_defaults(handler=cmd_paths)
-
-    plugins_parser = subparsers.add_parser(
-        "plugins",
-        help="Inspect installed hpc-tools plugins",
-    )
-    plugins_subparsers = plugins_parser.add_subparsers(
-        dest="plugins_command",
-        metavar="<subcommand>",
-        required=True,
+    subparsers = GroupedSubparsers(
+        parser.add_subparsers(dest="command", metavar="<command>", required=True)
     )
 
-    plugins_list_parser = plugins_subparsers.add_parser(
-        "list",
-        help="List installed core and external plugins",
-    )
-    plugins_list_parser.set_defaults(handler=cmd_plugins_list)
+    register_builtin_commands(subparsers, profile, _command_handlers())
 
-    plugins_info_parser = plugins_subparsers.add_parser(
-        "info",
-        help="Show one installed plugin",
-    )
-    plugins_info_parser.add_argument("name", help="Plugin name")
-    plugins_info_parser.set_defaults(handler=cmd_plugins_info)
-
-    references_parser = subparsers.add_parser(
-        "references",
-        help="Manage shared cluster reference sets",
-    )
-    references_subparsers = references_parser.add_subparsers(
-        dest="references_command",
-        metavar="<subcommand>",
-        required=True,
-    )
-
-    references_list_parser = references_subparsers.add_parser(
-        "list",
-        help="List installed shared reference sets",
-    )
-    references_list_parser.set_defaults(handler=cmd_references_list)
-
-    references_show_parser = references_subparsers.add_parser(
-        "show",
-        help="Show one shared reference set",
-    )
-    references_show_parser.add_argument("name", help="Reference set name")
-    references_show_parser.set_defaults(handler=cmd_references_show)
-
-    references_validate_parser = references_subparsers.add_parser(
-        "validate",
-        help="Validate one shared reference set",
-    )
-    references_validate_parser.add_argument("name", help="Reference set name")
-    references_validate_parser.set_defaults(handler=cmd_references_validate)
-
-    references_create_parser = references_subparsers.add_parser(
-        "create",
-        help="Create a shared reference set from the selected profile",
-    )
-    references_create_parser.add_argument("name", help="Reference set name")
-    references_create_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite the destination reference set if it already exists",
-    )
-    references_create_parser.set_defaults(handler=cmd_references_create)
-
-    references_export_parser = references_subparsers.add_parser(
-        "export",
-        help="Export one shared reference set as a tar.gz archive",
-    )
-    references_export_parser.add_argument("name", help="Reference set name")
-    references_export_parser.add_argument(
-        "--output",
-        type=Path,
-        help="Archive output path; defaults to ./<name>-reference-set.tar.gz",
-    )
-    references_export_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite the archive if it already exists",
-    )
-    references_export_parser.set_defaults(handler=cmd_references_export)
-
-    references_import_parser = references_subparsers.add_parser(
-        "import",
-        help="Import a shared reference set archive",
-    )
-    references_import_parser.add_argument("archive", type=Path, help="Reference set archive path")
-    references_import_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite an existing installed reference set",
-    )
-    references_import_parser.set_defaults(handler=cmd_references_import)
-
-    references_attach_parser = references_subparsers.add_parser(
-        "attach",
-        help="Attach a shared reference set to the selected profile",
-    )
-    references_attach_parser.add_argument("name", help="Reference set name")
-    references_attach_parser.set_defaults(handler=cmd_references_attach)
-
-    references_detach_parser = references_subparsers.add_parser(
-        "detach",
-        help="Detach any shared reference set from the selected profile",
-    )
-    references_detach_parser.set_defaults(handler=cmd_references_detach)
-
-    generic_probe_parser = subparsers.add_parser(
-        "write-probe",
-        help="Write a packaged probe script or probe asset bundle",
-    )
-    generic_probe_parser.add_argument(
-        "--kind",
-        choices=sorted(PROBE_KINDS),
-        default="hardware",
-        help="Packaged probe kind to write",
-    )
-    generic_probe_parser.add_argument(
-        "output",
-        nargs="?",
-        default="-",
-        help="Output file for hardware, output directory for bundle probes, or '-' for hardware stdout.",
-    )
-    generic_probe_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite output path if it already exists",
-    )
-    _add_probe_directive_options(generic_probe_parser)
-    generic_probe_parser.set_defaults(handler=cmd_write_probe)
-
-    probe_parser = subparsers.add_parser(
-        "write-hardware-probe",
-        help="Write the packaged Slurm hardware probe script",
-    )
-    probe_parser.add_argument(
-        "output",
-        nargs="?",
-        default="-",
-        help="Output path, or '-' for stdout. Defaults to stdout.",
-    )
-    probe_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite output path if it already exists",
-    )
-    _add_probe_directive_options(probe_parser)
-    probe_parser.set_defaults(handler=cmd_write_hardware_probe)
-
-    generic_install_probe_parser = subparsers.add_parser(
-        "install-probe",
-        help="Install a packaged probe script or probe asset bundle on the remote host",
-    )
-    generic_install_probe_parser.add_argument(
-        "--kind",
-        choices=sorted(PROBE_KINDS),
-        default="hardware",
-        help="Packaged probe kind to install",
-    )
-    generic_install_probe_parser.add_argument(
-        "--directory",
-        "-C",
-        default=".",
-        help="Remote directory where the probe assets should be written",
-    )
-    generic_install_probe_parser.add_argument(
-        "--name",
-        help="Remote script filename; defaults depend on --kind",
-    )
-    generic_install_probe_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite remote files if they already exist",
-    )
-    _add_probe_directive_options(generic_install_probe_parser)
-    generic_install_probe_parser.set_defaults(handler=cmd_install_probe)
-
-    container_parser = subparsers.add_parser(
-        "write-container",
-        help="Write a packaged Apptainer container build bundle",
-    )
-    container_parser.add_argument(
-        "--kind",
-        choices=sorted(CONTAINER_KINDS),
-        required=True,
-        help="Packaged container bundle to write",
-    )
-    container_parser.add_argument(
-        "output",
-        help="Output directory for the container bundle",
-    )
-    container_parser.add_argument(
-        "--name",
-        help="Primary Slurm script filename; defaults depend on --kind",
-    )
-    container_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite output path if it already exists",
-    )
-    container_parser.set_defaults(handler=cmd_write_container)
-
-    install_container_parser = subparsers.add_parser(
-        "install-container",
-        help="Install a packaged Apptainer container build bundle on the remote host",
-    )
-    install_container_parser.add_argument(
-        "--kind",
-        choices=sorted(CONTAINER_KINDS),
-        required=True,
-        help="Packaged container bundle to install",
-    )
-    install_container_parser.add_argument(
-        "--directory",
-        "-C",
-        required=True,
-        help="Remote directory where the bundle should be written",
-    )
-    install_container_parser.add_argument(
-        "--name",
-        help="Primary Slurm script filename; defaults depend on --kind",
-    )
-    install_container_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite remote files if they already exist",
-    )
-    install_container_parser.set_defaults(handler=cmd_install_container)
-
-    install_probe_parser = subparsers.add_parser(
-        "install-hardware-probe",
-        help="Install the packaged Slurm hardware probe script on the remote host",
-    )
-    install_probe_parser.add_argument(
-        "--directory",
-        "-C",
-        default=".",
-        help="Remote directory where the probe script should be written",
-    )
-    install_probe_parser.add_argument(
-        "--name",
-        default="hardware-probe.slurm",
-        help="Remote script filename",
-    )
-    install_probe_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Overwrite remote script if it already exists",
-    )
-    _add_probe_directive_options(install_probe_parser)
-    install_probe_parser.set_defaults(handler=cmd_install_hardware_probe)
-
-    if profile is None or profile.quota_command:
-        quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
-        quota_parser.set_defaults(handler=cmd_quota)
-
-    projects_parser = subparsers.add_parser("projects", help="List the remote project directory")
-    projects_parser.set_defaults(handler=cmd_projects)
-
-    clone_parser = subparsers.add_parser("clone", help="Clone a Git repository into a remote directory")
-    clone_parser.add_argument("url", help="Git repository URL")
-    clone_parser.add_argument("--branch", "-b", help="Branch to clone")
-    clone_parser.add_argument(
-        "--directory",
-        "-C",
-        help="Remote parent directory for the clone; defaults to profile projects_dir",
-    )
-    clone_parser.add_argument(
-        "--name",
-        help="Optional destination directory name passed to git clone",
-    )
-    clone_parser.set_defaults(handler=cmd_clone)
-
-    spider_parser = subparsers.add_parser("module-spider", help="Search Lmod modules")
-    spider_parser.add_argument("name", help="Module name or search term")
-    spider_parser.set_defaults(handler=cmd_module_spider)
-
-    if profile_has_hardware_context(profile):
-        hardware_parser = subparsers.add_parser(
-            "hardware",
-            help="Show profile hardware and Slurm reference context",
-        )
-        hardware_parser.add_argument(
-            "--source",
-            action="store_true",
-            help="Print configured source URLs only",
-        )
-        hardware_parser.add_argument(
-            "--path",
-            action="store_true",
-            help="Print configured local reference paths only",
-        )
-        hardware_parser.set_defaults(handler=cmd_hardware)
-
-    if profile is None or profile.queue_command:
-        queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
-        queue_parser.set_defaults(handler=cmd_queue)
-
-    if profile is None or profile.sam_balance_command:
-        balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
-        balance_parser.set_defaults(handler=cmd_balance)
-
-    if profile is None or profile.sam_statement_command:
-        statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
-        statement_parser.add_argument("--account", required=True, help="Slurm account name")
-        statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
-        statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
-        statement_parser.set_defaults(handler=cmd_statement)
-
-    if profile is None or profile.sam_quote_command:
-        quote_parser = subparsers.add_parser("quote", help="Estimate Slurm credits for a job")
-        quote_parser.add_argument(
-            "quote_args",
-            nargs=argparse.REMAINDER,
-            help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
-        )
-        quote_parser.set_defaults(handler=cmd_quote)
-
-    if profile is None or profile.status_url:
-        status_parser = subparsers.add_parser(
-            "status",
-            help="Show site status, quota, balance, and local submissions",
-        )
-        status_parser.set_defaults(handler=cmd_status)
-
-    jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
-    jobs_parser.add_argument(
-        "--cluster",
-        "-M",
-        default="all",
-        help="Slurm cluster name; defaults to all visible clusters",
-    )
-    jobs_parser.set_defaults(handler=cmd_jobs)
-
-    job_parser = subparsers.add_parser("job", help="Show status for one Slurm job")
-    job_parser.add_argument("jobid", help="Slurm job ID")
-    job_parser.add_argument(
-        "--cluster",
-        "-M",
-        default="all",
-        help="Slurm cluster name; defaults to all visible clusters",
-    )
-    job_parser.set_defaults(handler=cmd_job)
-
-    submit_parser = subparsers.add_parser("submit", help="Submit a Slurm job script")
-    submit_parser.add_argument("jobscript", help="Job script path relative to --directory")
-    submit_parser.add_argument(
-        "--directory",
-        "-C",
-        default=".",
-        help="Remote directory from which to run sbatch",
-    )
-    submit_parser.add_argument(
-        "--test-only",
-        action="store_true",
-        help="Run sbatch --test-only instead of submitting",
-    )
-    submit_parser.add_argument(
-        "--validate-first",
-        action="store_true",
-        help="Run sbatch --test-only with the same options before submitting",
-    )
-    _add_submit_override_arguments(submit_parser)
-    submit_parser.set_defaults(handler=cmd_submit)
-
-    sacct_parser = subparsers.add_parser("sacct", help="Show Slurm accounting for a job")
-    sacct_parser.add_argument("jobid", help="Slurm job ID")
-    sacct_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
-    sacct_parser.set_defaults(handler=cmd_sacct)
-
-    limits_parser = subparsers.add_parser(
-        "slurm-limits",
-        help="Show Slurm partition, controller, QoS, and association limits",
-    )
-    limits_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
-    limits_parser.add_argument("--partition", "-p", help="Slurm partition name")
-    limits_parser.add_argument("--qos", help="Limit QoS output to one QoS name")
-    limits_parser.set_defaults(handler=cmd_slurm_limits)
-
-    submissions_parser = subparsers.add_parser(
-        "submissions",
-        help="Inspect and update the local Slurm submission event log",
-    )
-    submissions_parser.add_argument(
-        "--log",
-        type=Path,
-        help="Submission JSONL log path; defaults to the hpc-tools config directory",
-    )
-    submissions_subparsers = submissions_parser.add_subparsers(
-        dest="submissions_command",
-        metavar="<subcommand>",
-        required=True,
-    )
-
-    submissions_list_parser = submissions_subparsers.add_parser(
-        "list",
-        help="List active submissions by replaying the event log",
-    )
-    submissions_list_parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Include closed submissions",
-    )
-    submissions_list_parser.set_defaults(handler=cmd_submissions_list)
-
-    submissions_observe_parser = submissions_subparsers.add_parser(
-        "observe",
-        help="Query Slurm accounting for active submissions and append observed events",
-    )
-    submissions_observe_parser.add_argument(
-        "run_id",
-        nargs="?",
-        help="Run ID to observe; defaults to all active runs",
-    )
-    submissions_observe_parser.set_defaults(handler=cmd_submissions_observe)
-
-    submissions_collect_parser = submissions_subparsers.add_parser(
-        "mark-collected",
-        help="Append a results_collected event for a run",
-    )
-    submissions_collect_parser.add_argument("run_id", help="Run ID")
-    submissions_collect_parser.add_argument(
-        "--path",
-        required=True,
-        help="Local or remote result path",
-    )
-    submissions_collect_parser.set_defaults(handler=cmd_submissions_mark_collected)
-
-    submissions_analyse_parser = submissions_subparsers.add_parser(
-        "mark-analysed",
-        help="Append an analysed event for a run",
-    )
-    submissions_analyse_parser.add_argument("run_id", help="Run ID")
-    submissions_analyse_parser.add_argument("--path", required=True, help="Report or notebook path")
-    submissions_analyse_parser.set_defaults(handler=cmd_submissions_mark_analysed)
-
-    submissions_close_parser = submissions_subparsers.add_parser(
-        "close",
-        help="Append a closed event for a run",
-    )
-    submissions_close_parser.add_argument("run_id", help="Run ID")
-    submissions_close_parser.add_argument("--reason", help="Reason for closing this run")
-    submissions_close_parser.set_defaults(handler=cmd_submissions_close)
-
-    plugin_system.register_plugin_commands(subparsers, profile)
+    with subparsers.group("Workflow plugins"):
+        plugin_system.register_plugin_commands(subparsers, profile)
+    parser.command_groups = subparsers.groups
 
     return parser
+
+
+def _replace_command_help_section(help_text: str, command_groups: list[CommandGroup]) -> str:
+    lines = help_text.splitlines()
+    try:
+        start = lines.index("positional arguments:")
+    except ValueError:
+        return help_text
+    if start + 1 >= len(lines) or not lines[start + 1].strip().startswith("<command>"):
+        return help_text
+
+    end = start + 1
+    while end < len(lines) and lines[end] not in {"options:", "optional arguments:"}:
+        end += 1
+    if end == len(lines):
+        return help_text
+
+    command_lines = _format_command_groups(command_groups)
+    return "\n".join([*lines[:start], *command_lines, "", *lines[end:]]) + "\n"
+
+
+def _format_command_groups(command_groups: list[CommandGroup]) -> list[str]:
+    lines = ["commands:"]
+    command_names = [
+        name
+        for group in command_groups
+        for name, _ in group.commands
+    ]
+    width = max([22, *(len(name) for name in command_names)]) + 2
+    for group in command_groups:
+        if not group.commands:
+            continue
+        lines.extend(["", f"  {group.title}:"])
+        for name, help_text in group.commands:
+            wrapped = textwrap.wrap(help_text, width=52) or [""]
+            lines.append(f"    {name:<{width}} {wrapped[0]}".rstrip())
+            for continuation in wrapped[1:]:
+                lines.append(f"    {'':<{width}} {continuation}".rstrip())
+    return lines
+
+
+def _command_handlers() -> SimpleNamespace:
+    return SimpleNamespace(
+        PROBE_KINDS=PROBE_KINDS,
+        CONTAINER_KINDS=CONTAINER_KINDS,
+        add_probe_directive_options=_add_probe_directive_options,
+        add_submit_override_arguments=_add_submit_override_arguments,
+        cmd_run=cmd_run,
+        cmd_doctor=cmd_doctor,
+        cmd_site_env=cmd_site_env,
+        cmd_storage_inspect=cmd_storage_inspect,
+        cmd_repo_status=cmd_repo_status,
+        cmd_paths=cmd_paths,
+        cmd_plugins_list=cmd_plugins_list,
+        cmd_plugins_info=cmd_plugins_info,
+        cmd_references_list=cmd_references_list,
+        cmd_references_show=cmd_references_show,
+        cmd_references_validate=cmd_references_validate,
+        cmd_references_create=cmd_references_create,
+        cmd_references_export=cmd_references_export,
+        cmd_references_import=cmd_references_import,
+        cmd_references_attach=cmd_references_attach,
+        cmd_references_detach=cmd_references_detach,
+        cmd_write_probe=cmd_write_probe,
+        cmd_write_hardware_probe=cmd_write_hardware_probe,
+        cmd_install_probe=cmd_install_probe,
+        cmd_write_container=cmd_write_container,
+        cmd_install_container=cmd_install_container,
+        cmd_install_hardware_probe=cmd_install_hardware_probe,
+        cmd_quota=cmd_quota,
+        cmd_projects=cmd_projects,
+        cmd_clone=cmd_clone,
+        cmd_module_spider=cmd_module_spider,
+        cmd_hardware=cmd_hardware,
+        cmd_queue=cmd_queue,
+        cmd_balance=cmd_balance,
+        cmd_statement=cmd_statement,
+        cmd_quote=cmd_quote,
+        cmd_status=cmd_status,
+        cmd_jobs=cmd_jobs,
+        cmd_job=cmd_job,
+        cmd_submit=cmd_submit,
+        cmd_sacct=cmd_sacct,
+        cmd_slurm_limits=cmd_slurm_limits,
+        cmd_submissions_list=cmd_submissions_list,
+        cmd_submissions_observe=cmd_submissions_observe,
+        cmd_submissions_mark_collected=cmd_submissions_mark_collected,
+        cmd_submissions_mark_analysed=cmd_submissions_mark_analysed,
+        cmd_submissions_close=cmd_submissions_close,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
