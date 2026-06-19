@@ -36,6 +36,10 @@ class ReferenceSetTests(unittest.TestCase):
             self.assertTrue(reference_set.slurm_reference.exists())
             self.assertTrue(reference_set.storage_reference.exists())
             self.assertTrue(reference_set.probe_hardware_report.exists())
+            self.assertIn(
+                "format_version = 1",
+                (reference_set.path / "manifest.toml").read_text(encoding="utf-8"),
+            )
             self.assertIn("source_profile: genius", format_reference_set(reference_set))
             self.assertIn("status_url: https://status.example.org/", format_reference_set(reference_set))
 

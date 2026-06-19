@@ -11,12 +11,7 @@ import tarfile
 import tempfile
 from typing import Any
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
-    tomllib = None  # type: ignore[assignment]
-
-from hpc_tools.config import ConfigError, Profile, default_reference_sets_dir, _load_basic_toml
+from hpc_tools.config import ConfigError, Profile, default_reference_sets_dir, _load_toml
 
 
 MANIFEST_NAME = "manifest.toml"
@@ -427,7 +422,7 @@ def _write_manifest(
 ) -> None:
     lines = [
         f'name = "{name}"',
-        f'format_version = "{FORMAT_VERSION}"',
+        f"format_version = {FORMAT_VERSION}",
         f'created_at = "{created_at}"',
     ]
     if source_profile:
@@ -445,17 +440,6 @@ def _write_manifest(
         if value:
             lines.append(f'{key} = "{value}"')
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-def _load_toml(path: Path) -> dict[str, Any]:
-    if tomllib is None:
-        data = _load_basic_toml(path)
-    else:
-        with path.open("rb") as file:
-            data = tomllib.load(file)
-    if not isinstance(data, dict):
-        raise ConfigError(f"invalid reference set manifest: {path}")
-    return data
 
 
 def _optional_string(data: dict[str, Any], key: str) -> str | None:

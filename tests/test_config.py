@@ -98,6 +98,24 @@ class ConfigTests(unittest.TestCase):
         self.assertIsNone(profile.host)
         self.assertIsNone(profile.user)
 
+    def test_loads_full_toml_string_forms(self) -> None:
+        path = self._write_config(
+            r'''
+            [profiles.genius]
+            ssh_target = "genius"
+            login_shell = 'bash -l -c'
+            queue_command = """
+            module load slurm
+            squeue --me
+            """
+            '''
+        )
+
+        profile = resolve_profile(load_config(str(path)), "genius")
+
+        self.assertEqual(profile.login_shell, ("bash", "-l", "-c"))
+        self.assertEqual(profile.queue_command, "module load slurm\nsqueue --me\n")
+
     def test_prefers_explicit_ssh_target_over_host_user(self) -> None:
         path = self._write_config(
             """
