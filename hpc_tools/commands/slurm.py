@@ -12,6 +12,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from hpc_tools import slurm
+from hpc_tools import slurm_contracts
 from hpc_tools import submissions
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.ssh import run_remote, run_remote_capture
@@ -370,10 +371,7 @@ def _add_submit_override_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--gpu-bind", help="Override sbatch --gpu-bind")
 
 def _submit_overrides(args: argparse.Namespace) -> dict[str, str | None]:
-    return {
-        name: getattr(args, name)
-        for name in slurm.SUBMIT_OPTION_NAMES
-    }
+    return slurm_contracts.namespace_submit_overrides(args)
 
 def _log_submission(
     *,
@@ -483,4 +481,3 @@ def _validate_date(value: str, name: str) -> None:
         datetime.strptime(value, "%Y-%m-%d")
     except ValueError as error:
         raise ConfigError(f"{name} date must use YYYY-mm-dd format: {value}") from error
-

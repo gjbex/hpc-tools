@@ -226,20 +226,42 @@ Acceptance criteria:
 
 ## Phase 5: Formalize Internal Contracts
 
-Candidates for explicit data/service modules:
+Status: implemented.
 
-- profile and reference-set operations;
-- submission-log state transitions;
-- guarded submit evidence;
-- Slurm command result parsing;
+Implemented contract module:
+
+- `hpc_tools/slurm_contracts.py`
+
+Implemented contracts:
+
+1. `SubmitOverrides` centralizes Slurm submit-option normalization, argparse
+   namespace extraction, quote-argument rendering, and unsupported-option
+   validation.
+2. `SubmissionShape` centralizes the profile/account/jobscript/directory/
+   override shape and deterministic shape-token generation used by guarded
+   submission.
+3. `SubmissionEvidence` centralizes quote/validation evidence creation and
+   HMAC-backed token generation.
+4. `validate_evidence` centralizes stale, failed, dry-run, and tampered
+   evidence rejection.
+
+Completed:
+
+1. Routed MCP quote, validate, and submit evidence handling through
+   `hpc_tools/slurm_contracts.py`.
+2. Routed CLI submit override extraction through the same override contract.
+3. Kept legacy helper wrappers in `hpc_tools/mcp/submit.py` and
+   `hpc_tools/commands/slurm.py` so existing private imports and tests remain
+   stable.
+4. Added focused unit tests for submit override ordering, unknown-option
+   rejection, deterministic resource-shape tokens, and evidence rejection for
+   tampering, dry runs, and failed quote/validation commands.
+
+Deferred candidates:
+
+- profile and reference-set service extraction;
+- submission-log event dataclasses;
 - plugin command registration metadata.
-
-Suggested approach:
-
-1. Add dataclasses or small service modules only where they replace repeated
-   dictionary/string handling.
-2. Keep public CLI output stable.
-3. Prefer pure functions for parsers and state transitions so tests stay cheap.
 
 Acceptance criteria:
 

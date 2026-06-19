@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import hashlib
-import json
 from typing import Any
 
 from hpc_tools import slurm, submissions
 from hpc_tools.commands.slurm import _quote_command as _sam_quote_command
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools import slurm_contracts
 from hpc_tools.ssh import build_ssh_argv, format_command, run_remote_capture
 from hpc_tools.mcp.common import _remote_read_result, _resolve_profile
-
-_EVIDENCE_SECRET: bytes | None = None
 
 def hpc_quote_job(
     jobscript: str,
@@ -264,22 +260,10 @@ def hpc_submit_job(
     }
 
 def _submit_overrides(account: str | None = None, **overrides: str | None) -> dict[str, str | None]:
-    normalized = {name: overrides.get(name) for name in slurm.SUBMIT_OPTION_NAMES}
-    if account is not None:
-        normalized["account"] = account
-    unknown = sorted(set(overrides) - set(slurm.SUBMIT_OPTION_NAMES))
-    if unknown:
-        raise ConfigError(f"unsupported submit override(s): {', '.join(unknown)}")
-    return normalized
+    return slurm_contracts.normalize_submit_overrides(account=account, **overrides)
 
 def _quote_args_for_submit(jobscript: str, overrides: dict[str, str | None]) -> list[str]:
-    parts = ["sbatch"]
-    for name, value in overrides.items():
-        if value is None:
-            continue
-        parts.extend([slurm.SUBMIT_OPTION_NAMES[name], value])
-    parts.append(jobscript)
-    return parts
+    return slurm_contracts.quote_args_for_submit(jobscript, overrides)
 
 def _submission_shape(
     profile: Profile,
@@ -287,90 +271,24 @@ def _submission_shape(
     directory: str,
     overrides: dict[str, str | None],
 ) -> dict[str, Any]:
-    filtered_overrides = {
-        key: value
-        for key, value in overrides.items()
-        if value is not None
-    }
-    shape = {
-        "profile": profile.name,
-        "account": filtered_overrides.get("account"),
-        "jobscript": jobscript,
-        "directory": directory,
-        "overrides": filtered_overrides,
-    }
-    shape["shape_token"] = _shape_token(shape)
-    return shape
+    return slurm_contracts.submission_shape(profile, jobscript, directory, overrides)
 
 def _shape_token(shape: dict[str, Any]) -> str:
-    token_shape = {key: value for key, value in shape.items() if key != "shape_token"}
-    encoded = json.dumps(token_shape, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return slurm_contracts.shape_token(shape)
 
 def _submission_evidence(
     evidence_type: str,
     shape: dict[str, Any],
     result: dict[str, Any],
 ) -> dict[str, Any]:
-    evidence = {
-        "type": evidence_type,
-        "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "profile": shape["profile"],
-        "account": shape["account"],
-        "jobscript": shape["jobscript"],
-        "directory": shape["directory"],
-        "overrides": shape["overrides"],
-        "shape_token": shape["shape_token"],
-        "command": result["command"],
-        "ssh_command": result["ssh_command"],
-        "returncode": result["returncode"],
-        "stdout": result["stdout"],
-        "stderr": result["stderr"],
-        "dry_run": result["dry_run"],
-    }
-    evidence["ok"] = evidence["returncode"] == 0
-    evidence["evidence_token"] = _evidence_token(evidence)
-    return evidence
-
-
-_EVIDENCE_SECRET: bytes | None = None
-
-def _evidence_secret() -> bytes:
-    global _EVIDENCE_SECRET
-    if _EVIDENCE_SECRET is None:
-        import secrets
-
-        _EVIDENCE_SECRET = secrets.token_bytes(32)
-    return _EVIDENCE_SECRET
+    return slurm_contracts.submission_evidence(evidence_type, shape, result)
 
 def _evidence_token(evidence: dict[str, Any]) -> str:
-    import hmac
-
-    token_evidence = {
-        key: value
-        for key, value in evidence.items()
-        if key != "evidence_token"
-    }
-    encoded = json.dumps(token_evidence, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hmac.new(_evidence_secret(), encoded, hashlib.sha256).hexdigest()
+    return slurm_contracts.evidence_token(evidence)
 
 def _require_evidence(
     evidence_type: str,
     evidence: dict[str, Any],
     shape: dict[str, Any],
 ) -> None:
-    if not isinstance(evidence, dict):
-        raise ConfigError(f"{evidence_type} evidence must be an object")
-    if evidence.get("type") != evidence_type:
-        raise ConfigError(f"expected {evidence_type} evidence")
-    if evidence.get("shape_token") != shape["shape_token"]:
-        raise ConfigError(
-            f"{evidence_type} evidence is stale for this resource shape; quote and validate again"
-        )
-    if evidence.get("returncode") != 0 or not evidence.get("ok"):
-        raise ConfigError(f"{evidence_type} evidence did not succeed")
-    if evidence.get("dry_run"):
-        raise ConfigError(f"{evidence_type} evidence came from a dry run")
-    if evidence.get("evidence_token") != _evidence_token(evidence):
-        raise ConfigError(f"{evidence_type} evidence token is invalid")
-
+    slurm_contracts.validate_evidence(evidence_type, evidence, shape)
