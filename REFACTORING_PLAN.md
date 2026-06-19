@@ -170,6 +170,8 @@ Acceptance criteria:
 
 ## Phase 4: Split Large Test Files by Feature
 
+Status: implemented.
+
 Target files:
 
 - `tests/test_commands.py`
@@ -177,20 +179,40 @@ Target files:
 - `tests/test_plugins.py`
 - `tests/test_skills.py`
 
-Proposed split:
+Implemented split:
 
 - `tests/test_cli_core.py`
-- `tests/test_cli_references.py`
+- `tests/test_cli_remote.py`
 - `tests/test_cli_slurm.py`
 - `tests/test_cli_probes.py`
+- `tests/test_cli_plugin_parsers.py`
+- `tests/test_cli_fixtures.py`
+- `tests/test_mcp_registry.py`
 - `tests/test_mcp_resources.py`
+- `tests/test_mcp_tools.py`
 - `tests/test_mcp_submit.py`
+- `tests/test_mcp_fixtures.py`
+- `tests/test_plugin_benchmark.py`
 - `tests/test_python_plugin.py`
 - `tests/test_r_plugin.py`
+- `tests/test_plugin_fixtures.py`
+- `tests/test_skill_metadata.py`
 - `tests/test_skill_routing.py`
 - `tests/test_skill_content.py`
+- `tests/test_docs.py`
+- `tests/test_skill_fixtures.py`
 
-Suggested approach:
+Completed:
+
+1. Split CLI, MCP, plugin, skill, and documentation tests into feature-focused
+   modules.
+2. Kept shared helpers in small fixture modules with explicit star-import
+   exports for legacy underscore-prefixed helpers.
+3. Left the old monolithic test filenames as unittest-discoverable placeholders
+   so file-level references remain harmless while the real coverage lives in
+   the feature modules.
+
+Ongoing constraints:
 
 1. Move tests only; avoid changing assertions in the same commit.
 2. Keep shared test fixtures local and minimal.

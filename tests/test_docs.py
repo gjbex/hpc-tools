@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+from test_skill_fixtures import *
+
+
+class SkillFeatureTests(SkillFixtures, unittest.TestCase):
+    def test_readme_installs_without_repo_dependency(self) -> None:
+        text = README.read_text(encoding="utf-8")
+
+        self.assertIn("pipx install hpc-tools", text)
+        self.assertIn("pipx install .", text)
+        self.assertIn("Use an editable install only when developing", text)
+        self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
+        self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
+        self.assertIn("cp -R skills/hpc-slurm-job-arrays", text)
+        self.assertIn("hpc plugins list", text)
+        self.assertIn("hpc plugins info benchmark", text)
+        self.assertIn("hpc-mcp", text)
+        self.assertIn('uv pip install -e ".[mcp]"', text)
+        self.assertIn("Run the server with", text)
+        self.assertIn("guarded MCP interface", text)
+        self.assertIn("plugin manifest points at `.mcp.json`", text)
+        self.assertIn("install the Python package first", text)
+        self.assertIn("confirm-gated write and install tools", text)
+        self.assertIn("hpc_references_create", text)
+        self.assertIn("hpc_install_container", text)
+        self.assertIn("hpc_quote_job", text)
+        self.assertIn("hpc_validate_job", text)
+        self.assertIn("hpc_submit_job", text)
+        self.assertIn("Stale or dry-run evidence is rejected", text)
+        self.assertIn("hpc://profiles/{profile}/hardware", text)
+        self.assertIn("active hpc-tools config tree", text)
+        self.assertIn("hpc_status", text)
+        self.assertIn("hpc_slurm_limits", text)
+        self.assertIn("hpc_module_spider", text)
+        self.assertIn("hpc doctor", text)
+        self.assertIn("hpc site-env", text)
+        self.assertIn("hpc storage inspect", text)
+        self.assertIn("hpc repo status --directory", text)
+        self.assertIn("hpc benchmark summarize", text)
+        self.assertIn("hpc benchmark compare", text)
+        self.assertIn("hpc r scan", text)
+        self.assertIn("hpc python scan", text)
+        self.assertIn("hpc python inspect-deps", text)
+        self.assertIn("Apptainer container", text)
+        self.assertIn("hpc write-container --kind generic", text)
+        self.assertIn("hpc status", text)
+        self.assertIn("hpc --profile genius r check", text)
+        self.assertIn("hpc --profile genius python check", text)
+        self.assertIn("hpc job 123456 --cluster wice", text)
+        self.assertIn("hpc slurm-limits --cluster wice --partition batch", text)
+        self.assertIn("hpc clone https://github.com/org/repo.git --branch main --directory", text)
+        self.assertIn("hpc submit --validate-first", text)
+        self.assertIn("hpc paths", text)
+        self.assertIn("hpc status", text)
+        self.assertIn("docs/submissions.md", text)
+        self.assertIn("hpc write-probe --kind hardware", text)
+        self.assertIn("hpc install-probe --kind cuda-device-properties", text)
+        self.assertIn("hpc_tools/data/cuda-device-properties.slurm", text)
+        self.assertIn("hpc_tools/data/cuda/", text)
+        self.assertIn("pipx uninstall hpc-tools", text)
+        self.assertNotIn("ln -s /home", text)
+
+    def test_partition_discovery_report_is_reusable(self) -> None:
+        text = PARTITION_REPORT.read_text(encoding="utf-8")
+
+        self.assertIn("Report: wice batch_icelake", text)
+        self.assertIn("MaxSubmitJobsPU", text)
+        self.assertIn("MaxArraySize", text)
+        self.assertIn("hpc --profile <profile> slurm-limits --cluster <cluster>", text)
+        self.assertIn("Interpretation Checklist", text)
+
+    def test_wice_hardware_report_summarizes_probe_results(self) -> None:
+        text = WICE_HARDWARE_REPORT.read_text(encoding="utf-8")
+
+        self.assertIn("wICE Probe Hardware Report", text)
+        self.assertIn("batch_icelake", text)
+        self.assertIn("bigmem", text)
+        self.assertIn("hugemem", text)
+        self.assertIn("Intel Xeon Platinum 8360Y", text)
+        self.assertIn("NUMA", text)
+        self.assertIn("600 GB", text)
+
+    def test_submissions_doc_covers_action_semantics_and_diagram(self) -> None:
+        text = SUBMISSIONS_DOC.read_text(encoding="utf-8")
+
+        self.assertIn("Submission Log Workflow", text)
+        self.assertIn("STATE", text)
+        self.assertIn("ACTION", text)
+        self.assertIn("triage", text)
+        self.assertIn("collect", text)
+        self.assertIn("analyse", text)
+        self.assertIn("closed", text)
+        self.assertIn("stateDiagram-v2", text)
+        self.assertIn("append-only", text)
+
+    def test_plugins_doc_mentions_container_fallback_for_large_stacks(self) -> None:
+        text = (ROOT / "docs" / "plugins.md").read_text(encoding="utf-8")
+
+        self.assertIn("Apptainer", text)
+        self.assertIn("benchmark", text)
+        self.assertIn("hpc benchmark summarize", text)
+        self.assertIn("hpc benchmark compare", text)
+        self.assertIn("batch-job startup load matters more than the", text)
+        self.assertIn("instead of extending the same shared-filesystem install again", text)
