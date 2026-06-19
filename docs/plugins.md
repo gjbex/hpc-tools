@@ -27,9 +27,9 @@ The first implementation slice provides:
 - plugin discovery through the `hpc_tools.plugins` entry-point group
 - a local `hpc plugins list` command
 - a local `hpc plugins info <name>` command
-- bundled `benchmark`, `python`, and `r` plugins with local analysis and scan commands
+- bundled `benchmark`, `cxx`, `python`, and `r` plugins with local analysis and scan commands
 
-The bundled `benchmark`, `python`, and `r` plugins are packaged with the core distribution so
+The bundled `benchmark`, `cxx`, `python`, and `r` plugins are packaged with the core distribution so
 the plugin contract is exercised immediately in development and release
 installs.
 
@@ -37,6 +37,19 @@ The bundled benchmark plugin covers:
 
 - `hpc benchmark summarize`
 - `hpc benchmark compare`
+
+The bundled C/C++ plugin covers:
+
+- `hpc cxx scan`
+- `hpc cxx fetchcontent`
+
+Use `hpc cxx scan` to inspect CMake files and common C/C++ includes for
+dependency hints. It marks dependencies such as MPI, OpenMP, HDF5, BLAS/LAPACK,
+CUDA, PETSc, Trilinos, Kokkos, and NetCDF as HPC-sensitive dependencies: prefer
+site modules, Spack, or site-provided packages for those. Use
+`hpc cxx fetchcontent` only for small, lightweight dependencies such as CLI11, Catch2, doctest, fmt,
+nlohmann_json, or spdlog, and keep the generated CMake option overridable for
+network-restricted cluster builds.
 
 The bundled Python plugin covers:
 
@@ -76,6 +89,7 @@ Use Python entry points:
 [options.entry_points]
 hpc_tools.plugins =
     benchmark = hpc_tools.plugins.benchmark_support:get_plugin
+    cxx = hpc_tools.plugins.cxx_support:get_plugin
     python = hpc_tools.plugins.python_support:get_plugin
     r = hpc_tools.plugins.r_support:get_plugin
 ```
