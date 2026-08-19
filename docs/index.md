@@ -120,8 +120,11 @@ entire tool is read-only.
 6. Continue with [software environments](software-environments.md),
    [remote builds](remote-builds.md), and
    [cluster probes](probes.md) when those tasks arise.
-7. Use the later guides for arrays, benchmarks, and containers as they are
-   added.
+7. Use [job arrays](job-arrays.md) for independent sweeps,
+   [benchmarking on Slurm](benchmarking.md) for controlled performance work,
+   and [container workflows](containers.md) for larger portable environments.
+8. Package stable cluster-global context with [cluster references and
+   sharing](reference-sets.md).
 
 ## Project status
 

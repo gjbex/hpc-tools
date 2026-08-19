@@ -194,7 +194,7 @@ References can become stale. Treat a status page or current Slurm query as live
 evidence and a consolidated Markdown file as durable background. When they
 conflict, investigate rather than silently preferring whichever is convenient.
 
-See [Cluster reference sets](reference-sets.md) for the sharing boundary.
+See [Cluster references and sharing](reference-sets.md) for the sharing boundary.
 
 ## The submission log is an event stream
 

@@ -37,8 +37,10 @@ nav:
   - Software environments and dependencies: software-environments.md
   - Deploy and build software remotely: remote-builds.md
   - Probes and cluster discovery: probes.md
-  - User guides:
-      - Cluster reference sets: reference-sets.md
+  - Job arrays and parameter sweeps: job-arrays.md
+  - Benchmarking on Slurm: benchmarking.md
+  - Container workflows: containers.md
+  - Cluster references and sharing: reference-sets.md
   - Extending hpc-tools:
       - CLI plugin system: plugins.md
   - Contributing:

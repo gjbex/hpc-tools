@@ -220,6 +220,9 @@ is useful for controlled experiments but can make provenance harder to read.
 Record material overrides with the run metadata, and do not use them to conceal
 that the checked-in script requests a different workload.
 
+For array index mapping, concurrency caps, task-specific logs, and selective
+retries, continue with [Job arrays and parameter sweeps](job-arrays.md).
+
 Do not specify both `--mem` and `--mem-per-cpu` unless the site's Slurm
 configuration explicitly permits and defines that combination. Prefer the
 single expression that matches how the application consumes memory.

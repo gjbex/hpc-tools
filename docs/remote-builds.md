@@ -121,6 +121,10 @@ For published or benchmarked work, prefer checking out a reviewed tag or exact
 commit rather than allowing a moving branch to define the build. Never use a
 hard reset or cleanup command as a generic update strategy.
 
+Continue with [Benchmarking on Slurm](benchmarking.md) when builds will be
+compared for performance, or [Container workflows](containers.md) when the
+reviewed inputs should produce an Apptainer image.
+
 ## Select a toolchain
 
 Search for the required tools and libraries:

@@ -354,7 +354,8 @@ These commands record paths; they do not copy the probe data or report. See
 [Tracking work from submission to analysis](submissions.md).
 
 When the hardware, Slurm, and storage summaries are stable enough to share,
-package them as described in [Cluster reference sets](reference-sets.md). Keep
+package them as described in [Cluster references and
+sharing](reference-sets.md). Keep
 user-specific account data, balances, submission history, and raw probe output
 out of the shared bundle.
 

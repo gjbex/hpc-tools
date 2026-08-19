@@ -207,7 +207,7 @@ Shared, reusable sets belong under:
 ```
 
 A named reference set is usually easier to validate, export, and share than
-three unrelated paths. See [Cluster reference sets](reference-sets.md) for the
+three unrelated paths. See [Cluster references and sharing](reference-sets.md) for the
 creation and attachment workflow.
 
 References should summarize verified facts and link to their sources. They are

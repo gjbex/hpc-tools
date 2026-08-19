@@ -317,7 +317,7 @@ hpc --profile example references attach example-2026
 
 Creation and attachment write local configuration. Preview the target paths
 with `hpc paths`, and use `--force` only for an intentional replacement. See
-[Cluster reference sets](reference-sets.md) for sharing and import/export.
+[Cluster references and sharing](reference-sets.md) for sharing and import/export.
 
 ## Completion checklist
 

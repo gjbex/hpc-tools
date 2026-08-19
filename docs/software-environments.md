@@ -409,3 +409,7 @@ Do not solve a failed installation by broadening permissions, installing into
 the system Python or R tree, or adding unreviewed repositories. The failure log
 usually identifies which layer—language package, native library, compiler,
 network, storage, or architecture—needs attention.
+
+When a container is the justified next layer, continue with [Container
+workflows](containers.md) for the build, validation, storage, and provenance
+boundary.
