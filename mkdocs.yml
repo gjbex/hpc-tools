@@ -10,7 +10,10 @@ site_dir: site
 strict: true
 
 theme:
-  name: mkdocs
+  name: readthedocs
+  collapse_navigation: true
+  sticky_navigation: true
+  navigation_depth: 3
 
 plugins:
   - search
