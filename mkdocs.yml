@@ -29,6 +29,10 @@ nav:
   - Quick start: getting-started.md
   - Installation and maintenance: installation.md
   - Core concepts and safety: core-concepts.md
+  - Configure cluster profiles: configuration.md
+  - Onboard a new cluster: onboarding.md
+  - Everyday cluster operations: everyday-operations.md
+  - Run Slurm jobs: slurm-jobs.md
   - User guides:
       - Submission tracking: submissions.md
       - Cluster reference sets: reference-sets.md
