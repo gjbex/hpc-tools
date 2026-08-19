@@ -257,16 +257,19 @@ For NVIDIA GPU nodes, install the CUDA device-properties probe as well:
 ```console
 hpc --profile example install-probe \
     --kind cuda-device-properties \
-    --directory '$VSC_DATA/hpc-probes' \
-    --account project123 \
-    --partition gpu \
-    --time 00:10:00
+    --directory '$VSC_DATA/hpc-probes'
 ```
 
 It records device properties such as compute capability, memory, cache and
 shared-memory limits, register capacity, and launch dimensions. This
 information helps assess compatibility; it does not replace an application
 benchmark.
+
+The packaged CUDA bundle contains example module versions, and probe directive
+options currently customize only the hardware template. Review and adapt the
+CUDA script for the site, or apply supported account, cluster, partition,
+reservation, time, and GPU overrides when submitting it. A QoS or different
+module stack must be edited into the script.
 
 You can also write probe templates locally with `hpc write-probe` and inspect
 or adapt them before transfer. Use the installed probe commands for onboarding
@@ -335,4 +338,6 @@ storage-policy changes. Otherwise, review it periodically and before planning a
 large or expensive campaign.
 
 Continue with [Everyday cluster operations](everyday-operations.md) for routine
-inspection, or [Running Slurm jobs](slurm-jobs.md) for the submission lifecycle.
+inspection, [Running Slurm jobs](slurm-jobs.md) for the submission lifecycle,
+or [Probes and cluster discovery](probes.md) for detailed probe selection and
+interpretation.

@@ -113,10 +113,15 @@ entire tool is read-only.
    components or changing installation method.
 3. Read [Core concepts and safety](core-concepts.md) before submitting a costly
    job, a broad array, or an agent-proposed action.
-4. Onboard the cluster fully: discover limits, storage, modules, and
-   representative hardware, then record those facts as references.
-5. Continue with the task-oriented guides for submissions, package
-   environments, builds, arrays, benchmarks, and containers as they are added.
+4. [Onboard the cluster](onboarding.md) fully: discover limits, storage,
+   modules, and representative hardware, then record those facts as references.
+5. Learn the [Slurm job lifecycle](slurm-jobs.md) and how to
+   [track work through analysis](submissions.md).
+6. Continue with [software environments](software-environments.md),
+   [remote builds](remote-builds.md), and
+   [cluster probes](probes.md) when those tasks arise.
+7. Use the later guides for arrays, benchmarks, and containers as they are
+   added.
 
 ## Project status
 

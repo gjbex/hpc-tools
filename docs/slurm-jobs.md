@@ -347,3 +347,7 @@ The core CLI intentionally has no cancellation command. Use the site's
 documented `scancel` workflow when cancellation is necessary, verify the exact
 job ID and cluster first, and do not confuse remote cancellation with local
 submission-log maintenance.
+
+Continue with [Tracking work from submission to analysis](submissions.md) to
+record result collection, analysis, failure triage, and closure after the
+scheduler lifecycle ends.

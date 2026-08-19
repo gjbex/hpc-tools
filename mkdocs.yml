@@ -33,8 +33,11 @@ nav:
   - Onboard a new cluster: onboarding.md
   - Everyday cluster operations: everyday-operations.md
   - Run Slurm jobs: slurm-jobs.md
+  - Track work from submission to analysis: submissions.md
+  - Software environments and dependencies: software-environments.md
+  - Deploy and build software remotely: remote-builds.md
+  - Probes and cluster discovery: probes.md
   - User guides:
-      - Submission tracking: submissions.md
       - Cluster reference sets: reference-sets.md
   - Extending hpc-tools:
       - CLI plugin system: plugins.md

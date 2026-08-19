@@ -275,3 +275,7 @@ operations and verify targets carefully. In particular, do not interpret
 Optional CLI extensions can add domain workflows. Check the selected profile's
 help and [CLI plugin system](plugins.md), but do not assume that installing the
 Codex plugin also installed every Python CLI extension.
+
+For project environments and remote compilation, continue with
+[Software environments and dependencies](software-environments.md) and
+[Deploying and building software remotely](remote-builds.md).
