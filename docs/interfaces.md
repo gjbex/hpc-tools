@@ -1,20 +1,28 @@
-# CLI, Codex, and MCP
+# Choose an interface
 
-`hpc-tools` has three related interfaces. Installing one does not implicitly
-install, configure, or authorize the others.
+`hpc-tools` has three user-facing interfaces and one extension mechanism. They
+share a project, but installing one does not install or authorize the others.
 
-| Interface | Intended use | Installed by |
+| Interface | Best suited to | Installed by |
 | --- | --- | --- |
-| `hpc` CLI | Human-operated shell workflows and readable command output | The `hpc-tools` Python package |
-| Codex plugin | Task-oriented skills that guide Codex through cluster workflows | The hpc-tools Codex plugin |
-| `hpc-mcp` | Structured tools and resources for agent integrations | The Python package with the `mcp` extra |
+| `hpc` CLI | a person operating a workflow and reading shell output | the `hpc-tools` Python package |
+| Codex plugin | Codex guiding a task with HPC-specific skills | the hpc-tools Codex plugin |
+| `hpc-mcp` | an agent consuming structured tools and resources | the Python package with the `mcp` extra |
+| Python CLI plugins | adding domain-specific `hpc` subcommands | packages registered under `hpc_tools.plugins` |
 
-## Command-line interface
+## Start with the CLI
 
-Use the CLI when a person is actively operating the workflow, shell output is
-the desired artifact, or the local installation is still being bootstrapped.
-The CLI owns the generic SSH and Slurm commands, packaged templates, local
-submission log, and the `hpc_tools.plugins` extension mechanism.
+The CLI is the primary human interface and the best bootstrap path. Use it
+when:
+
+- you want to see the exact terminal output;
+- you are creating or debugging the first profile;
+- no agent integration is installed;
+- you want an operation to remain explicitly under shell control.
+
+The CLI provides generic SSH and Slurm commands, packaged probes and container
+templates, the local submission log, reference-set management, and bundled
+workflow plugins.
 
 Install it independently with:
 
@@ -22,38 +30,71 @@ Install it independently with:
 pipx install hpc-tools
 ```
 
-## Codex plugin
+Then follow the [Quick start](getting-started.md).
 
-The Codex plugin distributes cluster-oriented skills for onboarding,
-discovery, filesystems, packages, builds, Slurm jobs, arrays, benchmarks, and
-containers. Those skills can use an installed CLI and configured profiles, but
-the plugin does not install the CLI or configure SSH.
+## Add the Codex plugin for guided workflows
 
-Starting a new Codex task is normally required after installing or updating the
-plugin so the available skills are refreshed.
+The Codex plugin packages skills for cluster onboarding, discovery,
+filesystems, Python and R packages, remote builds, Slurm jobs, arrays,
+benchmarks, and containers. A skill supplies task-specific instructions and
+references; it does not bypass the CLI, SSH, scheduler, or the user's account
+authority.
 
-## MCP interface
+Use the plugin when the work benefits from interpretation and sequencing—for
+example, diagnosing a failed job or planning a pilot-first benchmark—rather
+than merely running one known command.
 
-The experimental `hpc-mcp` server exposes structured profile context,
-references, submission records, Slurm inspection tools, and confirm-gated
-write or install operations. Install the optional dependency separately:
+The official OpenAI plugin documentation describes plugins as bundles that can
+contain skills and MCP servers. In Codex CLI, plugins are installed from a
+configured marketplace and become available to a new session. See the
+[official plugin documentation](https://learn.chatgpt.com/docs/plugins) for the
+product-level model. The `hpc-tools` local-marketplace procedure is documented
+in [Installation and maintenance](installation.md#install-the-codex-plugin).
 
-```bash
-uv pip install "hpc-tools[mcp]"
-hpc-mcp
-```
+Installing this plugin does **not**:
 
-Agent-driven Slurm submission is restricted to an evidence chain that quotes
-the workload, validates the same workload, and then submits it with explicit
-confirmation. Stale, dry-run, or mismatched evidence is rejected.
+- install the `hpc` or `hpc-mcp` executables;
+- create an hpc-tools profile;
+- configure SSH credentials;
+- authorize a Slurm account or a real submission.
 
-## Two meanings of plugin
+## Use MCP for structured agent integration
 
-The repository contains two unrelated plugin mechanisms:
+The experimental `hpc-mcp` server presents hpc-tools context as named tools and
+resources. It is useful when an agent needs structured profile data, reference
+content, submission records, or bounded inspection results rather than parsing
+terminal text.
+
+MCP write and remote-install tools require explicit confirmation. Slurm
+submission uses a quote → validate → submit evidence chain, and the server
+rejects stale, dry-run, or mismatched evidence. These gates reduce accidental
+actions, but they do not make an authorized resource request appropriate or
+affordable.
+
+The Codex plugin's MCP configuration starts the `hpc-mcp` command. Therefore,
+installing the plugin without installing the Python package and MCP extra can
+leave the skills available while the MCP server cannot start.
+
+## Do not confuse the two plugin systems
+
+The term *plugin* has two meanings in this repository:
 
 - the **Codex plugin** distributes skills and MCP configuration;
-- the **Python entry-point plugins** add workflow-specific subcommands to the
-  `hpc` CLI.
+- the **Python entry-point plugins** add commands such as `hpc python`,
+  `hpc r`, `hpc cxx`, and `hpc benchmark` to the CLI.
 
-See [CLI plugin system](plugins.md) only when developing or packaging a CLI
-extension.
+The bundled Python plugins are installed with the Python package. See
+[CLI plugin system](plugins.md) only if you are developing or packaging a new
+CLI extension.
+
+## A practical default
+
+For most users:
+
+1. install and verify the CLI;
+2. create and test one profile;
+3. install the Codex plugin if guided workflows would help;
+4. add MCP only if a structured agent interface is actually needed.
+
+This order makes failures easier to diagnose. It establishes whether SSH,
+configuration, and Slurm work before adding another integration layer.

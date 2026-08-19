@@ -23,10 +23,12 @@ markdown_extensions:
       permalink: true
 
 nav:
-  - Home: index.md
-  - Getting started: getting-started.md
-  - Concepts:
-      - CLI, Codex, and MCP: interfaces.md
+  - Welcome:
+      - Overview: index.md
+      - Choose an interface: interfaces.md
+  - Quick start: getting-started.md
+  - Installation and maintenance: installation.md
+  - Core concepts and safety: core-concepts.md
   - User guides:
       - Submission tracking: submissions.md
       - Cluster reference sets: reference-sets.md

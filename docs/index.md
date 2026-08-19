@@ -1,53 +1,126 @@
-# hpc-tools
+# Welcome to hpc-tools
 
-`hpc-tools` provides a profile-based `hpc` command for common SSH and Slurm
-workflows on remote high-performance computing systems. It also provides Codex
-skills and an optional structured MCP interface for agent-assisted cluster
-work.
+`hpc-tools` helps researchers and software developers perform recurring SSH and
+Slurm work through named cluster profiles. Its human-operated `hpc` command
+provides a consistent interface for inspecting a site, preparing remote
+software, validating and submitting jobs, following results, and retaining
+enough local context to resume the work later.
 
-The tools are intended for users who already have SSH access to a Slurm-based
-cluster and want repeatable ways to inspect the site, prepare software, submit
-jobs, and retain enough local context to resume work safely.
+The project also distributes a Codex plugin and an optional MCP server. They
+reuse the same profiles and durable context, but they are separate interfaces
+with separate installation and safety boundaries.
 
-## Start here
+## Who this documentation is for
 
-- Follow [Getting started](getting-started.md) to install the CLI, configure a
-  profile, and perform the first read-only checks.
-- Read [CLI, Codex, and MCP](interfaces.md) before installing more than one
-  interface. They are related but separate distribution and authorization
-  surfaces.
-- Use [Submission tracking](submissions.md) when following a Slurm job from
-  submission through collection and analysis.
-- Use [Cluster reference sets](reference-sets.md) to share durable cluster-wide
-  hardware, Slurm, and storage context without sharing user credentials or
-  accounting state.
+This guide assumes that you:
 
-## What hpc-tools covers
+- have, or are applying for, an account on a Slurm-based HPC system;
+- can use a shell and understand basic files and directories;
+- know the SSH target, or have an SSH alias, for a cluster login node;
+- want operational guidance rather than a replacement for the cluster's own
+  documentation and support service.
 
-The current command and workflow surface includes:
+You do not need to know every Slurm option before starting. However, hpc-tools
+cannot decide which account you are allowed to charge, invent site policy, or
+make an unsuitable resource request scientifically meaningful. The tool makes
+important choices more visible; it does not remove the user's responsibility
+for them.
 
-- named SSH profiles and bounded remote inspection;
-- Slurm limits, job validation, submission, monitoring, and accounting;
-- cluster hardware, storage, module, and quota discovery;
-- packaged CPU and GPU probe workflows;
-- Python, R, and C/C++ dependency helpers;
-- job arrays, benchmarks, containers, and remote build workflows;
+## The problem hpc-tools addresses
+
+HPC commands are often simple in isolation but difficult to use reliably as a
+workflow. A user must remember which login host, cluster, account, partition,
+module stack, filesystem, and job limits apply. The relevant facts are commonly
+split between site documentation, shell configuration, previous job scripts,
+and personal notes.
+
+`hpc-tools` addresses that fragmentation in three ways:
+
+1. **Profiles** give recurring commands a named SSH and site context.
+2. **Task-oriented commands and skills** turn common operations into visible,
+   repeatable sequences.
+3. **Durable local records** retain consolidated cluster references and Slurm
+   submission history outside an ephemeral terminal or agent conversation.
+
+The project is deliberately not a general remote administration framework. Its
+focus is user-level scientific work on Slurm systems.
+
+## Choose how to use it
+
+| If you want to... | Start with... |
+| --- | --- |
+| operate the cluster directly from a terminal | the `hpc` CLI |
+| have Codex guide an HPC workflow | the Codex plugin plus the CLI |
+| expose structured HPC context and guarded actions to an agent | the optional `hpc-mcp` server |
+| extend the CLI with another language or workflow | the Python plugin API |
+
+Most users should install the CLI first. It is the human interface, provides
+the packaged templates, and is the simplest way to verify a profile. Read
+[Choose an interface](interfaces.md) before adding the Codex plugin or MCP
+server.
+
+## What the project covers
+
+### Cluster context and inspection
+
+- named SSH profiles;
+- login identity and Slurm-tool checks;
+- site environment, storage, quota, module, and repository inspection;
+- Slurm partitions, limits, associations, and QoS discovery;
+- durable hardware, Slurm, and storage references;
+- packaged CPU, memory, NUMA, filesystem, and GPU probes.
+
+### Slurm job workflows
+
+- site-specific cost or credit quotes where the site provides them;
+- `sbatch --test-only` validation;
+- job submission with explicit resource overrides;
+- queue, job, and accounting inspection;
 - append-only local submission tracking;
-- durable profile references and shareable reference sets.
+- task guidance for job arrays, failure triage, and result collection.
 
-## Safety boundary
+### Software and performance workflows
 
-Slurm submissions can consume allocation credits and remote actions can modify
-cluster state. Prefer dry runs, quote the complete workload when the site
-supports quoting, validate jobs before submission, and start with a small
-pilot.
+- remote repository setup and inspection;
+- Python and R dependency discovery and compute-node installation plans;
+- C and C++ dependency hints;
+- Apptainer container-build templates;
+- local benchmark summarization and comparison;
+- Codex skills for deployment, builds, arrays, benchmarks, and containers.
 
-The higher-level workflows apply these safeguards where possible. The generic
-`hpc run` command executes the command supplied by the user and therefore
-cannot provide the same protection against an unsafe remote operation.
+## What it does not do
+
+`hpc-tools` does not:
+
+- create a cluster account, SSH key, or network route;
+- store passwords or replace the user's SSH configuration;
+- replace site documentation, acceptable-use rules, or support staff;
+- select a Slurm account when the user has not authorized one;
+- guarantee that a valid job request is efficient or scientifically correct;
+- copy arbitrary result trees back to the local machine;
+- automatically delete remote data or cancel jobs;
+- make the generic `hpc run` command safe when given an unsafe command.
+
+Some commands do modify state: they can clone a repository, install a probe or
+container bundle, write local files, or submit a job. The absence of built-in
+deletion and cancellation commands should not be mistaken for a claim that the
+entire tool is read-only.
+
+## A recommended learning path
+
+1. Complete the [Quick start](getting-started.md) using one cluster profile.
+2. Read [Installation and maintenance](installation.md) before adding optional
+   components or changing installation method.
+3. Read [Core concepts and safety](core-concepts.md) before submitting a costly
+   job, a broad array, or an agent-proposed action.
+4. Onboard the cluster fully: discover limits, storage, modules, and
+   representative hardware, then record those facts as references.
+5. Continue with the task-oriented guides for submissions, package
+   environments, builds, arrays, benchmarks, and containers as they are added.
 
 ## Project status
 
-`hpc-tools` is under active development. The optional `hpc-mcp` interface is
-experimental. Command availability can also depend on capabilities configured
-for the selected profile and on services exposed by the target cluster.
+The CLI and Codex skills are under active development. The `hpc-mcp` interface
+is experimental. Command availability also depends on the selected profile and
+the services exposed by its cluster. A command documented for one site may be
+hidden for a profile that does not configure the required site-specific helper.
