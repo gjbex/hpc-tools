@@ -8,6 +8,23 @@ This repository is also structured as a Codex plugin. The Codex plugin ships
 skills for safe, profile-driven HPC work; it does not install the `hpc` CLI,
 configure SSH, or authorize Slurm submissions.
 
+## Documentation
+
+The user documentation is maintained as Markdown under [docs](docs) and built
+with MkDocs. The published site is available at
+[gjbex.github.io/hpc-tools](https://gjbex.github.io/hpc-tools/).
+
+To preview or validate it locally, install the pinned documentation dependency
+and run a strict build:
+
+```bash
+python3 -m pip install -r docs/requirements.txt
+mkdocs build --strict
+```
+
+See [Build the documentation](docs/contributing/documentation.md) for the
+isolated local environment and deployment workflow.
+
 ## Install
 
 For normal released use, install the CLI with `pipx`:

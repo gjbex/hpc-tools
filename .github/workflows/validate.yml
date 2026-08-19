@@ -30,6 +30,12 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .
 
+      - name: Install documentation dependencies
+        run: python3 -m pip install -r docs/requirements.txt
+
+      - name: Build documentation
+        run: mkdocs build --strict
+
       - name: Compile Python modules
         run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
 

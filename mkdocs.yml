@@ -1,0 +1,36 @@
+site_name: hpc-tools
+site_description: Profile-based tools for safe SSH and Slurm workflows on HPC systems
+site_url: https://gjbex.github.io/hpc-tools/
+repo_url: https://github.com/gjbex/hpc-tools
+repo_name: gjbex/hpc-tools
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+site_dir: site
+strict: true
+
+theme:
+  name: mkdocs
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Concepts:
+      - CLI, Codex, and MCP: interfaces.md
+  - User guides:
+      - Submission tracking: submissions.md
+      - Cluster reference sets: reference-sets.md
+  - Extending hpc-tools:
+      - CLI plugin system: plugins.md
+  - Contributing:
+      - Build the documentation: contributing/documentation.md

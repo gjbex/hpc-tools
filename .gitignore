@@ -10,4 +10,6 @@ dist/
 *.egg-info/
 .eggs/
 .venv/
+.venv-docs/
 venv/
+site/
