@@ -4,6 +4,20 @@ from test_skill_fixtures import *
 
 
 class SkillFeatureTests(SkillFixtures, unittest.TestCase):
+    def test_pages_deployment_publishes_only_the_mkdocs_site(self) -> None:
+        workflows = ROOT / ".github" / "workflows"
+        deployment_workflows = []
+        for path in workflows.glob("*.yml"):
+            text = path.read_text(encoding="utf-8")
+            if "actions/deploy-pages@" in text:
+                deployment_workflows.append(path.name)
+
+        self.assertEqual(deployment_workflows, ["docs-deploy.yml"])
+
+        deployment = (workflows / "docs-deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("mkdocs build --strict", deployment)
+        self.assertIn("path: site", deployment)
+
     def test_readme_installs_without_repo_dependency(self) -> None:
         text = README.read_text(encoding="utf-8")
 
