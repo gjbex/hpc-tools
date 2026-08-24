@@ -4,6 +4,7 @@ import argparse
 from dataclasses import asdict
 from datetime import datetime
 import html
+from pathlib import Path
 import re
 import shlex
 import sys
@@ -96,6 +97,23 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         help="Slurm cluster name; defaults to all visible clusters",
     )
     job_parser.set_defaults(handler=handlers.cmd_job)
+
+    cancel_parser = subparsers.add_parser(
+        "cancel",
+        help="Cancel one Slurm job, array task, or job step",
+    )
+    cancel_parser.add_argument("jobid", help="Numeric Slurm job ID")
+    cancel_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
+    cancel_parser.add_argument(
+        "--reason",
+        help="Reason recorded with matching local submission records",
+    )
+    cancel_parser.add_argument(
+        "--log",
+        type=Path,
+        help="Submission JSONL log path; defaults to the hpc-tools config directory",
+    )
+    cancel_parser.set_defaults(handler=handlers.cmd_cancel)
 
     if profile is None or profile.queue_command:
         queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
@@ -299,6 +317,27 @@ def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_job(args: argparse.Namespace, profile: Profile) -> int:
     return run_command(profile, slurm.squeue_job_command(args.jobid, args.cluster), dry_run=args.dry_run)
 
+def cmd_cancel(args: argparse.Namespace, profile: Profile) -> int:
+    cluster = args.cluster or profile.default_cluster
+    command = slurm.cancel_command(args.jobid, cluster)
+    completed = run_command_capture(profile, command, dry_run=args.dry_run)
+    if args.dry_run:
+        return 0
+    if completed.stdout:
+        print(completed.stdout, end="")
+    if completed.stderr:
+        print(completed.stderr, end="", file=sys.stderr)
+    if completed.returncode == 0:
+        _log_cancellation_request(
+            profile=profile,
+            job_id=args.jobid,
+            cluster=cluster,
+            command=command,
+            reason=args.reason,
+            log=args.log,
+        )
+    return completed.returncode
+
 def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
     overrides = _submit_overrides(args)
     command = slurm.submit_command(
@@ -396,6 +435,31 @@ def _log_submission(
         overrides=overrides,
     )
     submissions.append_event(event)
+
+def _log_cancellation_request(
+    *,
+    profile: Profile,
+    job_id: str,
+    cluster: str | None,
+    command: str,
+    reason: str | None,
+    log: Path | None,
+) -> list[dict[str, Any]]:
+    try:
+        return submissions.append_cancel_requested_events(
+            profile=profile.name,
+            job_id=job_id,
+            cluster=cluster,
+            cancel_command=command,
+            reason=reason,
+            path=log,
+        )
+    except (OSError, ValueError) as error:
+        print(
+            f"hpc: warning: cancellation succeeded but was not logged: {error}",
+            file=sys.stderr,
+        )
+        return []
 
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster

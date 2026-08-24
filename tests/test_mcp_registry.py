@@ -20,6 +20,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "hpc_status",
                 "hpc_jobs",
                 "hpc_job",
+                "hpc_cancel_job",
                 "hpc_slurm_limits",
                 "hpc_module_spider",
                 "hpc_storage_inspect",
@@ -61,6 +62,16 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
     def test_mcp_tool_schemas_are_stable_for_guarded_submission(self) -> None:
         expected = {
+            "hpc_cancel_job": [
+                "jobid",
+                "profile",
+                "config",
+                "cluster",
+                "reason",
+                "log",
+                "dry_run",
+                "confirm",
+            ],
             "hpc_quote_job": [
                 "jobscript",
                 "directory",
@@ -166,6 +177,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertIn("hpc_paths", names)
         self.assertIn("hpc_status", names)
         self.assertIn("hpc_jobs", names)
+        self.assertIn("hpc_cancel_job", names)
         self.assertIn("hpc_slurm_limits", names)
         self.assertIn("hpc_module_spider", names)
         self.assertIn("hpc_storage_inspect", names)
@@ -231,4 +243,3 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     self.assertIn('"name": "baseline"', read[0].content)
 
         asyncio.run(exercise_server())
-

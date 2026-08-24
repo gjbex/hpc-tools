@@ -346,10 +346,20 @@ A job workflow is complete when:
 - scheduler state, accounting, and application logs have been checked;
 - durable results and checkpoints have been staged to the intended storage.
 
-The core CLI intentionally has no cancellation command. Use the site's
-documented `scancel` workflow when cancellation is necessary, verify the exact
-job ID and cluster first, and do not confuse remote cancellation with local
-submission-log maintenance.
+When cancellation is necessary, first verify and preview the exact target:
+
+```console
+hpc --profile example job 123456 --cluster example-cluster
+hpc --profile example --dry-run cancel 123456 --cluster example-cluster
+hpc --profile example cancel 123456 --cluster example-cluster --reason superseded
+```
+
+The command accepts one job, array task, or job step rather than broad
+`scancel` filters. A zero exit status records `cancel_requested` for matching
+active local submissions; it does not prove the job has reached `CANCELLED`.
+Check `sacct` or run `submissions observe` before closing the workflow record.
+See the [official `scancel` reference](https://slurm.schedmd.com/scancel.html)
+for scheduler-level cancellation and job-ID semantics.
 
 Continue with [Tracking work from submission to analysis](submissions.md) to
 record result collection, analysis, failure triage, and closure after the

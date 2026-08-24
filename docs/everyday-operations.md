@@ -268,9 +268,18 @@ working directory.
 ## Know the boundaries
 
 The core CLI does not provide generic file transfer, arbitrary remote file
-deletion, or Slurm job cancellation. Use the site's documented tools for those
-operations and verify targets carefully. In particular, do not interpret
-`submissions close` as `scancel`: it closes only the local tracking record.
+deletion, or broad scheduler filters. Its cancellation command accepts one
+validated job identifier. Verify and preview the target before using it:
+
+```console
+hpc --profile example job 123456 --cluster example-cluster
+hpc --profile example --dry-run cancel 123456 --cluster example-cluster
+hpc --profile example cancel 123456 --cluster example-cluster --reason superseded
+```
+
+Do not interpret `submissions close` as `scancel`: it closes only the local
+tracking record. Conversely, `cancel_requested` is an audit event, not proof
+that the scheduler has reached `CANCELLED`.
 
 Optional CLI extensions can add domain workflows. Check the selected profile's
 help and [CLI plugin system](plugins.md), but do not assume that installing the

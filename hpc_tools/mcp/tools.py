@@ -163,6 +163,51 @@ def hpc_job(
     command = slurm.squeue_job_command(jobid, cluster)
     return _remote_read_result(resolved, command, dry_run=dry_run)
 
+def hpc_cancel_job(
+    jobid: str,
+    profile: str | None = None,
+    config: str | None = None,
+    cluster: str | None = None,
+    reason: str | None = None,
+    log: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Cancel one Slurm job and log the request; execution requires confirmation."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    selected_cluster = cluster or resolved.default_cluster
+    command = slurm.cancel_command(jobid, selected_cluster)
+    result = _remote_mutation_result(
+        resolved,
+        command,
+        confirm=confirm,
+        dry_run=dry_run,
+    )
+    log_path = Path(log).expanduser() if log else submissions.default_log_path()
+    cancellation_events: list[dict[str, Any]] = []
+    log_error = None
+    if result["executed"] and result["returncode"] == 0:
+        try:
+            cancellation_events = submissions.append_cancel_requested_events(
+                profile=resolved.name,
+                job_id=jobid,
+                cluster=selected_cluster,
+                cancel_command=command,
+                reason=reason,
+                path=log_path,
+            )
+        except (OSError, ValueError) as error:
+            log_error = str(error)
+    return result | {
+        "operation": "cancel_job",
+        "jobid": jobid,
+        "cluster": selected_cluster,
+        "reason": reason,
+        "log": str(log_path),
+        "logged_run_ids": [event["run_id"] for event in cancellation_events],
+        "log_error": log_error,
+    }
+
 def hpc_slurm_limits(
     profile: str | None = None,
     config: str | None = None,

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from test_mcp_fixtures import *
+from hpc_tools import submissions
+from hpc_tools.config import ConfigError
 from hpc_tools.execution import executor_scope
 
 
@@ -44,6 +46,106 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertEqual(result["executor"], "local")
         self.assertIn("bash -l -c", result["execution_command"])
         self.assertIsNone(result["ssh_command"])
+
+    def test_cancel_job_requires_confirm_and_non_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            with mock.patch("hpc_tools.mcp.common.run_command_capture") as execute:
+                unconfirmed = mcp_server.hpc_cancel_job(
+                    "12345",
+                    config=str(config_path),
+                    cluster="wice",
+                    dry_run=False,
+                )
+                confirmed_preview = mcp_server.hpc_cancel_job(
+                    "12345",
+                    config=str(config_path),
+                    cluster="wice",
+                    confirm=True,
+                )
+
+        self.assertFalse(unconfirmed["executed"])
+        self.assertTrue(unconfirmed["confirm_required"])
+        self.assertFalse(confirmed_preview["executed"])
+        self.assertTrue(confirmed_preview["dry_run"])
+        execute.assert_not_called()
+
+    def test_cancel_job_executes_and_logs_matching_submission(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            log_path = root / "submissions.jsonl"
+            submissions.append_event(
+                {
+                    "event": "submitted",
+                    "run_id": "run-1",
+                    "profile": "genius",
+                    "job_id": "12345",
+                    "cluster": "wice",
+                    "jobscript": "job.slurm",
+                    "remote_directory": "$VSC_DATA/Projects/demo",
+                },
+                path=log_path,
+            )
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+
+            with mock.patch(
+                "hpc_tools.mcp.common.run_command_capture",
+                return_value=completed,
+            ) as execute:
+                result = mcp_server.hpc_cancel_job(
+                    "12345",
+                    config=str(config_path),
+                    cluster="wice",
+                    reason="superseded",
+                    log=str(log_path),
+                    dry_run=False,
+                    confirm=True,
+                )
+
+            events = submissions.read_events(log_path)
+
+        self.assertTrue(result["executed"])
+        self.assertEqual(result["logged_run_ids"], ["run-1"])
+        self.assertEqual(result["command"], "scancel -M wice 12345")
+        self.assertEqual(events[-1]["event"], "cancel_requested")
+        self.assertEqual(events[-1]["reason"], "superseded")
+        self.assertIsNone(result["log_error"])
+        execute.assert_called_once()
+
+    def test_cancel_job_preserves_success_when_local_log_update_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+            with mock.patch(
+                "hpc_tools.mcp.common.run_command_capture",
+                return_value=completed,
+            ), mock.patch(
+                "hpc_tools.mcp.tools.submissions.append_cancel_requested_events",
+                side_effect=OSError("read-only log"),
+            ):
+                result = mcp_server.hpc_cancel_job(
+                    "12345",
+                    config=str(config_path),
+                    dry_run=False,
+                    confirm=True,
+                )
+
+        self.assertTrue(result["executed"])
+        self.assertEqual(result["returncode"], 0)
+        self.assertEqual(result["logged_run_ids"], [])
+        self.assertEqual(result["log_error"], "read-only log")
+
+    def test_cancel_job_rejects_non_job_filters(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            with self.assertRaises(ConfigError):
+                mcp_server.hpc_cancel_job(
+                    "--user=someone",
+                    config=str(config_path),
+                    dry_run=False,
+                    confirm=True,
+                )
 
     def test_status_tool_returns_structured_combined_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

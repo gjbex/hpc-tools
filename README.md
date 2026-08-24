@@ -216,8 +216,10 @@ The MCP interface supports read-only context tools such as:
 - `hpc_storage_inspect`
 - `hpc_site_env`
 
-It also supports confirm-gated write and install tools:
+It also supports confirm-gated write and install tools, plus narrowly scoped
+confirm-gated job cancellation:
 
+- `hpc_cancel_job`
 - `hpc_references_create`
 - `hpc_references_import`
 - `hpc_references_attach`
@@ -510,6 +512,8 @@ hpc hardware --path
 hpc jobs                  # defaults to --cluster all
 hpc jobs --cluster wice
 hpc job 123456 --cluster wice
+hpc --dry-run cancel 123456 --cluster wice
+hpc cancel 123456 --cluster wice --reason superseded
 hpc slurm-limits --cluster wice --partition batch
 hpc submit job.slurm
 hpc submit --test-only job.slurm
@@ -556,17 +560,19 @@ and submits only if validation succeeds. `hpc submit` records successful real
 Slurm submissions in an append-only local event log at
 `~/.config/hpc-tools/submissions.jsonl`. Use
 `hpc submissions list` to show active submissions, `hpc submissions observe` to
-append current Slurm accounting observations for active jobs, and
-`hpc submissions close <run-id>` to hide handled runs from the default active
-view. The log remains append-only; current state is derived by replaying events.
+append current Slurm accounting observations for active jobs,
+`hpc cancel <job-id>` to request cancellation and audit matching tracked runs,
+and `hpc submissions close <run-id>` to hide handled runs from the default
+active view. The log remains append-only; current state is derived by replaying
+events.
 Detailed semantics for the `STATE` and `ACTION` columns, plus a state-transition
 diagram, are documented in [docs/submissions.md](docs/submissions.md).
 
 ## Scope
 
-The initial implementation deliberately avoids destructive operations. Cleanup,
-job cancellation, and file deletion should remain explicit until the command
-surface has enough validation and safeguards.
+The cancellation surface is deliberately narrow: one validated job, array
+task, or job step per call, with no user, partition, name, or state filters.
+Cleanup and file deletion remain outside the core command surface.
 
 ## Uninstall
 

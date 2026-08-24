@@ -9,8 +9,10 @@ The log is useful for work that spans several sessions: long jobs, package
 installation jobs, hardware probes, benchmark campaigns, and analyses whose
 results need attention after Slurm has finished.
 
-It is not a workflow engine. It does not transfer files, run an analysis,
-cancel jobs, or prove that a recorded path exists.
+It is not a workflow engine. It does not transfer files, run an analysis, or
+prove that a recorded path exists. The separate `hpc cancel` operation can add
+an audit event for matching records, but Slurm remains authoritative for the
+actual job state.
 
 ## Submission Log Workflow
 
@@ -65,14 +67,16 @@ The main user-facing commands are:
 hpc submissions list
 hpc submissions list --all
 hpc --profile <profile> submissions observe
+hpc --profile <profile> cancel <job-id> --cluster <cluster>
 hpc submissions mark-collected <run-id> --path <results-path>
 hpc submissions mark-analysed <run-id> --path <report-path>
 hpc submissions close <run-id> --reason <reason>
 ```
 
-Commands that modify the workflow log are local operations and do not require
-the cluster profile. `observe` is different: it needs `--profile` because it
-queries Slurm accounting on the associated cluster.
+The `submissions` commands that modify the workflow log are local operations
+and do not require the cluster profile. `observe` and `cancel` are different:
+they need `--profile` because they interact with Slurm on the associated
+cluster. `cancel` uses a Slurm job ID, not a local run ID.
 
 Use a non-default log only when you have a deliberate reason to isolate a
 workflow:
@@ -81,6 +85,8 @@ workflow:
 hpc submissions --log ./campaign-submissions.jsonl list
 hpc --profile <profile> submissions \
     --log ./campaign-submissions.jsonl observe
+hpc --profile <profile> cancel <job-id> \
+    --cluster <cluster> --log ./campaign-submissions.jsonl
 ```
 
 Pass the same `--log` path to every command in that workflow. A custom log is
@@ -92,14 +98,17 @@ The current event types are:
 
 - `submitted`
 - `observed`
+- `cancel_requested`
 - `results_collected`
 - `analysed`
 - `closed`
 
 `submitted` is appended automatically by `hpc submit` and by higher-level
 wrappers such as `hpc r submit-install` when the real `sbatch` call succeeds.
+`cancel_requested` is appended by `hpc cancel` when `scancel` succeeds and the
+job matches an active record in the selected log.
 
-The other events are appended explicitly through `hpc submissions ...`
+The remaining events are appended explicitly through `hpc submissions ...`
 subcommands.
 
 Events contain timestamps. Submission events also retain the profile, Slurm
@@ -253,10 +262,20 @@ For a failed job:
 4. if a corrected rerun succeeds and the failed run only served diagnosis, close
    the failed run with a superseded reason
 
+For a job that should stop:
+
+1. verify the exact job ID, profile, and cluster with `hpc job`
+2. preview `hpc --dry-run cancel <job-id> --cluster <cluster>`
+3. request cancellation with `hpc cancel <job-id> --cluster <cluster>`
+4. observe accounting until Slurm reports `CANCELLED` or another terminal state
+5. preserve useful logs or checkpoints, then triage or close the run
+
 Example:
 
 ```bash
 hpc --profile genius submissions observe
+hpc --profile genius --dry-run cancel 123456 --cluster wice
+hpc --profile genius cancel 123456 --cluster wice --reason superseded
 hpc submissions mark-collected <run-id> --path /remote/results/output.txt
 hpc submissions mark-analysed <run-id> --path /remote/results/report.md
 hpc submissions close <run-id> --reason done
@@ -316,6 +335,7 @@ policy.
 stateDiagram-v2
     [*] --> observe: submitted
     observe --> observe: observed PENDING/RUNNING/UNKNOWN
+    observe --> observe: cancel_requested
     observe --> collect: observed COMPLETED
     observe --> triage: observed FAILED/CANCELLED/TIMEOUT/OOM/NODE_FAIL
     collect --> analyse: results_collected
@@ -332,12 +352,15 @@ stateDiagram-v2
   broken.
 - `observe` appends Slurm accounting snapshots; it does not collect result files
   for you.
+- `cancel_requested` means the scheduler accepted the `scancel` command. It is
+  not itself evidence that Slurm has reached `CANCELLED`.
 - `mark-collected` and `mark-analysed` record paths only. They do not copy
   files.
 - The log is intentionally append-only; current state is derived, not updated in
   place.
 - `close` changes only the local workflow view. It does not call `scancel`,
-  delete remote output, or release storage.
+  delete remote output, or release storage; use the separate `cancel` command
+  before closing when a live job must be stopped.
 - Events are not synchronized automatically between machines or users.
 
 See [Running Slurm jobs](slurm-jobs.md) for submission and failure diagnosis,

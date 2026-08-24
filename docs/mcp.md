@@ -211,10 +211,11 @@ and inspect exact targets first.
 Lifecycle tools append events only. They do not copy artifacts, execute an
 analysis, validate a path, cancel a job, or reopen a closed record.
 
-## Preview remote installs
+## Preview remote mutations
 
 Remote mutation tools are:
 
+- `hpc_cancel_job`
 - `hpc_install_probe`
 - `hpc_install_container`
 
@@ -226,9 +227,30 @@ dry_run=false
 ```
 
 This two-part gate prevents a confirmed preview from automatically becoming a
-remote write. Review the generated execution command, destination directory,
-filenames, and `force` behavior. These tools install scripts or bundles; they
-do not submit a probe or container build job.
+remote write. Review the generated execution command, destination, identifiers,
+filenames, and `force` behavior. The install tools install scripts or bundles;
+they do not submit a probe or container build job.
+
+### Cancel one job
+
+`hpc_cancel_job` accepts one validated numeric Slurm job ID, individual array
+task, heterogeneous component, or job step. It deliberately does not expose
+the broad user, partition, name, state, or multi-job filters supported by raw
+`scancel`. The selected cluster is explicit or comes from the profile's
+`default_cluster`.
+
+Execution requires both `confirm=true` and `dry_run=false`. When `scancel`
+returns success, the tool appends a `cancel_requested` event to each matching
+active local submission record. It does not set the record state to
+`CANCELLED`: use `hpc_job`, Slurm accounting, or a later submission observation
+to confirm scheduler state. A request for an untracked job can succeed without
+appending a local event; `logged_run_ids` makes that distinction visible. If
+the scheduler request succeeds but the local event log cannot be updated,
+`log_error` reports the audit failure without hiding the scheduler result.
+
+As with submission, `confirm=true` is a protocol gate, not proof of human
+authorization in an unattended Slurm job. A restricted runtime still needs
+server-side capability and delegation policy.
 
 ## Follow the submission evidence chain
 

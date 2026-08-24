@@ -15,11 +15,12 @@ override site policy. A profile records how to reach a site; it does not grant
 access.
 
 The core does not provide general remote file transfer, recursive deletion,
-job cancellation, or arbitrary administrator operations. Those omissions
-reduce accidental damage but do not make the tool read-only: cloning, remote
-installation, reference attachment, local file writes, and job submission all
-change state. `hpc run` can execute any command the user can execute remotely
-and must be treated accordingly.
+bulk scheduler filtering, or arbitrary administrator operations. Job
+cancellation is limited to one validated job identifier per call. Those
+boundaries reduce accidental damage but do not make the tool read-only:
+cloning, remote installation, reference attachment, local file writes, job
+submission, and cancellation all change state. `hpc run` can execute any
+command the user can execute remotely and must be treated accordingly.
 
 ### Scheduler acceptance is not workflow correctness
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import re
 import shlex
+
+from hpc_tools.config import ConfigError
 
 
 SQUEUE_FORMAT = "%.18i %.9P %.40j %.8u %.2t %.10M %.10l %.6D %R"
@@ -18,6 +21,10 @@ SLURM_ASSOC_FORMAT = (
     "Cluster,Account,User,Partition,QOS,DefaultQOS,MaxJobs,"
     "MaxSubmitJobs,MaxTRES,GrpJobs,GrpSubmitJobs,GrpTRES"
 )
+SLURM_JOB_ID_PATTERN = re.compile(
+    r"\d+(?:\+\d+)?(?:_\d+)?(?:\.[A-Za-z0-9_-]+)?"
+)
+SLURM_CLUSTER_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 
 
 def queue_state_command(queue_command: str) -> str:
@@ -37,6 +44,21 @@ def squeue_job_command(jobid: str, cluster: str | None = None) -> str:
     if cluster:
         parts.extend(["-M", cluster])
     parts.extend(["-j", jobid, "-o", SQUEUE_JOB_FORMAT])
+    return _quote_command(parts)
+
+
+def cancel_command(jobid: str, cluster: str | None = None) -> str:
+    if not SLURM_JOB_ID_PATTERN.fullmatch(jobid):
+        raise ConfigError(
+            "job ID must be numeric, optionally followed by a heterogeneous "
+            "component, one array task, or one job step"
+        )
+    if cluster and not SLURM_CLUSTER_PATTERN.fullmatch(cluster):
+        raise ConfigError("cluster must be one Slurm cluster name")
+    parts = ["scancel"]
+    if cluster:
+        parts.extend(["-M", cluster])
+    parts.append(jobid)
     return _quote_command(parts)
 
 

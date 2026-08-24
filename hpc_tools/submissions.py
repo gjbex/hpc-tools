@@ -172,6 +172,74 @@ def observed_event(
     }
 
 
+def cancel_requested_event(
+    record: SubmissionRecord,
+    *,
+    requested_job_id: str,
+    cancel_command: str,
+    reason: str | None = None,
+) -> dict[str, Any]:
+    event: dict[str, Any] = {
+        "event": "cancel_requested",
+        "run_id": record.run_id,
+        "profile": record.profile,
+        "job_id": record.job_id,
+        "requested_job_id": requested_job_id,
+        "cluster": record.cluster,
+        "cancel_command": cancel_command,
+    }
+    if reason:
+        event["reason"] = reason
+    return event
+
+
+def active_records_for_job(
+    events: list[dict[str, Any]],
+    *,
+    profile: str,
+    job_id: str,
+    cluster: str | None,
+) -> list[SubmissionRecord]:
+    base_job_id = re.match(r"\d+", job_id)
+    submitted_job_id = base_job_id.group(0) if base_job_id else job_id
+    return [
+        record
+        for record in active_records(events)
+        if record.profile == profile
+        and record.job_id in {job_id, submitted_job_id}
+        and record.cluster == cluster
+    ]
+
+
+def append_cancel_requested_events(
+    *,
+    profile: str,
+    job_id: str,
+    cluster: str | None,
+    cancel_command: str,
+    reason: str | None = None,
+    path: Path | None = None,
+) -> list[dict[str, Any]]:
+    records = active_records_for_job(
+        read_events(path),
+        profile=profile,
+        job_id=job_id,
+        cluster=cluster,
+    )
+    events = [
+        cancel_requested_event(
+            record,
+            requested_job_id=job_id,
+            cancel_command=cancel_command,
+            reason=reason,
+        )
+        for record in records
+    ]
+    for event in events:
+        append_event(event, path=path)
+    return events
+
+
 def mark_event(
     run_id: str,
     event: str,

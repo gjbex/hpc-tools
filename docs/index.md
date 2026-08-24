@@ -98,13 +98,13 @@ server.
 - select a Slurm account when the user has not authorized one;
 - guarantee that a valid job request is efficient or scientifically correct;
 - copy arbitrary result trees back to the local machine;
-- automatically delete remote data or cancel jobs;
+- automatically delete remote data or bulk-cancel jobs by scheduler filter;
 - make the generic `hpc run` command safe when given an unsafe command.
 
 Some commands do modify state: they can clone a repository, install a probe or
-container bundle, write local files, or submit a job. The absence of built-in
-deletion and cancellation commands should not be mistaken for a claim that the
-entire tool is read-only.
+container bundle, write local files, submit a job, or cancel one explicitly
+identified job. The absence of built-in deletion and bulk-cancellation commands
+should not be mistaken for a claim that the entire tool is read-only.
 
 ## A recommended learning path
 

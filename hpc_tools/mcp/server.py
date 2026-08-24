@@ -18,6 +18,7 @@ from hpc_tools.mcp.resources import (
 )
 from hpc_tools.mcp.submit import hpc_quote_job, hpc_submit_job, hpc_validate_job
 from hpc_tools.mcp.tools import (
+    hpc_cancel_job,
     hpc_hardware_context,
     hpc_hardware_sources,
     hpc_install_container,
@@ -60,6 +61,7 @@ TOOL_NAMES = (
     "hpc_status",
     "hpc_jobs",
     "hpc_job",
+    "hpc_cancel_job",
     "hpc_slurm_limits",
     "hpc_module_spider",
     "hpc_storage_inspect",
@@ -111,7 +113,8 @@ def create_server():
         instructions=(
             "Guarded hpc-tools interface for agents. This server exposes "
             "profile, reference, plugin, Slurm-inspection, submission-log, "
-            "and explicit confirm-gated local write and remote install tools. "
+            "and explicit confirm-gated local write, job cancellation, and "
+            "remote install tools. "
             "Slurm job submission is exposed only through quote, validation, "
             "and confirm-gated submit tools with matching evidence. "
             f"Cluster commands use the {executor.name} executor."
@@ -130,6 +133,7 @@ def create_server():
         hpc_status,
         hpc_jobs,
         hpc_job,
+        hpc_cancel_job,
         hpc_slurm_limits,
         hpc_module_spider,
         hpc_storage_inspect,

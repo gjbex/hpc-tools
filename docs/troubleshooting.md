@@ -258,8 +258,9 @@ request more resources to escape the queue: larger or rarer shapes often wait
 longer. Compare the request with current limits and decide whether a smaller
 scientifically valid pilot or another documented partition is appropriate.
 
-hpc-tools has no generic cancellation command. Use the site's documented
-procedure when cancellation is necessary, and verify the job ID and cluster.
+When cancellation is necessary, verify the job ID and cluster, preview the
+request with global `--dry-run`, and then use `hpc cancel`. A successful request
+must still be confirmed through queue state or accounting.
 
 ## A completed job has no useful result
 

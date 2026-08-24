@@ -78,6 +78,60 @@ class SubmissionLogTests(unittest.TestCase):
         record = submissions.records_from_events(events)[0]
         self.assertEqual(record.action, "analyse")
 
+    def test_cancellation_request_is_audited_without_claiming_cancelled_state(self) -> None:
+        events = [
+            {
+                "event": "submitted",
+                "run_id": "run-1",
+                "profile": "genius",
+                "job_id": "123",
+                "cluster": "wice",
+                "jobscript": "job.slurm",
+                "remote_directory": "$VSC_DATA/Projects/demo",
+            },
+            {"event": "observed", "run_id": "run-1", "state": "RUNNING"},
+        ]
+        record = submissions.records_from_events(events)[0]
+        events.append(
+            submissions.cancel_requested_event(
+                record,
+                requested_job_id="123",
+                cancel_command="scancel -M wice 123",
+                reason="superseded",
+            )
+        )
+
+        refreshed = submissions.records_from_events(events)[0]
+
+        self.assertEqual(refreshed.latest_event, "cancel_requested")
+        self.assertEqual(refreshed.latest_state, "RUNNING")
+        self.assertEqual(refreshed.action, "observe")
+        self.assertEqual(events[-1]["reason"], "superseded")
+        self.assertEqual(events[-1]["requested_job_id"], "123")
+
+    def test_active_records_for_job_matches_profile_job_and_cluster(self) -> None:
+        events = [
+            {
+                "event": "submitted",
+                "run_id": cluster,
+                "profile": "genius",
+                "job_id": "123",
+                "cluster": cluster,
+                "jobscript": "job.slurm",
+                "remote_directory": ".",
+            }
+            for cluster in ("wice", "mindwell")
+        ]
+
+        records = submissions.active_records_for_job(
+            events,
+            profile="genius",
+            job_id="123_7",
+            cluster="wice",
+        )
+
+        self.assertEqual([record.run_id for record in records], ["wice"])
+
     def test_closed_run_stays_hidden_even_if_later_metadata_events_exist(self) -> None:
         events = [
             {

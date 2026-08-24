@@ -50,6 +50,103 @@ class CliCoreTests(unittest.TestCase):
         self.assertEqual(args.cluster, "wice")
         self.assertIn("-M wice", slurm.squeue_job_command(args.jobid, args.cluster))
 
+    def test_cancel_command_accepts_one_job_array_task_or_step(self) -> None:
+        self.assertEqual(slurm.cancel_command("12345", "wice"), "scancel -M wice 12345")
+        self.assertEqual(slurm.cancel_command("12345_7"), "scancel 12345_7")
+        self.assertEqual(slurm.cancel_command("12345.batch"), "scancel 12345.batch")
+        self.assertEqual(slurm.cancel_command("12345+1"), "scancel 12345+1")
+
+    def test_cancel_command_rejects_filters_and_shell_input(self) -> None:
+        for jobid in ("--user=someone", "123,456", "123; rm -rf /", "name"):
+            with self.subTest(jobid=jobid), self.assertRaises(ConfigError):
+                slurm.cancel_command(jobid, "wice")
+        with self.assertRaises(ConfigError):
+            slurm.cancel_command("123", "--user=someone")
+
+    def test_cancel_parser_accepts_cluster_reason_and_log(self) -> None:
+        parser = build_parser(make_profile())
+        args = parser.parse_args(
+            [
+                "cancel",
+                "12345",
+                "--cluster",
+                "wice",
+                "--reason",
+                "superseded",
+                "--log",
+                "/tmp/submissions.jsonl",
+            ]
+        )
+
+        self.assertIs(args.handler, cmd_cancel)
+        self.assertEqual(args.cluster, "wice")
+        self.assertEqual(args.reason, "superseded")
+        self.assertEqual(args.log, Path("/tmp/submissions.jsonl"))
+
+    def test_cancel_success_logs_request_for_matching_active_run(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["cancel", "12345", "--reason", "superseded"])
+        completed = subprocess.CompletedProcess([], 0, "", "")
+        tracked_events = [
+            {
+                "event": "submitted",
+                "run_id": "run-1",
+                "profile": "genius",
+                "job_id": "12345",
+                "cluster": "wice",
+                "jobscript": "job.slurm",
+                "remote_directory": "$VSC_DATA/Projects/demo",
+            },
+            {
+                "event": "submitted",
+                "run_id": "other-cluster",
+                "profile": "genius",
+                "job_id": "12345",
+                "cluster": "mindwell",
+                "jobscript": "job.slurm",
+                "remote_directory": "$VSC_DATA/Projects/demo",
+            },
+        ]
+
+        with mock.patch(
+            "hpc_tools.commands.slurm.run_command_capture",
+            return_value=completed,
+        ) as execute, mock.patch(
+            "hpc_tools.commands.slurm.submissions.read_events",
+            return_value=tracked_events,
+        ), mock.patch(
+            "hpc_tools.commands.slurm.submissions.append_event"
+        ) as append_event:
+            result = cmd_cancel(args, profile)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(execute.call_args.args[1], "scancel -M wice 12345")
+        event = append_event.call_args.args[0]
+        self.assertEqual(event["event"], "cancel_requested")
+        self.assertEqual(event["run_id"], "run-1")
+        self.assertEqual(event["reason"], "superseded")
+
+    def test_cancel_dry_run_or_failure_does_not_log_request(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        dry_args = parser.parse_args(["--dry-run", "cancel", "12345"])
+        failed_args = parser.parse_args(["cancel", "12345"])
+
+        with mock.patch(
+            "hpc_tools.commands.slurm.run_command_capture",
+            side_effect=[
+                subprocess.CompletedProcess([], 0, "", ""),
+                subprocess.CompletedProcess([], 1, "", "invalid job id\n"),
+            ],
+        ), mock.patch(
+            "hpc_tools.commands.slurm.submissions.append_event"
+        ) as append_event, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(cmd_cancel(dry_args, profile), 0)
+            self.assertEqual(cmd_cancel(failed_args, profile), 1)
+
+        append_event.assert_not_called()
+
     def test_slurm_limits_command_covers_controller_partition_qos_and_assoc(self) -> None:
         command = slurm.slurm_limits_command(cluster="wice", partition="batch", qos="normal")
 

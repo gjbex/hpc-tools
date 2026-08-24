@@ -128,6 +128,7 @@ commands.
 | `hpc submit JOBSCRIPT [-C DIRECTORY] [--test-only] [--validate-first] [SLURM_OVERRIDES...]` | Run `sbatch` from the remote directory. Successful real submissions are appended to the local submission log. |
 | `hpc jobs [-M CLUSTER]` | Show the current user's queued and running jobs. Without a cluster override, it shows the clusters visible to the login context. |
 | `hpc job JOBID [-M CLUSTER]` | Query one job in the live queue. Completed jobs normally require `sacct`. |
+| `hpc cancel JOBID [-M CLUSTER] [--reason TEXT] [--log PATH]` | Request cancellation of one numeric job, array task, or job step. On success, append `cancel_requested` to matching active local records. |
 | `hpc queue` | Run the profile's site-specific `queue_command`. |
 | `hpc sacct JOBID [-M CLUSTER]` | Show accounting fields for a job: `JobID`, `JobName`, `Partition`, `Account`, `State`, `ExitCode`, and `Elapsed`. |
 
@@ -135,6 +136,14 @@ commands.
 without submitting. `--validate-first` first runs `sbatch --test-only` with the
 same overrides and submits only after that command succeeds. Neither check
 establishes scientific correctness, suitable scaling, or affordable cost.
+
+`cancel` uses the explicit cluster, then the profile's `default_cluster`, and
+otherwise the current Slurm context. Its narrow job-ID grammar deliberately
+excludes `scancel` filters and lists, so one call cannot cancel jobs by user,
+partition, name, or state. Global `--dry-run` prints the command without
+requesting cancellation or changing the local event log. A successful
+`scancel` return records only `cancel_requested`; use `sacct` or `submissions
+observe` to verify the eventual scheduler state.
 
 ### Local submission records
 
