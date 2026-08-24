@@ -15,7 +15,7 @@ from hpc_tools import slurm
 from hpc_tools import slurm_contracts
 from hpc_tools import submissions
 from hpc_tools.config import ConfigError, Profile
-from hpc_tools.ssh import run_remote, run_remote_capture
+from hpc_tools.execution import run_command, run_command_capture
 
 
 def register(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -120,7 +120,7 @@ def register_limits(subparsers: Any, handlers: Any) -> None:
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.queue_command:
         raise ConfigError(f"profile '{profile.name}' does not define queue_command")
-    return run_remote(
+    return run_command(
         profile,
         slurm.queue_state_command(profile.queue_command),
         dry_run=args.dry_run,
@@ -129,7 +129,7 @@ def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
 def cmd_balance(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.sam_balance_command:
         raise ConfigError(f"profile '{profile.name}' does not define sam_balance_command")
-    return run_remote(profile, profile.sam_balance_command, dry_run=args.dry_run)
+    return run_command(profile, profile.sam_balance_command, dry_run=args.dry_run)
 
 def cmd_statement(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.sam_statement_command:
@@ -140,13 +140,13 @@ def cmd_statement(args: argparse.Namespace, profile: Profile) -> int:
         start=args.start,
         end=args.end,
     )
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.sam_quote_command:
         raise ConfigError(f"profile '{profile.name}' does not define sam_quote_command")
     command = _quote_command(profile.sam_quote_command, args.quote_args)
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_status(args: argparse.Namespace, profile: Profile) -> int:
     report = build_status_report(profile, dry_run=args.dry_run)
@@ -202,7 +202,7 @@ def build_status_report(profile: Profile, *, dry_run: bool = False) -> dict[str,
         failures += 1
 
     if profile.quota_command:
-        quota_result = run_remote_capture(profile, profile.quota_command, dry_run=dry_run)
+        quota_result = run_command_capture(profile, profile.quota_command, dry_run=dry_run)
         if quota_result.returncode != 0:
             failures += 1
             sections.append(
@@ -239,7 +239,7 @@ def build_status_report(profile: Profile, *, dry_run: bool = False) -> dict[str,
         failures += 1
 
     if profile.sam_balance_command:
-        balance_result = run_remote_capture(profile, profile.sam_balance_command, dry_run=dry_run)
+        balance_result = run_command_capture(profile, profile.sam_balance_command, dry_run=dry_run)
         if balance_result.returncode != 0:
             failures += 1
             sections.append(
@@ -294,10 +294,10 @@ def build_status_report(profile: Profile, *, dry_run: bool = False) -> dict[str,
     }
 
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, slurm.squeue_user_command(args.cluster), dry_run=args.dry_run)
+    return run_command(profile, slurm.squeue_user_command(args.cluster), dry_run=args.dry_run)
 
 def cmd_job(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, slurm.squeue_job_command(args.jobid, args.cluster), dry_run=args.dry_run)
+    return run_command(profile, slurm.squeue_job_command(args.jobid, args.cluster), dry_run=args.dry_run)
 
 def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
     overrides = _submit_overrides(args)
@@ -315,13 +315,13 @@ def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
     )
     if args.dry_run:
         if args.validate_first and not args.test_only:
-            run_remote(profile, validation_command, dry_run=True)
-        return run_remote(profile, command, dry_run=True)
+            run_command(profile, validation_command, dry_run=True)
+        return run_command(profile, command, dry_run=True)
     if args.test_only:
-        return run_remote(profile, command, dry_run=False)
+        return run_command(profile, command, dry_run=False)
 
     if args.validate_first:
-        validation = run_remote_capture(profile, validation_command)
+        validation = run_command_capture(profile, validation_command)
         if validation.stdout:
             print(validation.stdout, end="")
         if validation.stderr:
@@ -329,7 +329,7 @@ def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
         if validation.returncode != 0:
             return validation.returncode
 
-    completed = run_remote_capture(profile, command)
+    completed = run_command_capture(profile, command)
     if completed.stdout:
         print(completed.stdout, end="")
     if completed.stderr:
@@ -399,11 +399,11 @@ def _log_submission(
 
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster
-    return run_remote(profile, slurm.sacct_command(args.jobid, cluster), dry_run=args.dry_run)
+    return run_command(profile, slurm.sacct_command(args.jobid, cluster), dry_run=args.dry_run)
 
 def cmd_slurm_limits(args: argparse.Namespace, profile: Profile) -> int:
     cluster = args.cluster or profile.default_cluster
-    return run_remote(
+    return run_command(
         profile,
         slurm.slurm_limits_command(
             cluster=cluster,

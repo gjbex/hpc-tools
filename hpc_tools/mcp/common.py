@@ -8,7 +8,7 @@ from typing import Any
 
 from hpc_tools import references, submissions
 from hpc_tools.config import Config, ConfigError, Profile, load_config, resolve_profile
-from hpc_tools.ssh import build_ssh_argv, format_command, run_remote_capture
+from hpc_tools.execution import execution_plan, run_command_capture
 
 def _load_config(config_path: str | None = None) -> Config:
     return load_config(config_path)
@@ -18,23 +18,23 @@ def _resolve_profile(*, profile_name: str | None = None, config_path: str | None
     return resolve_profile(config, profile_name)
 
 def _remote_read_result(profile: Profile, command: str, *, dry_run: bool = False) -> dict[str, Any]:
-    ssh_argv = build_ssh_argv(profile, command)
+    plan = execution_plan(profile, command)
     if dry_run:
         return {
             "profile": profile.name,
             "command": command,
-            "ssh_command": format_command(ssh_argv),
+            **plan.metadata(),
             "dry_run": True,
             "returncode": 0,
             "stdout": "",
             "stderr": "",
         }
 
-    completed = run_remote_capture(profile, command)
+    completed = run_command_capture(profile, command)
     return {
         "profile": profile.name,
         "command": command,
-        "ssh_command": format_command(ssh_argv),
+        **plan.metadata(),
         "dry_run": False,
         "returncode": completed.returncode,
         "stdout": completed.stdout,
@@ -48,11 +48,11 @@ def _remote_mutation_result(
     confirm: bool,
     dry_run: bool,
 ) -> dict[str, Any]:
-    ssh_argv = build_ssh_argv(profile, command)
+    plan = execution_plan(profile, command)
     preview = {
         "profile": profile.name,
         "command": command,
-        "ssh_command": format_command(ssh_argv),
+        **plan.metadata(),
         "confirm_required": not confirm,
         "dry_run": dry_run,
         "executed": False,
@@ -63,7 +63,7 @@ def _remote_mutation_result(
     if not confirm or dry_run:
         return preview
 
-    completed = run_remote_capture(profile, command)
+    completed = run_command_capture(profile, command)
     return preview | {
         "confirm_required": False,
         "executed": True,
@@ -173,4 +173,3 @@ def _read_reference_text(path: str | None, label: str, profile: str) -> str:
 
 def _expanded(path: str | None) -> str | None:
     return str(Path(path).expanduser()) if path else None
-

@@ -8,6 +8,7 @@ import sys
 
 from hpc_tools import slurm
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.execution import run_command_capture
 from hpc_tools.plugins.python.dependencies import (
     DependencyInspection,
     DependencySpec,
@@ -28,7 +29,6 @@ from hpc_tools.plugins.python.install_plan import (
     render_install_script,
 )
 from hpc_tools.plugins.python.remote_verify import check_packages, parse_verify_output
-from hpc_tools.ssh import run_remote_capture
 
 class PythonSupportPlugin:
     name = "python"
@@ -304,7 +304,7 @@ def cmd_python_plan_install(args: argparse.Namespace, profile: Profile | None) -
 def cmd_python_verify_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("python verify-install requires a configured profile")
-    completed = run_remote_capture(profile, f"cat {shlex.quote(args.job_output)}", dry_run=args.dry_run)
+    completed = run_command_capture(profile, f"cat {shlex.quote(args.job_output)}", dry_run=args.dry_run)
     if completed.returncode != 0:
         raise ConfigError(completed.stderr.strip() or f"could not read job output: {args.job_output}")
     result = parse_verify_output(completed.stdout, args.packages)
@@ -343,7 +343,7 @@ def cmd_python_submit_install(args: argparse.Namespace, profile: Profile | None)
     if not args.jobscript.exists():
         raise ConfigError(f"local job script does not exist: {args.jobscript}")
     remote_name = args.remote_name or args.jobscript.name
-    stage = run_remote_capture(
+    stage = run_command_capture(
         profile,
         build_stage_script_command(
             directory=args.directory,
@@ -380,7 +380,7 @@ def cmd_python_submit_install(args: argparse.Namespace, profile: Profile | None)
         cpus_per_task=args.cpus_per_task,
     )
     if not args.skip_quote and profile.sam_quote_command:
-        quoted = run_remote_capture(profile, build_quote_command(profile.sam_quote_command, quote_args), dry_run=args.dry_run)
+        quoted = run_command_capture(profile, build_quote_command(profile.sam_quote_command, quote_args), dry_run=args.dry_run)
         if quoted.stdout:
             print(quoted.stdout, end="")
         if quoted.stderr:
@@ -392,18 +392,18 @@ def cmd_python_submit_install(args: argparse.Namespace, profile: Profile | None)
     validation_command = slurm.submit_command(remote_name, directory=args.directory, test_only=True, overrides=overrides)
     if args.dry_run:
         if not args.no_validate_first:
-            run_remote_capture(profile, validation_command, dry_run=True)
-        run_remote_capture(profile, submit_command, dry_run=True)
+            run_command_capture(profile, validation_command, dry_run=True)
+        run_command_capture(profile, submit_command, dry_run=True)
         return 0
     if not args.no_validate_first:
-        validation = run_remote_capture(profile, validation_command)
+        validation = run_command_capture(profile, validation_command)
         if validation.stdout:
             print(validation.stdout, end="")
         if validation.stderr:
             print(validation.stderr, end="", file=sys.stderr)
         if validation.returncode != 0:
             return validation.returncode
-    completed = run_remote_capture(profile, submit_command)
+    completed = run_command_capture(profile, submit_command)
     if completed.stdout:
         print(completed.stdout, end="")
     if completed.stderr:
@@ -520,4 +520,3 @@ def _resolve_package_list(scan: ScanResult, explicit_packages: list[str] | None)
         and package not in stdlib_modules
         and package != "__future__"
     )
-

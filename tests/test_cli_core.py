@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import textwrap
+
 from test_cli_fixtures import *
 
 
@@ -84,6 +86,41 @@ class CliCoreTests(unittest.TestCase):
         self.assertIn("command -v \"$tool\"", command)
         self.assertIn("sacctmgr", command)
 
+    def test_main_uses_local_executor_with_targetless_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "config.toml"
+            config_path.write_text(
+                textwrap.dedent(
+                    """
+                    default_profile = "local"
+
+                    [profiles.local]
+                    login_shell = ["bash", "-l", "-c"]
+                    """
+                ),
+                encoding="utf-8",
+            )
+            completed = subprocess.CompletedProcess([], 0)
+
+            with mock.patch(
+                "hpc_tools.execution.subprocess.run",
+                return_value=completed,
+            ) as run:
+                result = main(
+                    [
+                        "--config",
+                        str(config_path),
+                        "--executor",
+                        "local",
+                        "doctor",
+                    ]
+                )
+
+        self.assertEqual(result, 0)
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[:3], ("bash", "-l", "-c"))
+        self.assertNotIn("ssh", argv)
+
     def test_site_env_parser_and_command(self) -> None:
         parser = build_parser(make_profile())
         args = parser.parse_args(["site-env"])
@@ -156,6 +193,18 @@ class CliCoreTests(unittest.TestCase):
         self.assertIn("hpc-cluster-onboarding", output)
         self.assertIn("hpc-slurm-job-arrays", output)
         self.assertIn("hpc-slurm-benchmark", output)
+
+    def test_executor_option_does_not_make_paths_require_config(self) -> None:
+        stdout = io.StringIO()
+        with mock.patch.dict(
+            "os.environ",
+            {"XDG_CONFIG_HOME": "/tmp/xdg"},
+            clear=True,
+        ), contextlib.redirect_stdout(stdout):
+            result = main(["--executor", "local", "paths"])
+
+        self.assertEqual(result, 0)
+        self.assertIn("config: /tmp/xdg/hpc-tools/config.toml", stdout.getvalue())
 
     def test_paths_main_json_wraps_text_output(self) -> None:
         stdout = io.StringIO()

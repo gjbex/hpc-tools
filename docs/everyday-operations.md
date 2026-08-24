@@ -16,7 +16,7 @@ Show the commands enabled by the profile:
 hpc --profile example --help
 ```
 
-Preview an SSH-backed operation before running it:
+Preview a cluster operation before running it:
 
 ```console
 hpc --profile example --dry-run storage inspect '$VSC_DATA/project'
@@ -28,10 +28,10 @@ Use `--json` when another program will consume the result:
 hpc --profile example --json doctor
 ```
 
-Global options belong before the subcommand. `--dry-run` previews remote SSH
-commands; it is not a promise that every command is offline or side-effect
-free. A command that reads a configured web page, for example, may still make a
-local HTTP request.
+Global options belong before the subcommand. `--dry-run` previews the selected
+executor's commands; it is not a promise that every command is offline or
+side-effect free. A command that reads a configured web page, for example, may
+still make a local HTTP request.
 
 ## Get a daily overview
 

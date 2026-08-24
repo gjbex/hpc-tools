@@ -6,9 +6,9 @@ from typing import Any
 
 from hpc_tools.commands.common import _quote_remote_path_expression, _section_command
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.execution import run_command
 from hpc_tools.hardware import profile_has_hardware_context
 from hpc_tools.hardware import render_hardware_context
-from hpc_tools.ssh import run_remote
 
 
 def register(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -123,22 +123,22 @@ def register_hardware(subparsers: Any, profile: Any, handlers: Any) -> None:
         hardware_parser.set_defaults(handler=handlers.cmd_hardware)
 
 def cmd_storage_inspect(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, _storage_inspect_command(args.path), dry_run=args.dry_run)
+    return run_command(profile, _storage_inspect_command(args.path), dry_run=args.dry_run)
 
 def cmd_repo_status(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, _repo_status_command(args.directory), dry_run=args.dry_run)
+    return run_command(profile, _repo_status_command(args.directory), dry_run=args.dry_run)
 
 def cmd_quota(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.quota_command:
         raise ConfigError(f"profile '{profile.name}' does not define quota_command")
-    return run_remote(profile, profile.quota_command, dry_run=args.dry_run)
+    return run_command(profile, profile.quota_command, dry_run=args.dry_run)
 
 def cmd_projects(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.projects_dir:
         raise ConfigError(f"profile '{profile.name}' does not define projects_dir")
     remote_path = _quote_remote_path_expression(profile.projects_dir)
     command = f"ls -ld {remote_path} 2>/dev/null && ls -1 {remote_path}"
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
     directory = args.directory or profile.projects_dir
@@ -153,10 +153,10 @@ def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
     if args.name:
         parts.append(args.name)
     command = f"cd {_quote_remote_path_expression(directory)} && {' '.join(shlex.quote(part) for part in parts)}"
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, _module_spider_command(args.name), dry_run=args.dry_run)
+    return run_command(profile, _module_spider_command(args.name), dry_run=args.dry_run)
 
 def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
     if args.source and args.path:
@@ -191,4 +191,3 @@ def _repo_status_command(directory: str) -> str:
         "printf '\\n## latest-commit\\n'; git log -1 --oneline; "
         "}"
     )
-

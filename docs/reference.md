@@ -20,7 +20,7 @@ the effective command tree with `hpc --help` and `hpc plugins list`.
 ## Command form and global options
 
 ```text
-hpc [--json] [--profile PROFILE] [--config CONFIG] [--dry-run] COMMAND ...
+hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--dry-run] COMMAND ...
 ```
 
 | Option | Meaning |
@@ -28,7 +28,8 @@ hpc [--json] [--profile PROFILE] [--config CONFIG] [--dry-run] COMMAND ...
 | `-h`, `--help` | Show help for the current command level and exit. |
 | `--profile PROFILE` | Select a named profile instead of `default_profile`. If the configuration contains exactly one profile, it is selected when neither option is present. |
 | `--config PATH` | Read a particular TOML configuration file. This takes precedence over the default configuration path. |
-| `--dry-run` | Print SSH-backed commands instead of running them. It does not turn every local operation into a preview, and `status` can still retrieve a configured web status page. |
+| `--executor {ssh,local}` | Select SSH transport or direct execution through the profile login shell. The default is `HPC_TOOLS_EXECUTOR`, then `ssh`. |
+| `--dry-run` | Print commands for the selected executor instead of running them. It does not turn every local operation into a preview, and `status` can still retrieve a configured web status page. |
 | `--json` | Request structured output. Most commands use the generic envelope described under [Output formats](#output-formats); a small set emits command-specific JSON directly. |
 
 Put global options before the command in scripts. The CLI currently accepts
@@ -203,8 +204,9 @@ and [CLI plugin system](plugins.md).
 
 ## Command availability by profile capability
 
-Most remote commands need only a valid SSH target. The following commands have
-additional conditions:
+Most cluster commands need only a selected profile and an executor that can use
+it. The SSH executor additionally requires a valid SSH target. The following
+commands have additional conditions:
 
 | Command or group | Required profile field or condition |
 | --- | --- |
@@ -239,8 +241,9 @@ projects_dir = "$HOME/projects"
 default_cluster = "compute"
 ```
 
-`default_profile` is optional. Each profile must define either `ssh_target` or
-`host`; all other fields are optional.
+`default_profile` is optional. A profile used with the SSH executor must define
+either `ssh_target` or `host`. Both may be omitted for a local-only profile; all
+other fields are optional.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -248,7 +251,7 @@ default_cluster = "compute"
 | `host` | string | Hostname used when `ssh_target` is absent. |
 | `user` | string | Combined with `host` as `user@host`; it does not alter an explicit `ssh_target`. |
 | `ssh_options` | array of strings | Additional SSH arguments, with each option and value represented as separate list elements. |
-| `login_shell` | string or array of strings | Remote shell prefix. The default is `["bash", "-l", "-c"]`; the parsed value must end in `-c`. |
+| `login_shell` | string or array of strings | Shell prefix used by both executors. The default is `["bash", "-l", "-c"]`; the parsed value must end in `-c`. |
 | `projects_dir` | string | Default remote parent for project listing and cloning. Shell expressions such as `$HOME/projects` are evaluated remotely. |
 | `quota_command` | string | Site-specific quota command. |
 | `queue_command` | string | Site-specific queue-summary command. |
@@ -457,6 +460,7 @@ state or copied skills.
 | Variable | Effect |
 | --- | --- |
 | `HPC_TOOLS_CONFIG` | Select the default configuration file when `--config` is absent. |
+| `HPC_TOOLS_EXECUTOR` | Select `ssh` or `local` when `--executor` is absent. The compatibility default is `ssh`. |
 | `XDG_CONFIG_HOME` | Relocate the hpc-tools configuration directory, reference sets, profile references, and default submission log. |
 
 Remote commands also run in the selected profile's login-shell environment, so
@@ -535,7 +539,7 @@ deployment boundary.
   it does not install the `hpc` Python command or authorize cluster access.
 
 **dry run**
-: A preview of an SSH-backed command. It is not universal transaction
+: A preview of the selected executor command. It is not universal transaction
   simulation and does not validate scheduler acceptance.
 
 **job ID**

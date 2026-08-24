@@ -99,6 +99,7 @@ from hpc_tools.config import (
     load_config,
     resolve_profile,
 )
+from hpc_tools.execution import EXECUTOR_NAMES, executor_scope
 from hpc_tools import plugin_system
 
 
@@ -182,7 +183,12 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Print the SSH command without executing it",
+        help="Print the selected executor command without executing it",
+    )
+    parser.add_argument(
+        "--executor",
+        choices=EXECUTOR_NAMES,
+        help="Command executor; defaults to HPC_TOOLS_EXECUTOR or ssh",
     )
 
     subparsers = GroupedSubparsers(
@@ -329,6 +335,7 @@ def _build_pre_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--profile")
     parser.add_argument("--config")
+    parser.add_argument("--executor", choices=EXECUTOR_NAMES)
     return parser
 
 
@@ -344,6 +351,21 @@ def _strip_json_flag(argv: list[str]) -> tuple[list[str], bool]:
 
 
 def _dispatch_command(
+    args: argparse.Namespace,
+    profile: Profile | None,
+    json_requested: bool,
+    original_argv: list[str],
+) -> int:
+    with executor_scope(args.executor):
+        return _dispatch_with_executor(
+            args,
+            profile,
+            json_requested,
+            original_argv,
+        )
+
+
+def _dispatch_with_executor(
     args: argparse.Namespace,
     profile: Profile | None,
     json_requested: bool,

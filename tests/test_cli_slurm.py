@@ -172,7 +172,7 @@ class CliCoreTests(unittest.TestCase):
         )
 
         stdout = io.StringIO()
-        with mock.patch("hpc_tools.commands.slurm.run_remote_capture", side_effect=[validation, submitted]) as run_remote_capture, \
+        with mock.patch("hpc_tools.commands.slurm.run_command_capture", side_effect=[validation, submitted]) as run_remote_capture, \
              mock.patch("hpc_tools.commands.slurm.submissions.append_event") as append_event, \
              contextlib.redirect_stdout(stdout):
             result = cmd_submit(args, profile)
@@ -200,7 +200,7 @@ class CliCoreTests(unittest.TestCase):
         )
 
         stderr = io.StringIO()
-        with mock.patch("hpc_tools.commands.slurm.run_remote_capture", return_value=validation) as run_remote_capture, \
+        with mock.patch("hpc_tools.commands.slurm.run_command_capture", return_value=validation) as run_remote_capture, \
              mock.patch("hpc_tools.commands.slurm.submissions.append_event") as append_event, \
              contextlib.redirect_stderr(stderr):
             result = cmd_submit(args, profile)
@@ -270,7 +270,7 @@ class CliCoreTests(unittest.TestCase):
         response.headers.get_content_charset.return_value = "utf-8"
 
         with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response) as urlopen, \
-             mock.patch("hpc_tools.commands.slurm.run_remote_capture") as run_remote_capture, \
+             mock.patch("hpc_tools.commands.slurm.run_command_capture") as run_remote_capture, \
              mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]) as read_events:
             run_remote_capture.side_effect = [
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 573G* of 600G\n", stderr=""),
@@ -318,7 +318,7 @@ class CliCoreTests(unittest.TestCase):
         response.headers.get_content_charset.return_value = "utf-8"
 
         with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response), \
-             mock.patch("hpc_tools.commands.slurm.run_remote_capture") as run_remote_capture, \
+             mock.patch("hpc_tools.commands.slurm.run_command_capture") as run_remote_capture, \
              mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]):
             run_remote_capture.side_effect = [
                 subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 599G of 600G\n", stderr=""),
@@ -418,4 +418,3 @@ class CliCoreTests(unittest.TestCase):
     def test_quote_command_rejects_missing_submit_command(self) -> None:
         with self.assertRaises(ConfigError):
             _quote_command("sam-quote", [])
-

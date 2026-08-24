@@ -20,7 +20,7 @@ Requirements:
 
 - Python 3.10 or newer;
 - `pipx`;
-- an SSH client for remote commands.
+- an SSH client when using the default SSH executor.
 
 Install and verify:
 

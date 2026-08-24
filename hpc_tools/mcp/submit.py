@@ -5,8 +5,8 @@ from typing import Any
 from hpc_tools import slurm, submissions
 from hpc_tools.commands.slurm import _quote_command as _sam_quote_command
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.execution import execution_plan, run_command_capture
 from hpc_tools import slurm_contracts
-from hpc_tools.ssh import build_ssh_argv, format_command, run_remote_capture
 from hpc_tools.mcp.common import _remote_read_result, _resolve_profile
 
 def hpc_quote_job(
@@ -207,18 +207,24 @@ def hpc_submit_job(
         cpus_per_task=cpus_per_task,
     )
     shape = _submission_shape(resolved, jobscript, directory, normalized)
-    _require_evidence("quote", quote_evidence, shape)
-    _require_evidence("validation", validation_evidence, shape)
     command = slurm.submit_command(
         jobscript,
         directory=directory,
         test_only=False,
         overrides=normalized,
     )
+    plan = execution_plan(resolved, command)
+    _require_evidence("quote", quote_evidence, shape, executor=plan.executor)
+    _require_evidence(
+        "validation",
+        validation_evidence,
+        shape,
+        executor=plan.executor,
+    )
     preview = {
         "profile": resolved.name,
         "command": command,
-        "ssh_command": format_command(build_ssh_argv(resolved, command)),
+        **plan.metadata(),
         "resource_shape": shape,
         "confirm_required": not confirm,
         "dry_run": dry_run,
@@ -231,7 +237,7 @@ def hpc_submit_job(
     if not confirm or dry_run:
         return preview
 
-    completed = run_remote_capture(resolved, command)
+    completed = run_command_capture(resolved, command)
     stdout = completed.stdout
     stderr = completed.stderr
     logged = False
@@ -290,5 +296,12 @@ def _require_evidence(
     evidence_type: str,
     evidence: dict[str, Any],
     shape: dict[str, Any],
+    *,
+    executor: str | None = None,
 ) -> None:
-    slurm_contracts.validate_evidence(evidence_type, evidence, shape)
+    slurm_contracts.validate_evidence(
+        evidence_type,
+        evidence,
+        shape,
+        executor=executor,
+    )

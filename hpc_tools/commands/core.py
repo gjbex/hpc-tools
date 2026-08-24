@@ -13,7 +13,7 @@ from hpc_tools.config import (
     default_config_path,
     default_reference_sets_dir,
 )
-from hpc_tools.ssh import run_remote
+from hpc_tools.execution import run_command
 
 
 def register(subparsers: Any, handlers: Any) -> None:
@@ -76,13 +76,13 @@ def register_local(subparsers: Any, handlers: Any) -> None:
     plugins_info_parser.set_defaults(handler=handlers.cmd_plugins_info)
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, args.remote_command, dry_run=args.dry_run)
+    return run_command(profile, args.remote_command, dry_run=args.dry_run)
 
 def cmd_doctor(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, _doctor_command(), dry_run=args.dry_run)
+    return run_command(profile, _doctor_command(), dry_run=args.dry_run)
 
 def cmd_site_env(args: argparse.Namespace, profile: Profile) -> int:
-    return run_remote(profile, _site_env_command(), dry_run=args.dry_run)
+    return run_command(profile, _site_env_command(), dry_run=args.dry_run)
 
 def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     del args, profile
@@ -169,4 +169,3 @@ def _site_env_command() -> str:
             _section_command("module-system", "module --version 2>&1 || true"),
         ]
     )
-

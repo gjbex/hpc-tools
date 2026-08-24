@@ -110,6 +110,44 @@ class SlurmContractTests(unittest.TestCase):
                 shape,
             )
 
+    def test_evidence_records_generic_execution_metadata(self) -> None:
+        profile = make_profile()
+        shape = slurm_contracts.submission_shape(
+            profile,
+            "job.slurm",
+            "$VSC_DATA/Projects/demo",
+            slurm_contracts.SubmitOverrides.from_values(account="proj"),
+        )
+        result = {
+            "command": "sbatch --account proj job.slurm",
+            "executor": "local",
+            "execution_command": "bash -l -c 'sbatch --account proj job.slurm'",
+            "ssh_command": None,
+            "returncode": 0,
+            "stdout": "Submitted batch job 123\n",
+            "stderr": "",
+            "dry_run": False,
+        }
+
+        evidence = slurm_contracts.submission_evidence("validation", shape, result)
+
+        self.assertEqual(evidence["executor"], "local")
+        self.assertEqual(evidence["execution_command"], result["execution_command"])
+        self.assertIsNone(evidence["ssh_command"])
+        slurm_contracts.validate_evidence(
+            "validation",
+            evidence,
+            shape,
+            executor="local",
+        )
+        with self.assertRaisesRegex(ConfigError, "not the current ssh executor"):
+            slurm_contracts.validate_evidence(
+                "validation",
+                evidence,
+                shape,
+                executor="ssh",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

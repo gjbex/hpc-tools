@@ -183,6 +183,20 @@ Run the server with:
 hpc-mcp
 ```
 
+Cluster commands use the SSH executor by default. When the server itself runs
+on an approved cluster login node, select direct execution explicitly:
+
+```bash
+hpc-mcp --executor local
+```
+
+The CLI accepts the same global selection as
+`hpc --executor local <command>`. `HPC_TOOLS_EXECUTOR=local` is available for a
+process-level configuration. The local executor runs through the profile's
+configured login shell on the current host; it does not add isolation or
+restrict the available tools. In particular, it is not by itself a safe policy
+for an unattended Slurm job.
+
 The MCP interface supports read-only context tools such as:
 
 - `hpc_profiles_list`
@@ -342,6 +356,20 @@ host, username, agent forwarding, and credentials, use `ssh_target = "genius"`.
 `ssh_options` is passed before the target; `["-x"]` disables X11 forwarding for
 non-interactive commands.
 
+An SSH target is optional only when every cluster command for that profile uses
+the explicit local executor. This is useful when `hpc` or `hpc-mcp` already runs
+on a cluster login node:
+
+```toml
+[profiles.login-node]
+login_shell = ["bash", "-l", "-c"]
+default_cluster = "compute"
+```
+
+Use `hpc --executor local --profile login-node ...` for that profile. Omitting
+`--executor local` retains the safe compatibility default, SSH, and reports the
+missing target before execution.
+
 User/host example:
 
 ```toml
@@ -497,8 +525,8 @@ hpc submissions mark-analysed <run-id> --path reports/benchmark.md
 hpc submissions close <run-id> --reason done
 ```
 
-Use `--profile` to select a profile and `--dry-run` to print the SSH command
-without executing it:
+Use `--profile` to select a profile and `--dry-run` to print the selected
+executor command without executing it:
 
 ```bash
 hpc --profile genius --dry-run repo status --directory "$VSC_DATA/Projects/foo"

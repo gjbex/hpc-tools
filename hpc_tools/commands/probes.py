@@ -9,7 +9,7 @@ from typing import Any
 
 from hpc_tools import slurm
 from hpc_tools.config import ConfigError, Profile
-from hpc_tools.ssh import run_remote
+from hpc_tools.execution import run_command
 
 
 def register(subparsers: Any, handlers: Any) -> None:
@@ -229,7 +229,7 @@ def cmd_install_probe(args: argparse.Namespace, profile: Profile) -> int:
         )
     else:
         raise ConfigError(f"unsupported probe kind: {args.kind}")
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_write_container(args: argparse.Namespace, profile: Profile | None) -> int:
     del profile
@@ -246,7 +246,7 @@ def cmd_install_container(args: argparse.Namespace, profile: Profile) -> int:
         bundle=bundle,
         force=args.force,
     )
-    return run_remote(profile, command, dry_run=args.dry_run)
+    return run_command(profile, command, dry_run=args.dry_run)
 
 def _hardware_probe_template(args: argparse.Namespace | None = None, profile: Profile | None = None) -> str:
     template = resources.files("hpc_tools.data").joinpath("hardware-probe.slurm").read_text(
@@ -451,4 +451,3 @@ def _install_cuda_device_properties_command(
         )
     commands.append(f"chmod +x {script_path}")
     return "\n".join(commands)
-

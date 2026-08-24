@@ -7,7 +7,7 @@ import argparse
 
 from hpc_tools import submissions
 from hpc_tools.config import Profile
-from hpc_tools.ssh import run_remote_capture
+from hpc_tools.execution import run_command_capture
 
 
 def register(subparsers: Any, handlers: Any) -> None:
@@ -100,7 +100,7 @@ def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
     observed_records = []
     for record in records:
         command = submissions.sacct_observe_command(record.job_id, record.cluster)
-        completed = run_remote_capture(profile, command, dry_run=args.dry_run)
+        completed = run_command_capture(profile, command, dry_run=args.dry_run)
         if args.dry_run:
             continue
         if completed.returncode != 0:
@@ -157,4 +157,3 @@ def cmd_submissions_close(args: argparse.Namespace, profile: Profile | None) -> 
         path=args.log,
     )
     return 0
-

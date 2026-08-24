@@ -229,7 +229,7 @@ dependencies:
             stdout = io.StringIO()
 
             with mock.patch(
-                "hpc_tools.plugins.python.remote_verify.run_remote_capture",
+                "hpc_tools.plugins.python.remote_verify.run_command_capture",
                 return_value=completed,
             ) as remote, contextlib.redirect_stdout(stdout):
                 exit_code = python_support.cmd_python_plan_install(args, profile)
@@ -300,7 +300,7 @@ Python sys.path:
             )
 
             with mock.patch(
-                "hpc_tools.plugins.python.commands.run_remote_capture",
+                "hpc_tools.plugins.python.commands.run_command_capture",
                 side_effect=[stage, quote, validate, submit],
             ) as remote, mock.patch("hpc_tools.plugins.python.install_plan.submissions.append_event") as append_event:
                 exit_code = python_support.cmd_python_submit_install(args, profile)
@@ -311,4 +311,3 @@ Python sys.path:
         self.assertEqual(event["event"], "submitted")
         self.assertEqual(event["job_id"], "12345")
         self.assertEqual(event["jobscript"], "install-python.slurm")
-

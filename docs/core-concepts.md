@@ -13,10 +13,11 @@ commands or agent-assisted workflows.
 
 An hpc-tools workflow normally crosses three locations:
 
-1. **Local machine** — runs `hpc`, stores configuration and durable records,
-   and may hold source code or compact result artifacts.
-2. **Login node** — receives SSH commands, exposes site modules and storage,
-   and runs Slurm client commands such as `sbatch`, `squeue`, and `sacct`.
+1. **Operator machine** — may run `hpc`, stores configuration and durable
+   records, and may hold source code or compact result artifacts.
+2. **Login node** — receives commands through SSH or runs them directly when
+   hpc-tools itself is installed there. It exposes site modules and storage and
+   runs Slurm client commands such as `sbatch`, `squeue`, and `sacct`.
 3. **Compute node** — executes the scheduled job inside a Slurm allocation.
 
 A command succeeding on the login node does not prove that the same software,
@@ -30,8 +31,9 @@ site policy—not for unallocated production computation.
 
 ## Profiles select site context
 
-A profile is a named collection of SSH and site metadata. At minimum it defines
-either an `ssh_target` or a `host`. It can also define:
+A profile is a named collection of cluster and site metadata. For the default
+SSH executor it defines either an `ssh_target` or a `host`; a profile used only
+with the local executor may omit both. It can also define:
 
 - SSH options and the remote login shell;
 - a default remote project directory;
@@ -57,7 +59,7 @@ A profile is operational configuration, not a credential store. Prefer an SSH
 alias that already implements keys, agents, jump hosts, and other authentication
 policy. Do not put passwords or private keys in `config.toml`.
 
-## Remote commands run through a login shell
+## Executors separate transport from cluster context
 
 For a profile using:
 
@@ -67,13 +69,25 @@ ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
 ```
 
-hpc-tools constructs an SSH invocation that runs the requested command through
-`bash -l -c` on `example`. The login shell is important on sites where modules,
-storage variables, or Slurm helpers are initialized by shell startup files.
+hpc-tools uses the SSH executor by default. It constructs an SSH invocation that
+runs the requested command through `bash -l -c` on `example`. The login shell is
+important on sites where modules, storage variables, or Slurm helpers are
+initialized by shell startup files.
+
+If hpc-tools already runs on a login node, select the local executor explicitly:
+
+```bash
+hpc --executor local --profile example doctor
+```
+
+The local executor invokes the same configured login shell on the current host,
+without SSH. This keeps command construction and profile context shared between
+laptop and login-node deployments. `HPC_TOOLS_EXECUTOR=local` provides the same
+selection for a process, including a long-running MCP server.
 
 It also creates a diagnostic distinction:
 
-- if `ssh example` fails, fix SSH before hpc-tools;
+- with the SSH executor, if `ssh example` fails, fix SSH before hpc-tools;
 - if interactive SSH works but `hpc doctor` fails, inspect the non-interactive
   login shell and its startup configuration;
 - if the login-node check succeeds but the job fails, inspect the compute-node
@@ -81,7 +95,12 @@ It also creates a diagnostic distinction:
 
 The configured `login_shell` must end in `-c`. hpc-tools quotes its arguments,
 but a command intentionally passed to `hpc run` is still interpreted by the
-remote shell.
+selected shell.
+
+Executor selection is not a capability policy. The local executor does not
+prove that it is running on a login node, confine the process, or restrict MCP
+tools. An unattended Slurm-job deployment needs a separate server-side policy
+and resource delegation; selecting `local` alone is insufficient.
 
 ## Local and remote path expansion differ
 
@@ -223,10 +242,10 @@ See [Submission tracking](submissions.md) for the state model.
 
 ## Safety controls and their limits
 
-### `--dry-run` previews SSH execution
+### `--dry-run` previews selected execution
 
-For a remote command, global `--dry-run` prints the SSH command rather than
-executing it:
+For a cluster command, global `--dry-run` prints the selected executor's command
+rather than executing it:
 
 ```bash
 hpc --profile example --dry-run storage inspect '$VSC_DATA/project/run'
@@ -235,9 +254,10 @@ hpc --profile example --dry-run storage inspect '$VSC_DATA/project/run'
 It verifies command construction, not remote validity. The preview does not
 prove that a path exists, an account is authorized, or a job will run.
 
-`--dry-run` is specifically an SSH preview mechanism. Do not assume it disables
-local commands that write files, such as packaged-asset generation. Read the
-individual command help before invoking a local write.
+For the default executor this is an SSH preview; for `--executor local` it shows
+the local login-shell invocation. Do not assume it disables local commands that
+write files, such as packaged-asset generation. Read the individual command
+help before invoking a local write.
 
 ### `--test-only` asks Slurm not to enqueue
 

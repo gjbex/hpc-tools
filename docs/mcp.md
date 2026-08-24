@@ -5,9 +5,9 @@ the Model Context Protocol (MCP). It is intended for agents that benefit from
 structured profile data, reference content, bounded remote inspection, and
 guarded writes instead of parsing human-oriented terminal output.
 
-MCP is an additional interface over the same local configuration and SSH
-access. It does not replace the CLI, create authorization, or make an agent a
-trusted cluster operator.
+MCP is an additional interface over the same local configuration and command
+executors. It does not replace the CLI, create authorization, or make an agent
+a trusted cluster operator.
 
 ## Decide whether MCP is useful
 
@@ -78,6 +78,45 @@ The server resolves configuration in the normal hpc-tools order, including
 `HPC_TOOLS_CONFIG` and `XDG_CONFIG_HOME`. Environment variables must be present
 in the server process. Use `hpc_paths` to verify which state tree it sees.
 
+## Select where cluster commands run
+
+The server uses the SSH executor by default, matching the existing laptop
+workflow. Its profiles require `ssh_target` or `host`:
+
+```console
+hpc-mcp
+```
+
+If the MCP server itself runs on an approved cluster login node, select direct
+execution explicitly:
+
+```console
+hpc-mcp --executor local
+```
+
+`HPC_TOOLS_EXECUTOR=local` is equivalent when the client configuration cannot
+add arguments. For example:
+
+```json
+{
+  "mcpServers": {
+    "hpc-tools": {
+      "command": "hpc-mcp",
+      "args": ["--executor", "local"]
+    }
+  }
+}
+```
+
+The local executor runs every cluster command through the selected profile's
+`login_shell` on the current host. It does not detect the host, enter an
+allocation, add isolation, or narrow the registered MCP tools.
+
+This executor layer supports the transport distinction between laptop and
+login-node deployments. It does **not** yet implement the restricted
+`slurm-job` capability preset or an operator delegation manifest. Do not expose
+the full server to an unattended job on the strength of `--executor local`.
+
 ## Read structured tools
 
 The read-oriented tools are:
@@ -102,9 +141,13 @@ The read-oriented tools are:
 | `hpc_site_env` | Site variables, module system, and common HPC helper availability. |
 
 Tools that access the cluster execute SSH-backed reads by default. Pass
-`dry_run=true` to preview the remote command without connecting. A read-only
-tool can still consume network, login-node, status-page, or scheduler capacity,
-so read-only does not mean cost-free or offline.
+`dry_run=true` to preview the selected executor command without running it. A
+read-only tool can still consume network, login-node, status-page, or scheduler
+capacity, so read-only does not mean cost-free or offline.
+
+Remote result objects include `executor` and `execution_command`. The existing
+`ssh_command` field remains populated for SSH execution for compatibility and
+is `null` for local execution.
 
 Parsed fields are best effort. Preserve `stdout`, `stderr`, return code, and
 parse warnings when making a decision. A partial parser result must not hide a
@@ -183,9 +226,9 @@ dry_run=false
 ```
 
 This two-part gate prevents a confirmed preview from automatically becoming a
-remote write. Review the generated SSH command, remote directory, filenames,
-and `force` behavior. These tools install scripts or bundles; they do not
-submit a probe or container build job.
+remote write. Review the generated execution command, destination directory,
+filenames, and `force` behavior. These tools install scripts or bundles; they
+do not submit a probe or container build job.
 
 ## Follow the submission evidence chain
 
@@ -227,7 +270,8 @@ authoritative accounting process instead of bypassing the missing quote.
 
 Evidence objects include a shape hash, timestamp, remote result, and an HMAC
 token generated with a secret held by the running server process. The server
-rejects failed, dry-run, tampered, or shape-mismatched evidence.
+rejects failed, dry-run, tampered, shape-mismatched, or executor-mismatched
+evidence.
 
 Important limitations remain:
 

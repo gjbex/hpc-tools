@@ -258,7 +258,7 @@ class CliCoreTests(unittest.TestCase):
         parser = build_parser(profile)
         args = parser.parse_args(["install-container", "--kind", "generic", "--directory", "$VSC_DATA/containers"])
 
-        with mock.patch("hpc_tools.commands.probes.run_remote", return_value=0) as run_remote:
+        with mock.patch("hpc_tools.commands.probes.run_command", return_value=0) as run_remote:
             result = cmd_install_container(args, profile)
 
         self.assertEqual(result, 0)
@@ -288,4 +288,3 @@ class CliCoreTests(unittest.TestCase):
         self.assertIn("cuda-device-properties", slurm_template.read_text(encoding="utf-8"))
         self.assertIn("cudaGetDeviceProperties", cuda_source.read_text(encoding="utf-8"))
         self.assertIn("device_properties.cu", cmake_project.read_text(encoding="utf-8"))
-

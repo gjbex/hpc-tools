@@ -111,7 +111,9 @@ class SubmissionEvidence:
     evidence_type: str
     shape: SubmissionShape
     command: str
-    ssh_command: str
+    executor: str
+    execution_command: str
+    ssh_command: str | None
     returncode: int
     stdout: str
     stderr: str
@@ -128,7 +130,15 @@ class SubmissionEvidence:
             evidence_type=evidence_type,
             shape=_coerce_shape(shape),
             command=str(result["command"]),
-            ssh_command=str(result["ssh_command"]),
+            executor=str(result.get("executor", "ssh")),
+            execution_command=str(
+                result.get("execution_command", result.get("ssh_command", ""))
+            ),
+            ssh_command=(
+                str(result["ssh_command"])
+                if result.get("ssh_command") is not None
+                else None
+            ),
             returncode=int(result["returncode"]),
             stdout=str(result["stdout"]),
             stderr=str(result["stderr"]),
@@ -147,6 +157,8 @@ class SubmissionEvidence:
             "overrides": shape["overrides"],
             "shape_token": shape["shape_token"],
             "command": self.command,
+            "executor": self.executor,
+            "execution_command": self.execution_command,
             "ssh_command": self.ssh_command,
             "returncode": self.returncode,
             "stdout": self.stdout,
@@ -202,6 +214,8 @@ def validate_evidence(
     evidence_type: str,
     evidence: Mapping[str, Any],
     shape: SubmissionShape | Mapping[str, Any],
+    *,
+    executor: str | None = None,
 ) -> None:
     shape_dict = _coerce_shape(shape).to_dict()
     if not isinstance(evidence, Mapping):
@@ -216,6 +230,12 @@ def validate_evidence(
         raise ConfigError(f"{evidence_type} evidence did not succeed")
     if evidence.get("dry_run"):
         raise ConfigError(f"{evidence_type} evidence came from a dry run")
+    evidence_executor = evidence.get("executor", "ssh")
+    if executor is not None and evidence_executor != executor:
+        raise ConfigError(
+            f"{evidence_type} evidence used the {evidence_executor} executor, "
+            f"not the current {executor} executor"
+        )
     if evidence.get("evidence_token") != evidence_token(evidence):
         raise ConfigError(f"{evidence_type} evidence token is invalid")
 

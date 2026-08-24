@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import sys
 
 from hpc_tools.config import ConfigError
+from hpc_tools.execution import EXECUTOR_NAMES, executor_scope, resolve_executor
 from hpc_tools.mcp.resources import (
     resource_config,
     resource_paths,
@@ -103,6 +105,7 @@ def create_server():
             "Install it with `uv pip install -e '.[mcp]'` or `pip install 'hpc-tools[mcp]'."
         ) from error
 
+    executor = resolve_executor()
     server = FastMCP(
         "hpc-tools",
         instructions=(
@@ -110,7 +113,8 @@ def create_server():
             "profile, reference, plugin, Slurm-inspection, submission-log, "
             "and explicit confirm-gated local write and remote install tools. "
             "Slurm job submission is exposed only through quote, validation, "
-            "and confirm-gated submit tools with matching evidence."
+            "and confirm-gated submit tools with matching evidence. "
+            f"Cluster commands use the {executor.name} executor."
         ),
     )
     for function in (
@@ -160,9 +164,17 @@ def create_server():
     return server
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="hpc-mcp")
+    parser.add_argument(
+        "--executor",
+        choices=EXECUTOR_NAMES,
+        help="Command executor; defaults to HPC_TOOLS_EXECUTOR or ssh",
+    )
+    args = parser.parse_args(argv)
     try:
-        create_server().run()
+        with executor_scope(args.executor):
+            create_server().run()
     except ConfigError as error:
         print(f"hpc-mcp: {error}", file=sys.stderr)
         return 2

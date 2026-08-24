@@ -1,38 +1,26 @@
 from __future__ import annotations
 
-import shlex
 import subprocess
-from collections.abc import Sequence
 
 from hpc_tools.config import Profile
+from hpc_tools.execution import SshExecutor, format_command
 
 
 def build_remote_shell_command(profile: Profile, command: str) -> str:
-    parts = [*profile.login_shell, command]
-    return " ".join(shlex.quote(part) for part in parts)
+    return format_command([*profile.login_shell, command])
 
 
 def build_ssh_argv(profile: Profile, command: str) -> list[str]:
-    return [
-        "ssh",
-        *profile.ssh_options,
-        profile.ssh_target,
-        build_remote_shell_command(profile, command),
-    ]
-
-
-def format_command(argv: Sequence[str]) -> str:
-    return " ".join(shlex.quote(part) for part in argv)
+    return SshExecutor().build_argv(profile, command)
 
 
 def run_remote(profile: Profile, command: str, *, dry_run: bool = False) -> int:
-    argv = build_ssh_argv(profile, command)
+    executor = SshExecutor()
+    plan = executor.plan(profile, command)
     if dry_run:
-        print(format_command(argv))
+        print(plan.rendered_command)
         return 0
-
-    completed = subprocess.run(argv, check=False)
-    return completed.returncode
+    return executor.run_plan(plan).returncode
 
 
 def run_remote_capture(
@@ -41,9 +29,9 @@ def run_remote_capture(
     *,
     dry_run: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    argv = build_ssh_argv(profile, command)
+    executor = SshExecutor()
+    plan = executor.plan(profile, command)
     if dry_run:
-        print(format_command(argv))
-        return subprocess.CompletedProcess(argv, 0, "", "")
-
-    return subprocess.run(argv, check=False, capture_output=True, text=True)
+        print(plan.rendered_command)
+        return subprocess.CompletedProcess(plan.argv, 0, "", "")
+    return executor.run_plan(plan, capture_output=True)

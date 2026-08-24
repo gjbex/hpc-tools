@@ -77,7 +77,7 @@ Common configuration errors are:
 - invalid TOML quoting or table syntax;
 - no `[profiles.<name>]` table;
 - a `default_profile` that is not defined;
-- neither `ssh_target` nor `host` in a profile;
+- neither `ssh_target` nor `host` in a profile used with the SSH executor;
 - non-string optional fields;
 - `login_shell` not ending in `-c`;
 - a reference path that exists only on another machine.

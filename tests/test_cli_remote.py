@@ -83,7 +83,7 @@ class CliCoreTests(unittest.TestCase):
             ]
         )
 
-        with mock.patch("hpc_tools.commands.remote.run_remote") as run_remote:
+        with mock.patch("hpc_tools.commands.remote.run_command") as run_remote:
             cmd_clone(args, profile)
 
         self.assertEqual(
@@ -95,7 +95,7 @@ class CliCoreTests(unittest.TestCase):
         profile = make_profile(projects_dir="/data/My Projects")
         args = type("Args", (), {"dry_run": False})()
 
-        with mock.patch("hpc_tools.commands.remote.run_remote") as run_remote:
+        with mock.patch("hpc_tools.commands.remote.run_command") as run_remote:
             cmd_projects(args, profile)
 
         self.assertEqual(
@@ -110,4 +110,3 @@ class CliCoreTests(unittest.TestCase):
 
         with self.assertRaises(ConfigError):
             cmd_clone(args, profile)
-

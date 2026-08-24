@@ -20,7 +20,7 @@ REFERENCE_SETS_DIR_NAME = "reference-sets"
 @dataclass(frozen=True)
 class Profile:
     name: str
-    target: str
+    target: str | None
     host: str | None
     user: str | None
     ssh_options: tuple[str, ...]
@@ -43,7 +43,7 @@ class Profile:
     email: str | None
 
     @property
-    def ssh_target(self) -> str:
+    def ssh_target(self) -> str | None:
         return self.target
 
 
@@ -149,7 +149,7 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
     )
 
 
-def _parse_ssh_target(raw_profile: dict[str, Any], *, profile: str) -> str:
+def _parse_ssh_target(raw_profile: dict[str, Any], *, profile: str) -> str | None:
     ssh_target = _optional_string(raw_profile, "ssh_target", profile=profile)
     host = _optional_string(raw_profile, "host", profile=profile)
     user = _optional_string(raw_profile, "user", profile=profile)
@@ -158,9 +158,7 @@ def _parse_ssh_target(raw_profile: dict[str, Any], *, profile: str) -> str:
         return ssh_target
     if host:
         return f"{user}@{host}" if user else host
-    raise ConfigError(
-        f"profile '{profile}' must define either 'ssh_target' or 'host'"
-    )
+    return None
 
 
 def _parse_login_shell(value: Any, profile: str) -> tuple[str, ...]:

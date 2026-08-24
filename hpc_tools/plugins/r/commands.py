@@ -8,6 +8,7 @@ import sys
 
 from hpc_tools import slurm
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.execution import run_command_capture
 from hpc_tools.plugins.r.dependencies import ScanResult, resolve_package_list, scan_target
 from hpc_tools.plugins.r.install_plan import (
     DEFAULT_LIBRARY_ROOT_TEMPLATE,
@@ -19,7 +20,6 @@ from hpc_tools.plugins.r.install_plan import (
     render_install_script,
 )
 from hpc_tools.plugins.r.remote_verify import check_packages, parse_verify_output
-from hpc_tools.ssh import run_remote_capture
 
 class RSupportPlugin:
     name = "r"
@@ -271,7 +271,7 @@ def cmd_r_verify_install(args: argparse.Namespace, profile: Profile | None) -> i
     if profile is None:
         raise ConfigError("r verify-install requires a configured profile")
     command = f"cat {shlex.quote(args.job_output)}"
-    completed = run_remote_capture(profile, command, dry_run=args.dry_run)
+    completed = run_command_capture(profile, command, dry_run=args.dry_run)
     if completed.returncode != 0:
         raise ConfigError(completed.stderr.strip() or f"could not read job output: {args.job_output}")
     result = parse_verify_output(completed.stdout, args.packages)
@@ -319,7 +319,7 @@ def cmd_r_submit_install(args: argparse.Namespace, profile: Profile | None) -> i
         remote_name=remote_name,
         contents=script_contents,
     )
-    stage = run_remote_capture(profile, stage_command, dry_run=args.dry_run)
+    stage = run_command_capture(profile, stage_command, dry_run=args.dry_run)
     if stage.stdout:
         print(stage.stdout, end="")
     if stage.stderr:
@@ -349,7 +349,7 @@ def cmd_r_submit_install(args: argparse.Namespace, profile: Profile | None) -> i
     )
     if not args.skip_quote and profile.sam_quote_command:
         quote_command = build_quote_command(profile.sam_quote_command, quote_args)
-        quoted = run_remote_capture(profile, quote_command, dry_run=args.dry_run)
+        quoted = run_command_capture(profile, quote_command, dry_run=args.dry_run)
         if quoted.stdout:
             print(quoted.stdout, end="")
         if quoted.stderr:
@@ -371,12 +371,12 @@ def cmd_r_submit_install(args: argparse.Namespace, profile: Profile | None) -> i
     )
     if args.dry_run:
         if not args.no_validate_first:
-            run_remote_capture(profile, validation_command, dry_run=True)
-        run_remote_capture(profile, submit_command, dry_run=True)
+            run_command_capture(profile, validation_command, dry_run=True)
+        run_command_capture(profile, submit_command, dry_run=True)
         return 0
 
     if not args.no_validate_first:
-        validation = run_remote_capture(profile, validation_command)
+        validation = run_command_capture(profile, validation_command)
         if validation.stdout:
             print(validation.stdout, end="")
         if validation.stderr:
@@ -384,7 +384,7 @@ def cmd_r_submit_install(args: argparse.Namespace, profile: Profile | None) -> i
         if validation.returncode != 0:
             return validation.returncode
 
-    completed = run_remote_capture(profile, submit_command)
+    completed = run_command_capture(profile, submit_command)
     if completed.stdout:
         print(completed.stdout, end="")
     if completed.stderr:
@@ -447,4 +447,3 @@ def _parse_mapping_args(values: list[str], option_name: str) -> dict[str, str]:
             raise ConfigError(f"{option_name} entries must use NAME=VALUE syntax: {value}")
         mapping[key] = entry
     return mapping
-

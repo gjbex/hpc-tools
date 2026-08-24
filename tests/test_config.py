@@ -155,16 +155,18 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             load_config(str(path))
 
-    def test_rejects_profile_without_ssh_target_or_host(self) -> None:
+    def test_allows_profile_without_ssh_target_for_local_execution(self) -> None:
         path = self._write_config(
             """
-            [profiles.bad]
+            [profiles.local]
             projects_dir = "$VSC_DATA/Projects"
             """
         )
 
-        with self.assertRaises(ConfigError):
-            load_config(str(path))
+        profile = load_config(str(path)).profiles["local"]
+
+        self.assertIsNone(profile.ssh_target)
+        self.assertIsNone(profile.host)
 
     def _write_config(self, contents: str) -> Path:
         directory = tempfile.TemporaryDirectory()

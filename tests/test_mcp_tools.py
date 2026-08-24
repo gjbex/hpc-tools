@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from test_mcp_fixtures import *
+from hpc_tools.execution import executor_scope
 
 
 class McpServerFeatureTests(McpFixtures, unittest.TestCase):
@@ -20,7 +21,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             config_path = self._write_config(Path(directory))
             completed = mock.Mock(returncode=0, stdout="JOBID\n123\n", stderr="")
 
-            with mock.patch("hpc_tools.mcp.common.run_remote_capture", return_value=completed) as remote:
+            with mock.patch("hpc_tools.mcp.common.run_command_capture", return_value=completed) as remote:
                 result = mcp_server.hpc_job(config=str(config_path), jobid="123", cluster="wice")
 
         self.assertEqual(result["stdout"], "JOBID\n123\n")
@@ -28,6 +29,21 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertFalse(result["dry_run"])
         self.assertIn("squeue -M wice -j 123", result["command"])
         remote.assert_called_once()
+
+    def test_remote_read_tool_supports_local_executor(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+
+            with executor_scope("local"):
+                result = mcp_server.hpc_jobs(
+                    config=str(config_path),
+                    cluster="wice",
+                    dry_run=True,
+                )
+
+        self.assertEqual(result["executor"], "local")
+        self.assertIn("bash -l -c", result["execution_command"])
+        self.assertIsNone(result["ssh_command"])
 
     def test_status_tool_returns_structured_combined_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -44,7 +60,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             )
 
             with mock.patch("hpc_tools.commands.slurm._fetch_status_page", return_value="All systems running fine"), \
-                    mock.patch("hpc_tools.commands.slurm.run_remote_capture", side_effect=[completed_quota, completed_balance]), \
+                    mock.patch("hpc_tools.commands.slurm.run_command_capture", side_effect=[completed_quota, completed_balance]), \
                     mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]):
                 result = mcp_server.hpc_status(config=str(config_path))
 
@@ -102,7 +118,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             config_path = self._write_config(Path(directory))
             completed = mock.Mock(returncode=0, stdout=stdout, stderr="")
 
-            with mock.patch("hpc_tools.mcp.common.run_remote_capture", return_value=completed):
+            with mock.patch("hpc_tools.mcp.common.run_command_capture", return_value=completed):
                 result = mcp_server.hpc_slurm_limits(config=str(config_path), cluster="wice")
 
         self.assertEqual(result["parse_warnings"], [])
@@ -132,7 +148,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 stderr="",
             )
 
-            with mock.patch("hpc_tools.mcp.common.run_remote_capture", return_value=completed) as remote:
+            with mock.patch("hpc_tools.mcp.common.run_command_capture", return_value=completed) as remote:
                 result = mcp_server.hpc_module_spider(
                     config=str(config_path),
                     name="DMTCP; rm -rf /",
@@ -159,7 +175,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "os.environ",
                 {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
                 clear=False,
-            ), mock.patch("hpc_tools.mcp.common.run_remote_capture") as remote:
+            ), mock.patch("hpc_tools.mcp.common.run_command_capture") as remote:
                 jobs = mcp_server.hpc_jobs(cluster="wice", dry_run=True)
                 hardware_sources = mcp_server.hpc_hardware_sources()
                 active = mcp_server.hpc_submissions_list()
@@ -268,7 +284,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config_path = self._write_config(Path(directory))
 
-            with mock.patch("hpc_tools.mcp.common.run_remote_capture") as remote:
+            with mock.patch("hpc_tools.mcp.common.run_command_capture") as remote:
                 result = mcp_server.hpc_install_probe(
                     config=str(config_path),
                     directory="$VSC_DATA/probes",
@@ -286,7 +302,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             config_path = self._write_config(Path(directory))
             completed = mock.Mock(returncode=0, stdout="", stderr="")
 
-            with mock.patch("hpc_tools.mcp.common.run_remote_capture", return_value=completed) as remote:
+            with mock.patch("hpc_tools.mcp.common.run_command_capture", return_value=completed) as remote:
                 result = mcp_server.hpc_install_container(
                     config=str(config_path),
                     directory="$VSC_DATA/containers",
@@ -298,4 +314,3 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertFalse(result["dry_run"])
         self.assertIn("cat > create_apptainer_container.slurm", result["command"])
         remote.assert_called_once()
-

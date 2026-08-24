@@ -7,8 +7,8 @@ import re
 import shlex
 
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.execution import run_command_capture
 from hpc_tools.plugins.r.dependencies import resolve_package_list, scan_target
-from hpc_tools.ssh import run_remote_capture
 
 STATUS_LINE_RE = re.compile(r"^(?P<package>[A-Za-z][A-Za-z0-9._]*)\t(?P<status>OK|MISSING)$")
 
@@ -44,7 +44,7 @@ def check_packages(
     packages = resolve_package_list(scan, explicit_packages)
     modules = [module, *(bundle for bundle in (cran_bundle, bioc_bundle) if bundle)]
     command = build_check_command(packages, modules)
-    completed = run_remote_capture(profile, command, dry_run=dry_run)
+    completed = run_command_capture(profile, command, dry_run=dry_run)
     available, missing = parse_status_output(completed.stdout, packages)
     return CheckResult(
         packages=packages,
@@ -104,4 +104,3 @@ def parse_verify_output(stdout: str, packages: list[str]) -> VerifyResult:
     for package in packages:
         statuses.setdefault(package, "UNKNOWN")
     return VerifyResult(statuses=statuses, library_paths=library_paths, stdout=stdout)
-

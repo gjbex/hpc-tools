@@ -176,7 +176,7 @@ Session info:
             )
             stdout = io.StringIO()
             profile = type("Profile", (), {})()
-            with mock.patch("hpc_tools.plugins.r.remote_verify.run_remote_capture", return_value=completed) as remote, \
+            with mock.patch("hpc_tools.plugins.r.remote_verify.run_command_capture", return_value=completed) as remote, \
                  contextlib.redirect_stdout(stdout):
                 exit_code = r_support.cmd_r_check(args, profile)
 
@@ -223,7 +223,7 @@ Session info:
             )
 
             with mock.patch(
-                "hpc_tools.plugins.r.commands.run_remote_capture",
+                "hpc_tools.plugins.r.commands.run_command_capture",
                 side_effect=[stage, quote, validate, submit],
             ) as remote, mock.patch("hpc_tools.plugins.r.install_plan.submissions.append_event") as append_event:
                 exit_code = r_support.cmd_r_submit_install(args, profile)
@@ -234,4 +234,3 @@ Session info:
         self.assertEqual(event["event"], "submitted")
         self.assertEqual(event["job_id"], "12345")
         self.assertEqual(event["jobscript"], "install.slurm")
-
