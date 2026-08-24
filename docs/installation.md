@@ -273,3 +273,6 @@ Some commands are capability-driven. For example, site-specific quota, queue,
 balance, statement, quote, hardware, or status commands depend on corresponding
 profile fields. This is a configuration issue, not necessarily an installation
 failure.
+
+For SSH, Slurm, package, probe, submission-log, Codex, and MCP failures,
+continue with the full [Troubleshooting](troubleshooting.md) guide.

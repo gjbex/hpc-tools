@@ -343,3 +343,5 @@ stateDiagram-v2
 See [Running Slurm jobs](slurm-jobs.md) for submission and failure diagnosis,
 and [Software environments and dependencies](software-environments.md) for
 installation jobs that participate in the same tracking workflow.
+The [end-to-end recipes](recipes.md#resume-unfinished-work-after-a-restart)
+provide a compact restart checklist.

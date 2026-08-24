@@ -125,6 +125,13 @@ entire tool is read-only.
    and [container workflows](containers.md) for larger portable environments.
 8. Package stable cluster-global context with [cluster references and
    sharing](reference-sets.md).
+9. Add [Codex](codex.md) for guided workflows or [MCP](mcp.md) when an agent
+   needs structured tools and resources.
+10. Use the [end-to-end recipes](recipes.md) as compact checklists and the
+    [troubleshooting guide](troubleshooting.md) to isolate failures by layer.
+11. Keep the [reference](reference.md) nearby for exact commands and formats,
+    and read [limitations, support, and project information](project-information.md)
+    before automating, upgrading, contributing, or redistributing the project.
 
 ## Project status
 
@@ -132,3 +139,6 @@ The CLI and Codex skills are under active development. The `hpc-mcp` interface
 is experimental. Command availability also depends on the selected profile and
 the services exposed by its cluster. A command documented for one site may be
 hidden for a profile that does not configure the required site-specific helper.
+The project currently publishes neither a formal compatibility policy nor a
+license declaration; see [Limitations, support, and project
+information](project-information.md) before relying on either.

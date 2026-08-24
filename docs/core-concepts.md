@@ -271,9 +271,10 @@ installs preview by default. MCP submission additionally requires matching
 quote and validation evidence for the same profile, account, job script,
 directory, and resource shape.
 
-Confirmation proves that the requested tool action was authorized through the
-interface. It does not prove that the underlying scientific or operational
-choice is sound.
+Confirmation tells the server that the client requested execution. It proves
+neither that a human approved the action nor that the underlying scientific or
+operational choice is sound; the MCP client must enforce its own approval and
+authorization policy. See [MCP integration](mcp.md).
 
 ## Classify an operation before running it
 

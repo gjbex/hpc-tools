@@ -44,6 +44,13 @@ nav:
   - Benchmarking on Slurm: benchmarking.md
   - Container workflows: containers.md
   - Cluster references and sharing: reference-sets.md
+  - Agent integrations:
+      - Using hpc-tools with Codex: codex.md
+      - MCP integration: mcp.md
+  - End-to-end recipes: recipes.md
+  - Troubleshooting: troubleshooting.md
+  - Reference: reference.md
+  - Limitations, support, and project information: project-information.md
   - Extending hpc-tools:
       - CLI plugin system: plugins.md
   - Contributing:

@@ -4,6 +4,52 @@ from test_skill_fixtures import *
 
 
 class SkillFeatureTests(SkillFixtures, unittest.TestCase):
+    def test_user_documentation_includes_reference_and_project_information(self) -> None:
+        navigation = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+        self.assertIn("reference.md", navigation)
+        self.assertIn("project-information.md", navigation)
+
+        reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+        self.assertIn("## Complete CLI command reference", reference)
+        self.assertIn("## Configuration schema", reference)
+        self.assertIn("## Submission-log format", reference)
+        self.assertIn("## Reference-set manifest format", reference)
+        self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", reference)
+        self.assertIn("Unknown TOML keys are currently ignored", reference)
+        self.assertIn("spacing or headings as a stable machine API", reference)
+
+        project_information = (ROOT / "docs" / "project-information.md").read_text(encoding="utf-8")
+        self.assertIn("## Current limitations and deliberate non-features", project_information)
+        self.assertIn("no published operating-system or Slurm-version support matrix", project_information)
+        self.assertIn("does not currently publish a formal backward-compatibility policy", project_information)
+        self.assertIn("no published `SECURITY.md`", project_information)
+        self.assertIn("contains no `LICENSE` file", project_information)
+
+    def test_user_documentation_includes_agent_recipes_and_troubleshooting(self) -> None:
+        navigation = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
+        for page in ("codex.md", "mcp.md", "recipes.md", "troubleshooting.md"):
+            self.assertIn(page, navigation)
+
+        codex = (ROOT / "docs" / "codex.md").read_text(encoding="utf-8")
+        self.assertIn("does not store", codex)
+        self.assertIn("default Slurm account", codex)
+        self.assertIn("scientific-computing-skills", codex)
+
+        mcp = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
+        self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", mcp)
+        self.assertIn("currently has no maximum-age check", mcp)
+        self.assertIn("not a hash of its contents", mcp)
+        self.assertIn("confirm=true", mcp)
+        self.assertIn("dry_run=false", mcp)
+
+        recipes = (ROOT / "docs" / "recipes.md").read_text(encoding="utf-8")
+        self.assertIn("## Execute a resumable parameter sweep", recipes)
+        self.assertIn("## Resume unfinished work after a restart", recipes)
+
+        troubleshooting = (ROOT / "docs" / "troubleshooting.md").read_text(encoding="utf-8")
+        self.assertIn("## SSH works interactively but not through hpc-tools", troubleshooting)
+        self.assertIn("## MCP cannot start or expose tools", troubleshooting)
+
     def test_pages_deployment_publishes_only_the_mkdocs_site(self) -> None:
         workflows = ROOT / ".github" / "workflows"
         deployment_workflows = []

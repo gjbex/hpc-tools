@@ -50,6 +50,8 @@ configured marketplace and become available to a new session. See the
 [official plugin documentation](https://learn.chatgpt.com/docs/plugins) for the
 product-level model. The `hpc-tools` local-marketplace procedure is documented
 in [Installation and maintenance](installation.md#install-the-codex-plugin).
+See [Using hpc-tools with Codex](codex.md) for skill routing, example requests,
+and action-review boundaries.
 
 Installing this plugin does **not**:
 
@@ -67,9 +69,10 @@ terminal text.
 
 MCP write and remote-install tools require explicit confirmation. Slurm
 submission uses a quote → validate → submit evidence chain, and the server
-rejects stale, dry-run, or mismatched evidence. These gates reduce accidental
-actions, but they do not make an authorized resource request appropriate or
-affordable.
+rejects failed, dry-run, tampered, or shape-mismatched evidence. These gates
+reduce accidental actions, but they do not make a resource request authorized,
+appropriate, or affordable. Evidence timestamps currently have no age-expiry
+rule; see [MCP integration](mcp.md) for the exact limitations.
 
 The Codex plugin's MCP configuration starts the `hpc-mcp` command. Therefore,
 installing the plugin without installing the Python package and MCP extra can

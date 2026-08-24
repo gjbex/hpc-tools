@@ -1,0 +1,310 @@
+# MCP integration
+
+The experimental `hpc-mcp` server exposes selected hpc-tools operations through
+the Model Context Protocol (MCP). It is intended for agents that benefit from
+structured profile data, reference content, bounded remote inspection, and
+guarded writes instead of parsing human-oriented terminal output.
+
+MCP is an additional interface over the same local configuration and SSH
+access. It does not replace the CLI, create authorization, or make an agent a
+trusted cluster operator.
+
+## Decide whether MCP is useful
+
+Use MCP when an agent needs to:
+
+- enumerate and inspect hpc-tools profiles as structured data;
+- consume durable hardware, Slurm, and storage references;
+- inspect jobs, limits, modules, storage, or site environment through bounded
+  tools;
+- preview and perform narrowly defined local writes or remote installs;
+- follow the guarded quote, validation, and submission protocol.
+
+Prefer the CLI when a human is actively operating the workflow, raw shell
+output is the desired artifact, or the profile is still being bootstrapped.
+MCP deliberately does not expose an arbitrary equivalent of `hpc run`.
+
+## Install the server runtime
+
+The `hpc-mcp` entry point is part of the Python package, while its FastMCP
+runtime is an optional dependency. For a released pipx installation:
+
+```console
+pipx install 'hpc-tools[mcp]'
+command -v hpc-mcp
+pipx list
+```
+
+For development in an active uv environment:
+
+```console
+uv pip install -e '.[mcp]'
+command -v hpc-mcp
+```
+
+The server uses the same Python-package version as the CLI installation. A
+Codex plugin checkout and a separate pipx package can therefore drift apart;
+update both when tool schemas or workflows change.
+
+`hpc-mcp` is a protocol server, not an interactive command shell. Normally the
+MCP client starts it and communicates over standard input/output. Running it in
+a terminal may simply wait for a client.
+
+## Configure a client
+
+The hpc-tools Codex plugin points to the repository's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "hpc-tools": {
+      "command": "hpc-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+The `hpc-mcp` executable must be on the `PATH` inherited by the client, not
+only on the path of an unrelated interactive shell. Start a new Codex task
+after installing or updating the plugin or server.
+
+Other MCP clients can use the same local command if they support a standard
+stdio server. Their configuration, approval UI, filesystem sandbox, and tool
+permissions are client-specific. Test discovery and a read-only call before
+enabling writes.
+
+The server resolves configuration in the normal hpc-tools order, including
+`HPC_TOOLS_CONFIG` and `XDG_CONFIG_HOME`. Environment variables must be present
+in the server process. Use `hpc_paths` to verify which state tree it sees.
+
+## Read structured tools
+
+The read-oriented tools are:
+
+| Tool | Result |
+| --- | --- |
+| `hpc_profiles_list` | Config path, default profile, and profile summaries. |
+| `hpc_paths` | Active config, reference, packaged-template, skill, and uninstall paths. |
+| `hpc_profile_show` | One resolved profile as structured data. |
+| `hpc_hardware_context` | Rendered hardware, Slurm, storage, and status context. |
+| `hpc_hardware_sources` | Reference paths, URLs, status URL, and attached set metadata. |
+| `hpc_references_list` | Installed shared reference sets. |
+| `hpc_references_show` | Manifest data for one reference set. |
+| `hpc_plugins_list` | Installed Python CLI extensions. |
+| `hpc_submissions_list` | Active or complete reconstructed submission records. |
+| `hpc_status` | Combined status-page, quota, balance, and submission summary. |
+| `hpc_jobs` | Current user's Slurm queue rows. |
+| `hpc_job` | Queue state for one job ID. |
+| `hpc_slurm_limits` | Raw and best-effort parsed controller, partition, QoS, and association data. |
+| `hpc_module_spider` | Raw and best-effort parsed Lmod search result. |
+| `hpc_storage_inspect` | Bounded filesystem information for one remote path. |
+| `hpc_site_env` | Site variables, module system, and common HPC helper availability. |
+
+Tools that access the cluster execute SSH-backed reads by default. Pass
+`dry_run=true` to preview the remote command without connecting. A read-only
+tool can still consume network, login-node, status-page, or scheduler capacity,
+so read-only does not mean cost-free or offline.
+
+Parsed fields are best effort. Preserve `stdout`, `stderr`, return code, and
+parse warnings when making a decision. A partial parser result must not hide a
+failed remote command or unfamiliar site output.
+
+## Use MCP resources for durable context
+
+The server publishes fixed resources:
+
+```text
+hpc://paths
+hpc://config
+hpc://submissions/active
+hpc://submissions/all
+```
+
+It also publishes templates:
+
+```text
+hpc://profiles/{profile}
+hpc://profiles/{profile}/hardware
+hpc://profiles/{profile}/slurm
+hpc://profiles/{profile}/storage
+hpc://reference-sets/{name}
+```
+
+Profile references resolve from the active configuration and installed
+reference sets, not from repository examples. Missing configured files produce
+an error rather than an invented reference.
+
+`hpc://config` returns the active TOML file as text. Even though hpc-tools does
+not expect passwords or private keys there, it can reveal hosts, usernames,
+email addresses, paths, site commands, and project context. Do not expose these
+resources to an untrusted client or model.
+
+Resources are read-only protocol endpoints. Reading a submission resource does
+not observe Slurm again, and reading a reference does not refresh it from a
+site URL.
+
+## Preview local writes
+
+The following tools can change local state:
+
+- `hpc_references_create`
+- `hpc_references_import`
+- `hpc_references_attach`
+- `hpc_submissions_mark_collected`
+- `hpc_submissions_mark_analysed`
+- `hpc_submissions_close`
+- `hpc_write_probe`
+- `hpc_write_container`
+
+Without `confirm=true`, they return a preview and do not write. Review the
+destination, selected profile, archive, generated content, overwrite flag, and
+submission-log event before confirming.
+
+`force=true` can replace existing generated files or reference sets. The
+confirmation flag does not back up overwritten state. Prefer versioned outputs
+and inspect exact targets first.
+
+Lifecycle tools append events only. They do not copy artifacts, execute an
+analysis, validate a path, cancel a job, or reopen a closed record.
+
+## Preview remote installs
+
+Remote mutation tools are:
+
+- `hpc_install_probe`
+- `hpc_install_container`
+
+They default to `dry_run=true`. Execution requires both:
+
+```text
+confirm=true
+dry_run=false
+```
+
+This two-part gate prevents a confirmed preview from automatically becoming a
+remote write. Review the generated SSH command, remote directory, filenames,
+and `force` behavior. These tools install scripts or bundles; they do not
+submit a probe or container build job.
+
+## Follow the submission evidence chain
+
+MCP exposes real Slurm submission only through:
+
+```text
+hpc_quote_job → hpc_validate_job → hpc_submit_job
+```
+
+The protocol is stricter than the ordinary CLI:
+
+1. `hpc_quote_job` requires an explicit account and a profile with a configured
+   `sam_quote_command`.
+2. `hpc_validate_job` executes `sbatch --test-only` for the proposed request.
+3. `hpc_submit_job` requires successful quote and validation evidence for the
+   same resource shape.
+4. A real submission additionally requires `confirm=true` and
+   `dry_run=false`.
+5. A successful parsed `sbatch` response is appended to the normal local
+   submission log.
+
+The resource shape covers:
+
+- profile and account;
+- job-script path and remote working directory;
+- cluster, partition, QoS, reservation, and dependency;
+- array expression;
+- nodes, tasks, CPUs, memory, GPUs, and time;
+- output, error, job name, environment export, and GPU binding overrides.
+
+If any value changes, quote and validate the new shape. Do not edit evidence
+objects or copy them between profiles.
+
+A site without `sam_quote_command` cannot use the MCP submission chain as
+currently implemented. Use the human-operated CLI workflow and the site's
+authoritative accounting process instead of bypassing the missing quote.
+
+## Understand what evidence does not prove
+
+Evidence objects include a shape hash, timestamp, remote result, and an HMAC
+token generated with a secret held by the running server process. The server
+rejects failed, dry-run, tampered, or shape-mismatched evidence.
+
+Important limitations remain:
+
+- the timestamp is recorded but currently has no maximum-age check;
+- "stale" enforcement means the shape no longer matches, not that a fixed
+  number of minutes elapsed;
+- the process-local signing secret changes when the server restarts, so old
+  evidence will no longer verify in a new process;
+- the shape records the job-script path, not a hash of its contents;
+- quote and `sbatch --test-only` results can become outdated as scheduler state
+  or site policy changes;
+- neither result proves that inputs exist, the application runs correctly, or
+  outputs are scientifically valid.
+
+Do not modify the script between validation and submission. For costly work,
+keep the interval short, inspect the exact script and request, and re-run the
+chain after any material change.
+
+## Treat confirmation as a protocol gate
+
+`confirm=true` tells the server that the client is requesting execution. It is
+not cryptographic proof of informed human consent. A client could set it
+without presenting an approval dialog.
+
+The MCP client and its operator must enforce:
+
+- which users and models may reach the server;
+- whether tool calls require human approval;
+- which local files and SSH credentials the server inherits;
+- which profiles, accounts, clusters, and remote directories are in scope;
+- logging, retention, and incident response;
+- limits on unattended or repeated actions.
+
+Do not expose this stdio server through a network bridge without adding an
+appropriate authentication, authorization, isolation, and audit boundary.
+
+## Use an example agent workflow
+
+A safe review-and-submit conversation should proceed as follows:
+
+1. Call `hpc_profile_show`, `hpc_hardware_context`, and `hpc_slurm_limits` for
+   the named profile and cluster.
+2. Ask the user which authorized account applies; never infer it from balance
+   alone.
+3. Review the job script, remote directory, inputs, output paths, and full
+   resource shape.
+4. Call `hpc_quote_job` and present the returned command and result.
+5. Call `hpc_validate_job` with identical parameters and present the result.
+6. Call `hpc_submit_job` first as a preview with its safe defaults.
+7. After a separate approval, call it with `confirm=true` and
+   `dry_run=false`, still using the identical shape and evidence.
+8. Verify the parsed job ID and local submission record; do not retry blindly
+   if parsing or transport fails.
+9. Follow queue, accounting, output, collection, and analysis through the
+   normal submission lifecycle.
+
+## Troubleshoot startup and discovery
+
+If the client cannot start the server:
+
+```console
+command -v hpc-mcp
+pipx list
+command -v hpc
+hpc paths
+```
+
+Check that the optional MCP dependency was installed into the same environment
+that supplies `hpc-mcp`, and that the client inherits that executable's path.
+Then inspect the client's MCP logs for `ModuleNotFoundError`, configuration
+errors, or a missing executable.
+
+If the server starts but tools are absent, verify the client loaded the
+hpc-tools MCP entry, restart the client or start a new task, and check for
+version drift between the plugin checkout and Python package. If tools work but
+profiles are absent, compare `HPC_TOOLS_CONFIG`, `XDG_CONFIG_HOME`, and
+`hpc_paths` in the server environment.
+
+Continue with [Troubleshooting](troubleshooting.md) for a layer-by-layer
+diagnostic checklist.
