@@ -153,6 +153,15 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("PRAGMA journal_mode = DELETE", text)
         self.assertIn("PRAGMA synchronous = FULL", text)
         self.assertIn("mode `0600`", text)
+        delegation_text = (
+            ROOT / "docs" / "delegation-development.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("## Responsibility boundary", delegation_text)
+        self.assertIn("## Delegation manifest", delegation_text)
+        self.assertIn("## Reservation and budget semantics", delegation_text)
+        self.assertIn("## Ledger schema", delegation_text)
+        self.assertIn("submission_operations", delegation_text)
+        self.assertIn("job_ownership", delegation_text)
 
     def test_submissions_doc_covers_action_semantics_and_diagram(self) -> None:
         text = SUBMISSIONS_DOC.read_text(encoding="utf-8")

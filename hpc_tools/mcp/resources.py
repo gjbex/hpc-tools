@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from hpc_tools import references, submissions
+from hpc_tools import delegation, references, submissions
 from hpc_tools.execution import resolve_executor
 from hpc_tools.config import default_config_path
 from hpc_tools.references import resolve_reference_context
@@ -15,29 +15,44 @@ from hpc_tools.mcp.common import (
 )
 from hpc_tools.mcp.tools import hpc_paths, hpc_profile_show, hpc_references_show
 
-def resource_runtime(profile: str, preset: str) -> str:
+def resource_runtime(
+    profile: str,
+    preset: str,
+    runtime: delegation.DelegationRuntime | None = None,
+) -> str:
     """Return the effective restricted-server context without profile secrets."""
     resolved = _resolve_profile(profile_name=profile)
+    if runtime is None:
+        delegation_data = {
+            "configured": False,
+            "identifier": None,
+            "expires_at": None,
+            "allowed": None,
+            "per_job_limits": None,
+            "budget": None,
+            "usage": None,
+        }
+        limitations = [
+            "no delegation manifest is configured",
+            "job operations are not scoped to delegation ownership",
+        ]
+    else:
+        ledger = delegation.DelegationLedger(runtime.ledger_path)
+        delegation_data = runtime.manifest.public_summary() | {
+            "usage": ledger.summary(runtime.manifest)
+        }
+        limitations = [
+            "Slurm remains authoritative for scheduler policy and accounting",
+            "job listing and cancellation ownership enforcement are section 3 work",
+        ]
     return _json_resource(
         {
             "preset": preset,
             "executor": resolve_executor().name,
             "profile": resolved.name,
             "cluster": resolved.default_cluster,
-            "delegation": {
-                "configured": False,
-                "identifier": None,
-                "expires_at": None,
-                "allowed_accounts": None,
-                "allowed_partitions": None,
-                "allowed_roots": None,
-                "remaining_submissions": None,
-                "remaining_resource_budget": None,
-            },
-            "limitations": [
-                "delegation policy and budget enforcement are not implemented",
-                "job operations are not yet scoped to delegation ownership",
-            ],
+            "delegation": delegation_data,
+            "limitations": limitations,
         }
     )
 

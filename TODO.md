@@ -81,35 +81,37 @@ Keep the responsibility split explicit:
 
 Required work:
 
-- [ ] Define a versioned, issuer-authorized delegation manifest.
-- [ ] Bind the delegation to the parent Slurm job/allocation, selected cluster
-  profile, and authenticated MCP client or unguessable delegation credential.
-- [ ] Define narrowing allowlists for accounts, clusters, partitions, QoS
+- [x] Define a versioned, issuer-authorized delegation manifest.
+- [x] Bind the delegation to the parent Slurm job/allocation and selected
+  cluster profile. The host-selected stdio server process and its private pipe
+  are the client boundary; no delegation credential is exposed as an MCP
+  argument.
+- [x] Define narrowing allowlists for accounts, clusters, partitions, QoS
   values, reservations, approved container images, script identities or
   hashes, and filesystem roots.
-- [ ] Define optional per-job ceilings for nodes, tasks, CPUs, memory, GPUs,
+- [x] Define optional per-job ceilings for nodes, tasks, CPUs, memory, GPUs,
   wall time, and array size/concurrency. Slurm remains the final authority and
   may impose stricter limits.
-- [ ] Define only the aggregate agent budget that Slurm cannot already enforce
+- [x] Define only the aggregate agent budget that Slurm cannot already enforce
   for this delegation, such as accepted submission count and concurrently
   active or cumulatively requested resources. Specify reservation, release,
   cancellation, and terminal-job accounting semantics before implementation.
-- [ ] Add an expiry time, explicit policy version, issuer identity, and
+- [x] Add an expiry time, explicit policy version, issuer identity, and
   revocation mechanism.
-- [ ] Add idempotency keys so retries cannot create duplicate jobs or consume
+- [x] Add idempotency keys so retries cannot create duplicate jobs or consume
   the delegation budget twice.
-- [ ] Extend or complement the submission database with server-owned delegation
+- [x] Extend or complement the submission database with server-owned delegation
   and job-ownership records; do not treat the agent-readable submission history
   as the authorization ledger.
-- [ ] Update ownership and budget state atomically across concurrent MCP
+- [x] Update ownership and budget state atomically across concurrent MCP
   requests, including an explicit recovery state for a scheduler-accepted
   submission whose ledger update is interrupted.
-- [ ] Record an append-only audit event for every accepted and rejected
+- [x] Record an append-only audit event for every accepted and rejected
   mutation, while keeping mutable reservation/counter state separately
   queryable.
-- [ ] Reconcile ledger state with Slurm queue and accounting data without
-  importing unrelated jobs merely because they share the same Unix user or
-  Slurm account.
+- [x] Add an ownership-checked terminal-state reconciliation primitive that
+  releases active capacity without importing unrelated jobs. Fetching queue and
+  accounting state through MCP remains lifecycle work in section 3.
 
 ### 3. Complete and restrict the job lifecycle API
 
@@ -117,7 +119,7 @@ Required work:
   completed jobs remain observable after leaving the live queue.
 - [ ] Filter job listing to jobs created under the active delegation.
 - [ ] Require delegation ownership for inspection, accounting, and cancellation.
-- [ ] Enforce the delegation policy before quotation, validation, and
+- [x] Enforce the delegation policy before quotation, validation, and
   submission, and recheck it atomically immediately before submission.
 - [ ] Replace interactive `confirm=true` as the authority for unattended
   submission and cancellation. Authorization must come from the delegation;

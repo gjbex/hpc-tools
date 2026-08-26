@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from test_mcp_fixtures import *
+from hpc_tools import delegation
 
 
 class McpServerFeatureTests(McpFixtures, unittest.TestCase):
@@ -292,4 +293,90 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertTrue(result["logged"])
         self.assertEqual(result["submission_event"]["job_id"], "60351238")
         append_event.assert_called_once()
+
+    def test_restricted_submission_records_ownership_and_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            manifest_path = root / "delegation.toml"
+            manifest_path.write_text(
+                textwrap.dedent(
+                    """
+                    format_version = 1
+                    id = "delegate-1"
+                    issuer = "operator"
+                    profile = "genius"
+                    parent_job_id = "9001"
+                    issued_at = "2026-01-01T00:00:00Z"
+                    expires_at = "2099-01-01T00:00:00Z"
+                    [allowed]
+                    accounts = ["proj"]
+                    clusters = ["wice"]
+                    partitions = ["batch"]
+                    qos = []
+                    reservations = []
+                    containers = []
+                    script_sha256 = []
+                    roots = ["/work/delegate-1"]
+                    [per_job_limits]
+                    nodes = 1
+                    [budget]
+                    max_submissions = 2
+                    max_active_jobs = 2
+                    """
+                ).strip() + "\n",
+                encoding="utf-8",
+            )
+            ledger_path = root / "delegations.sqlite3"
+            runtime = delegation.load_runtime(
+                manifest_path,
+                profile="genius",
+                ledger_path=ledger_path,
+                parent_job_id="9001",
+            )
+            quote_result = mock.Mock(returncode=0, stdout="2730\n", stderr="")
+            validation_result = mock.Mock(returncode=0, stdout="sbatch: ok\n", stderr="")
+            submission_result = mock.Mock(
+                returncode=0,
+                stdout="Submitted batch job 60351238 on cluster wice\n",
+                stderr="",
+            )
+            arguments = {
+                "config": str(config_path),
+                "directory": "/work/delegate-1/run",
+                "jobscript": "job.slurm",
+                "account": "proj",
+                "cluster": "wice",
+                "partition": "batch",
+                "nodes": "1",
+            }
+            with delegation.delegation_scope(runtime):
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    side_effect=[quote_result, validation_result],
+                ):
+                    quote = mcp_server.hpc_quote_job(**arguments)
+                    validation = mcp_server.hpc_validate_job(**arguments)
+                with mock.patch(
+                    "hpc_tools.mcp.submit.run_command_capture",
+                    return_value=submission_result,
+                ) as submit, mock.patch(
+                    "hpc_tools.mcp.submit.submissions.append_event"
+                ):
+                    submit_arguments = arguments | {
+                        "quote_evidence": quote["quote_evidence"],
+                        "validation_evidence": validation["validation_evidence"],
+                        "idempotency_key": "request-1",
+                        "confirm": True,
+                        "dry_run": False,
+                    }
+                    result = mcp_server.hpc_submit_job(**submit_arguments)
+                    replay = mcp_server.hpc_submit_job(**submit_arguments)
+
+            self.assertTrue(result["ledger_recorded"])
+            self.assertTrue(replay["idempotent_replay"])
+            self.assertFalse(replay["executed"])
+            submit.assert_called_once()
+            ledger = delegation.DelegationLedger(ledger_path)
+            self.assertTrue(ledger.owns_job("delegate-1", "60351238", "wice"))
 

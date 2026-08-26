@@ -191,6 +191,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "reservation",
                 "time",
                 "cpus_per_task",
+                "idempotency_key",
                 "profile",
                 "config",
                 "dry_run",
@@ -324,5 +325,79 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
                     hardware = await server.read_resource("hpc://cluster/hardware")
                     self.assertEqual("# hardware\n", hardware[0].content)
+
+        asyncio.run(exercise_server())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_slurm_job_server_loads_host_side_delegation_context(self) -> None:
+        async def exercise_server() -> None:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config_path = self._write_config(root)
+                manifest_path = root / "delegation.toml"
+                manifest_path.write_text(
+                    textwrap.dedent(
+                        """
+                        format_version = 1
+                        id = "delegate-1"
+                        issuer = "operator"
+                        profile = "genius"
+                        parent_job_id = "9001"
+                        issued_at = "2026-01-01T00:00:00Z"
+                        expires_at = "2099-01-01T00:00:00Z"
+                        [allowed]
+                        accounts = ["proj"]
+                        clusters = ["wice"]
+                        partitions = ["batch"]
+                        qos = []
+                        reservations = []
+                        containers = []
+                        script_sha256 = []
+                        roots = ["/work/delegate-1"]
+                        [budget]
+                        max_submissions = 2
+                        """
+                    ).strip() + "\n",
+                    encoding="utf-8",
+                )
+                environment = {
+                    "HPC_TOOLS_CONFIG": str(config_path),
+                    "XDG_CONFIG_HOME": str(root),
+                    "HPC_TOOLS_PARENT_JOB_ID": "9001",
+                }
+                with mock.patch.dict("os.environ", environment, clear=False):
+                    server = mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(root / "ledger.sqlite3"),
+                    )
+                    runtime = await server.read_resource("hpc://runtime")
+                    data = json.loads(runtime[0].content)
+                    self.assertTrue(data["delegation"]["configured"])
+                    self.assertEqual("delegate-1", data["delegation"]["identifier"])
+                    self.assertEqual(
+                        2,
+                        data["delegation"]["usage"]["remaining"]["max_submissions"],
+                    )
+
+                with mock.patch.dict(
+                    "os.environ",
+                    {
+                        "HPC_TOOLS_CONFIG": str(config_path),
+                        "XDG_CONFIG_HOME": str(root),
+                    },
+                    clear=True,
+                ):
+                    with self.assertRaisesRegex(
+                        mcp_server.ConfigError,
+                        "HPC_TOOLS_PARENT_JOB_ID",
+                    ):
+                        mcp_server.create_server(
+                            preset="slurm-job",
+                            profile="genius",
+                            delegation_manifest=str(manifest_path),
+                            ledger=str(root / "other.sqlite3"),
+                        )
 
         asyncio.run(exercise_server())

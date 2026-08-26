@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hpc_tools import slurm, submissions
+from hpc_tools import delegation, slurm, submissions
 from hpc_tools.commands.slurm import _quote_command as _sam_quote_command
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import execution_plan, run_command_capture
@@ -70,6 +70,9 @@ def hpc_quote_job(
     if not account_value:
         raise ConfigError("hpc_quote_job requires an account")
     shape = _submission_shape(resolved, jobscript, directory, normalized)
+    runtime = delegation.current_runtime()
+    if runtime is not None:
+        delegation.authorize_shape(runtime.manifest, shape)
     quote_args = _quote_args_for_submit(jobscript, normalized)
     command = _sam_quote_command(resolved.sam_quote_command, quote_args)
     result = _remote_read_result(resolved, command, dry_run=dry_run)
@@ -135,6 +138,9 @@ def hpc_validate_job(
         cpus_per_task=cpus_per_task,
     )
     shape = _submission_shape(resolved, jobscript, directory, normalized)
+    runtime = delegation.current_runtime()
+    if runtime is not None:
+        delegation.authorize_shape(runtime.manifest, shape)
     command = slurm.submit_command(
         jobscript,
         directory=directory,
@@ -175,6 +181,7 @@ def hpc_submit_job(
     reservation: str | None = None,
     time: str | None = None,
     cpus_per_task: str | None = None,
+    idempotency_key: str | None = None,
     profile: str | None = None,
     config: str | None = None,
     dry_run: bool = True,
@@ -207,6 +214,9 @@ def hpc_submit_job(
         cpus_per_task=cpus_per_task,
     )
     shape = _submission_shape(resolved, jobscript, directory, normalized)
+    runtime = delegation.current_runtime()
+    if runtime is not None:
+        delegation.authorize_shape(runtime.manifest, shape)
     command = slurm.submit_command(
         jobscript,
         directory=directory,
@@ -237,17 +247,67 @@ def hpc_submit_job(
     if not confirm or dry_run:
         return preview
 
+    ledger = None
+    reservation = None
+    if runtime is not None:
+        if not idempotency_key:
+            raise delegation.DelegationError(
+                "restricted submission requires an idempotency_key"
+            )
+        ledger = delegation.DelegationLedger(runtime.ledger_path)
+        reservation = ledger.reserve_submission(
+            runtime.manifest,
+            idempotency_key=idempotency_key,
+            shape=shape,
+        )
+        if reservation["status"] == "submitted":
+            return preview | {
+                "confirm_required": False,
+                "idempotent_replay": True,
+                "executed": False,
+                "logged": False,
+                "ledger_recorded": True,
+                "submission_event": None,
+                "job_id": reservation["job_id"],
+                "cluster": reservation["cluster"],
+            }
+        if reservation["idempotent_replay"]:
+            raise delegation.DelegationError(
+                f"idempotent operation is in {reservation['status']!r} state; "
+                "use a new key after failure or reconcile an uncertain reservation"
+            )
+
     completed = run_command_capture(resolved, command)
     stdout = completed.stdout
     stderr = completed.stderr
     logged = False
     submission_event = None
+    ledger_recorded = runtime is None
     if completed.returncode == 0:
-        job_id, cluster = submissions.parse_sbatch_submission(stdout + stderr)
+        try:
+            job_id, cluster = submissions.parse_sbatch_submission(stdout + stderr)
+        except ValueError:
+            if ledger is not None and idempotency_key is not None:
+                ledger.release_reservation(
+                    runtime.manifest,
+                    idempotency_key=idempotency_key,
+                    reason="scheduler accepted submission but job id could not be parsed",
+                    uncertain=True,
+                )
+            raise
+        selected_cluster = cluster or normalized.get("cluster") or resolved.default_cluster
+        if ledger is not None and idempotency_key is not None:
+            ledger.record_submission(
+                runtime.manifest,
+                idempotency_key=idempotency_key,
+                job_id=job_id,
+                cluster=selected_cluster,
+            )
+            ledger_recorded = True
         submission_event = submissions.submitted_event(
             profile=resolved.name,
             job_id=job_id,
-            cluster=cluster or normalized.get("cluster") or resolved.default_cluster,
+            cluster=selected_cluster,
             remote_directory=directory,
             jobscript=jobscript,
             submit_command=command,
@@ -255,9 +315,17 @@ def hpc_submit_job(
         )
         submissions.append_event(submission_event)
         logged = True
+    elif ledger is not None and idempotency_key is not None:
+        ledger.release_reservation(
+            runtime.manifest,
+            idempotency_key=idempotency_key,
+            reason=f"sbatch failed with return code {completed.returncode}",
+        )
     return preview | {
         "confirm_required": False,
+        "idempotent_replay": False,
         "executed": True,
+        "ledger_recorded": ledger_recorded,
         "logged": logged,
         "submission_event": submission_event,
         "returncode": completed.returncode,

@@ -330,6 +330,13 @@ There is currently no legacy JSONL importer and no schema migration because the
 format has not entered production. A database whose `user_version` is not
 `SCHEMA_VERSION` is rejected rather than guessed, modified, or partially read.
 
+### Delegation policy and authorization ledger
+
+The restricted MCP server's host-side trust model, delegation-manifest format,
+budget semantics, ownership records, audit behavior, and separate authorization
+schema are documented in
+[Delegation policy and ledger internals](delegation-development.md).
+
 Build documentation as described in
 [Build the documentation](contributing/documentation.md). The repository's
 required validation covers plugin metadata, skills, repository hygiene, Python

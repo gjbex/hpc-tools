@@ -8,6 +8,7 @@ import sys
 from typing import Any, Callable
 
 from hpc_tools.config import ConfigError
+from hpc_tools import delegation
 from hpc_tools.execution import EXECUTOR_NAMES, executor_scope, resolve_executor
 from hpc_tools.mcp.resources import (
     resource_config,
@@ -163,6 +164,8 @@ def create_server(
     *,
     preset: str | None = None,
     profile: str | None = None,
+    delegation_manifest: str | None = None,
+    ledger: str | None = None,
 ):
     """Create the FastMCP server for hpc-tools guarded agent tools."""
     try:
@@ -176,10 +179,24 @@ def create_server(
     selected_preset = resolve_preset(preset)
     executor = resolve_executor()
     selected_profile = profile or os.environ.get(PROFILE_ENV_VAR)
+    runtime = None
     if selected_preset == "slurm-job":
         from hpc_tools.mcp.common import _resolve_profile
 
         selected_profile = _resolve_profile(profile_name=selected_profile).name
+        manifest_path = delegation_manifest or os.environ.get(delegation.DELEGATION_ENV_VAR)
+        if manifest_path:
+            parent_job_id = os.environ.get(delegation.PARENT_JOB_ENV_VAR)
+            if not parent_job_id:
+                raise ConfigError(
+                    f"{delegation.PARENT_JOB_ENV_VAR} is required with a delegation manifest"
+                )
+            runtime = delegation.load_runtime(
+                manifest_path,
+                profile=selected_profile,
+                ledger_path=ledger,
+                parent_job_id=parent_job_id,
+            )
 
     server = FastMCP(
         "hpc-tools",
@@ -190,7 +207,7 @@ def create_server(
             "and confirm-gated submit tools with matching evidence. "
             "The slurm-job preset is restricted to stored cluster context and "
             "job-lifecycle operations bound to one selected profile. "
-            "Delegation ownership and budget enforcement are not implemented. "
+            f"Delegation enforcement is {'enabled' if runtime else 'not configured'}. "
             f"Cluster commands use the {executor.name} executor."
         ),
     )
@@ -230,7 +247,7 @@ def create_server(
     for name in tool_names_for_preset(selected_preset):
         function = tools_by_name[name]
         if selected_preset == "slurm-job":
-            function = _bind_profile(function, selected_profile)
+            function = _bind_profile(function, selected_profile, runtime)
         server.tool()(function)
 
     full_resources = (
@@ -250,7 +267,7 @@ def create_server(
         selected_resources = (
             (
                 "hpc://runtime",
-                _bind_resource(resource_runtime, selected_profile, selected_preset),
+                _bind_resource(resource_runtime, selected_profile, selected_preset, runtime),
                 "application/json",
             ),
             (
@@ -285,7 +302,11 @@ def _bind_resource(function: Callable[..., str], *args: str) -> Callable[[], str
     return bound
 
 
-def _bind_profile(function: Callable[..., Any], profile: str) -> Callable[..., Any]:
+def _bind_profile(
+    function: Callable[..., Any],
+    profile: str,
+    runtime: delegation.DelegationRuntime | None = None,
+) -> Callable[..., Any]:
     """Bind a restricted tool to one profile and hide profile/config inputs."""
     signature = inspect.signature(function)
     if "profile" not in signature.parameters:
@@ -298,7 +319,8 @@ def _bind_profile(function: Callable[..., Any], profile: str) -> Callable[..., A
 
     @wraps(function)
     def bound(**kwargs: Any) -> Any:
-        return function(**kwargs, profile=profile, config=None)
+        with delegation.delegation_scope(runtime):
+            return function(**kwargs, profile=profile, config=None)
 
     bound.__signature__ = signature.replace(parameters=public_parameters)
     return bound
@@ -323,10 +345,23 @@ def main(argv: list[str] | None = None) -> int:
             f"{PROFILE_ENV_VAR} or the configured default"
         ),
     )
+    parser.add_argument(
+        "--delegation",
+        help=f"host-side delegation manifest; defaults to {delegation.DELEGATION_ENV_VAR}",
+    )
+    parser.add_argument(
+        "--ledger",
+        help=f"server-owned delegation ledger; defaults to {delegation.LEDGER_ENV_VAR}",
+    )
     args = parser.parse_args(argv)
     try:
         with executor_scope(args.executor):
-            create_server(preset=args.preset, profile=args.profile).run()
+            create_server(
+                preset=args.preset,
+                profile=args.profile,
+                delegation_manifest=args.delegation,
+                ledger=args.ledger,
+            ).run()
     except ConfigError as error:
         print(f"hpc-mcp: {error}", file=sys.stderr)
         return 2
