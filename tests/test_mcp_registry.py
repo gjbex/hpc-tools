@@ -60,6 +60,40 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             ),
         )
 
+    def test_slurm_job_registry_is_a_narrow_fixed_surface(self) -> None:
+        self.assertEqual(
+            mcp_server.tool_names_for_preset("slurm-job"),
+            (
+                "hpc_jobs",
+                "hpc_job",
+                "hpc_cancel_job",
+                "hpc_quote_job",
+                "hpc_validate_job",
+                "hpc_submit_job",
+            ),
+        )
+        self.assertEqual(
+            mcp_server.resource_uris_for_preset("slurm-job"),
+            (
+                "hpc://runtime",
+                "hpc://cluster/hardware",
+                "hpc://cluster/slurm",
+                "hpc://cluster/storage",
+            ),
+        )
+        self.assertEqual(mcp_server.resource_templates_for_preset("slurm-job"), ())
+        restricted = set(mcp_server.tool_names_for_preset("slurm-job"))
+        self.assertNotIn("hpc_profiles_list", restricted)
+        self.assertNotIn("hpc_paths", restricted)
+        self.assertNotIn("hpc_profile_show", restricted)
+        self.assertNotIn("hpc_slurm_limits", restricted)
+        self.assertNotIn("hpc_storage_inspect", restricted)
+        self.assertNotIn("hpc_install_container", restricted)
+
+    def test_unknown_mcp_preset_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown MCP preset"):
+            mcp_server.resolve_preset("unrestricted")
+
     def test_mcp_tool_schemas_are_stable_for_guarded_submission(self) -> None:
         expected = {
             "hpc_cancel_job": [
@@ -241,5 +275,54 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
                     read = await server.read_resource("hpc://reference-sets/baseline")
                     self.assertIn('"name": "baseline"', read[0].content)
+
+        asyncio.run(exercise_server())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_slurm_job_server_registers_only_bound_surface(self) -> None:
+        async def exercise_server() -> None:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config_path = self._write_config(root)
+
+                with mock.patch.dict(
+                    "os.environ",
+                    {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
+                    clear=False,
+                ):
+                    server = mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                    )
+                    tools = await server.list_tools()
+                    names = {tool.name for tool in tools}
+                    self.assertEqual(set(mcp_server.SLURM_JOB_TOOL_NAMES), names)
+
+                    jobs = next(tool for tool in tools if tool.name == "hpc_jobs")
+                    self.assertNotIn("profile", jobs.inputSchema["properties"])
+                    self.assertNotIn("config", jobs.inputSchema["properties"])
+
+                    _, job_result = await server.call_tool(
+                        "hpc_jobs",
+                        {"dry_run": True},
+                    )
+                    self.assertEqual("genius", job_result["result"]["profile"])
+                    self.assertTrue(job_result["result"]["dry_run"])
+
+                    resources = await server.list_resources()
+                    self.assertEqual(
+                        set(mcp_server.SLURM_JOB_RESOURCE_URIS),
+                        {str(resource.uri) for resource in resources},
+                    )
+                    self.assertEqual([], await server.list_resource_templates())
+
+                    runtime = await server.read_resource("hpc://runtime")
+                    runtime_data = json.loads(runtime[0].content)
+                    self.assertEqual("slurm-job", runtime_data["preset"])
+                    self.assertEqual("genius", runtime_data["profile"])
+                    self.assertFalse(runtime_data["delegation"]["configured"])
+
+                    hardware = await server.read_resource("hpc://cluster/hardware")
+                    self.assertEqual("# hardware\n", hardware[0].content)
 
         asyncio.run(exercise_server())

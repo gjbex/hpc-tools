@@ -108,14 +108,48 @@ add arguments. For example:
 }
 ```
 
-The local executor runs every cluster command through the selected profile's
-`login_shell` on the current host. It does not detect the host, enter an
-allocation, add isolation, or narrow the registered MCP tools.
+For an unattended agent in a Slurm allocation, select the restricted server
+surface and bind it to one profile:
 
-This executor layer supports the transport distinction between laptop and
-login-node deployments. It does **not** yet implement the restricted
-`slurm-job` capability preset or an operator delegation manifest. Do not expose
-the full server to an unattended job on the strength of `--executor local`.
+```console
+hpc-mcp --executor local --preset slurm-job --profile example
+```
+
+`HPC_TOOLS_MCP_PRESET=slurm-job` and `HPC_TOOLS_MCP_PROFILE=example` are
+equivalent. The restricted preset registers only:
+
+```text
+hpc_jobs
+hpc_job
+hpc_cancel_job
+hpc_quote_job
+hpc_validate_job
+hpc_submit_job
+```
+
+It publishes fixed, selected-profile resources:
+
+```text
+hpc://runtime
+hpc://cluster/hardware
+hpc://cluster/slurm
+hpc://cluster/storage
+```
+
+The restricted tools do not expose `profile` or `config` parameters. Profile
+enumeration, raw configuration, arbitrary path inspection, live site discovery,
+installation, probe generation, reference mutation, and unrelated local-state
+mutation are absent from the server registry.
+
+The local executor runs cluster commands through the selected profile's
+`login_shell` on the current host. It does not detect the host, enter an
+allocation, or add process and filesystem isolation. Apptainer and explicit
+bind mounts must provide that boundary.
+
+The `slurm-job` preset narrows exposure, but delegation manifests, ownership
+checks, idempotency, and resource-budget enforcement remain future work. Until
+those controls are implemented, do not treat this preset alone as authorization
+for an untrusted unattended agent.
 
 ## Read structured tools
 
