@@ -118,7 +118,7 @@ Keep these surfaces separate:
   workflow skills for Codex.
 - Python package: the `hpc` executable, packaged probe templates, and the
   `hpc_tools.plugins` CLI extension API.
-- User state: profile configuration, reference sets, submission logs, and
+- User state: profile configuration, reference sets, submission databases, and
   consolidated cluster notes under `$XDG_CONFIG_HOME/hpc-tools` or
   `~/.config/hpc-tools`.
 
@@ -166,7 +166,7 @@ Start a new Codex thread after reinstalling.
 `hpc-tools` includes an experimental `hpc-mcp` console command that exposes a
 guarded MCP interface for agents through the official FastMCP framework. This
 is a structured interface over the same profile, reference, plugin,
-Slurm-inspection, submission-log, probe, and container helpers used by the CLI.
+Slurm-inspection, submission-database, probe, and container helpers used by the CLI.
 The Codex plugin manifest points at `.mcp.json`, which starts the MCP server
 with the `hpc-mcp` command. Installing the Codex plugin does not install that
 command; install the Python package first.
@@ -557,14 +557,14 @@ The detailed workflow and follow-on implementation plan live in
 
 `hpc submit --validate-first` runs `sbatch --test-only` with the same options
 and submits only if validation succeeds. `hpc submit` records successful real
-Slurm submissions in an append-only local event log at
-`~/.config/hpc-tools/submissions.jsonl`. Use
+Slurm submissions in an append-only local event database at
+`~/.config/hpc-tools/submissions.sqlite3`. Use
 `hpc submissions list` to show active submissions, `hpc submissions observe` to
 append current Slurm accounting observations for active jobs,
 `hpc cancel <job-id>` to request cancellation and audit matching tracked runs,
 and `hpc submissions close <run-id>` to hide handled runs from the default
-active view. The log remains append-only; current state is derived by replaying
-events.
+active view. Lifecycle events remain append-only; current state is derived by replaying
+them.
 Detailed semantics for the `STATE` and `ACTION` columns, plus a state-transition
 diagram, are documented in [docs/submissions.md](docs/submissions.md).
 

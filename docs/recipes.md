@@ -321,6 +321,6 @@ does not establish freshness, correctness, authorship, or trust.
    or closing.
 4. Use `list --all` for audit history.
 
-The log is local to the configuration tree and is not synchronized between
+The submission database is local to the configuration tree and is not synchronized between
 machines. It is an index, not a result backup or scheduler database. See
 [Tracking work from submission to analysis](submissions.md).

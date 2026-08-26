@@ -428,7 +428,7 @@ def _submissions_needs_profile(remaining: list[str]) -> bool:
             continue
         if arg in {"-h", "--help"}:
             return False
-        if arg == "--log":
+        if arg == "--database":
             skip_next = True
             continue
         if not arg.startswith("-"):

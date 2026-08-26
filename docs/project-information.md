@@ -39,7 +39,7 @@ account and resource choices.
 
 ### Local records are not scheduler truth
 
-The submission log is a local append-only aid. It does not automatically
+The submission database is a local append-only aid. It does not automatically
 synchronize with Slurm, transfer results, hash artifacts, reopen closed runs,
 or coordinate concurrent writers. `mark-collected`, `mark-analysed`, and
 `close` record user assertions; they do not perform or verify the named work.
@@ -131,12 +131,12 @@ as pre-stable interfaces:
 - the MCP interface is explicitly experimental;
 - reference-set manifests are versioned and currently require
   `format_version = 1`;
-- submission logs currently have no schema-version field.
+- submission databases use SQLite `PRAGMA user_version` for schema versioning.
 
 Before upgrading an installation used in automation:
 
 1. record the old and proposed package versions;
-2. back up `config.toml`, reference sets, and `submissions.jsonl`;
+2. back up `config.toml`, reference sets, and `submissions.sqlite3`;
 3. read the available repository changes or release information;
 4. test `hpc --help`, `hpc plugins list`, profile loading, and representative
    JSON output in a disposable environment;
@@ -213,7 +213,7 @@ a release note is not evidence that an upgrade is behavior-preserving.
 For maintainers, useful release notes should call out at least:
 
 - new, changed, renamed, or removed commands and profile fields;
-- JSON, MCP, manifest, and submission-log format changes;
+- JSON, MCP, manifest, and submission-database format changes;
 - new local or remote write behavior and confirmation requirements;
 - minimum Python or dependency changes;
 - migration and rollback steps;
@@ -258,6 +258,77 @@ routing. Important conventions include:
   assertions affected by the change;
 - preserve confirmation and evidence chains when adding write or submission
   behavior.
+
+### Submission database schema
+
+This is an internal development contract, not a user-facing interchange
+format. The authoritative implementation is `hpc_tools/submissions.py`. Schema
+changes must increment `SCHEMA_VERSION`, add an explicit migration when existing
+data must be supported, and update the tests and this section together.
+
+Schema version 1 is identified by:
+
+```sql
+PRAGMA user_version = 1;
+```
+
+It contains one append-only event table and one replay index:
+
+```sql
+CREATE TABLE submission_events (
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id TEXT NOT NULL UNIQUE,
+    run_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    payload_json TEXT NOT NULL
+);
+
+CREATE INDEX submission_events_by_run
+ON submission_events (run_id, sequence);
+```
+
+The columns have these responsibilities:
+
+| Column | Internal contract |
+| --- | --- |
+| `sequence` | Database insertion order used to replay lifecycle events. |
+| `event_id` | Generated unique identifier for the stored event. |
+| `run_id` | Local submission/run identifier used for grouping and lookup. |
+| `event_type` | Indexed event discriminator duplicated from the JSON payload. |
+| `occurred_at` | ISO 8601 timestamp duplicated from the JSON payload. |
+| `payload_json` | Complete event object consumed by the existing event reducer. |
+
+`event_type`, `occurred_at`, and `run_id` deliberately duplicate values from
+`payload_json`. The relational columns support validation and future indexed
+queries, while the JSON payload preserves the existing event representation.
+The reducer currently treats `payload_json` as the complete lifecycle event and
+reconstructs records in `sequence` order.
+
+Each connection applies:
+
+```sql
+PRAGMA busy_timeout = 5000;
+PRAGMA foreign_keys = ON;
+PRAGMA journal_mode = DELETE;
+PRAGMA synchronous = FULL;
+```
+
+The rollback journal is intentional: WAL mode depends on shared-memory
+semantics that are often unsuitable for NFS-backed HPC home directories. This
+does not make every network or parallel filesystem safe for SQLite. A
+concurrent broker should use node-local or otherwise verified storage, and one
+database must not be treated as a distributed multi-node service.
+
+Schema creation acquires an immediate transaction before checking the version
+again, so concurrent first writers cannot independently initialize the
+database. Event batches are validated before opening the database and inserted
+with one transaction. A failed batch therefore must not leave a partial event
+set. Newly created database files are restricted to mode `0600`.
+
+There is currently no legacy JSONL importer and no schema migration because the
+format has not entered production. A database whose `user_version` is not
+`SCHEMA_VERSION` is rejected rather than guessed, modified, or partially read.
 
 Build documentation as described in
 [Build the documentation](contributing/documentation.md). The repository's

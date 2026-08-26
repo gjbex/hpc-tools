@@ -46,7 +46,7 @@ The status view combines several independent sources:
 - a configured cluster-status web page;
 - remote quota information;
 - remote account-balance information;
-- the local submission log.
+- the local submission database.
 
 This is a convenience summary, not a transactional snapshot. Sources can have
 different update times, and the command reports failure when a required piece
@@ -230,7 +230,7 @@ hpc submissions mark-analysed <run-id> --path /remote/results/report.md
 hpc submissions close <run-id> --reason done
 ```
 
-The submission log is an audit aid, not scheduler truth. Jobs submitted by
+The submission database is an audit aid, not scheduler truth. Jobs submitted by
 other tools will not appear automatically, and a local annotation cannot alter
 the remote job. See [Submission tracking](submissions.md) for the full model.
 

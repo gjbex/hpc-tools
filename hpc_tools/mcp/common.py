@@ -77,29 +77,29 @@ def _append_submission_mark_event(
     event_name: str,
     *,
     path: str | None,
-    log: str | None,
+    database: str | None,
     confirm: bool,
 ) -> dict[str, Any]:
     event = submissions.mark_event(run_id, event_name, path=path)
-    return _append_submission_event(event, log=log, confirm=confirm)
+    return _append_submission_event(event, database=database, confirm=confirm)
 
 def _append_submission_event(
     event: dict[str, Any],
     *,
-    log: str | None,
+    database: str | None,
     confirm: bool,
 ) -> dict[str, Any]:
-    log_path = Path(log).expanduser() if log else submissions.default_log_path()
+    database_path = Path(database).expanduser() if database else submissions.default_database_path()
     preview = {
         "operation": event["event"],
-        "log": str(log_path),
+        "database": str(database_path),
         "event": event,
         "confirm_required": not confirm,
     }
     if not confirm:
         return preview
 
-    submissions.append_event(event, path=log_path)
+    submissions.append_event(event, path=database_path)
     return preview | {
         "confirm_required": False,
         "appended": True,

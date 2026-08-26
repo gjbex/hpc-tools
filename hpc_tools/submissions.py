@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
 import shlex
+import sqlite3
 import uuid
 from typing import Any
 
@@ -39,8 +42,15 @@ class SubmissionRecord:
     action: str
 
 
-def default_log_path() -> Path:
-    return default_config_dir() / "submissions.jsonl"
+SCHEMA_VERSION = 1
+
+
+class SubmissionDatabaseError(ValueError):
+    """Raised when the local submission database cannot be used safely."""
+
+
+def default_database_path() -> Path:
+    return default_config_dir() / "submissions.sqlite3"
 
 
 def make_run_id(profile: str, job_id: str) -> str:
@@ -50,30 +60,161 @@ def make_run_id(profile: str, job_id: str) -> str:
 
 
 def append_event(event: dict[str, Any], *, path: Path | None = None) -> None:
-    log_path = path or default_log_path()
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    event = {"timestamp": _timestamp(), **event}
-    with log_path.open("a", encoding="utf-8") as file:
-        file.write(json.dumps(event, sort_keys=True) + "\n")
+    append_events([event], path=path)
+
+
+def append_events(
+    events: list[dict[str, Any]],
+    *,
+    path: Path | None = None,
+) -> None:
+    if not events:
+        return
+
+    database_path = path or default_database_path()
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    prepared = [_prepare_event(event) for event in events]
+
+    with _database(database_path) as connection:
+        _ensure_schema(connection)
+        connection.executemany(
+            """
+            INSERT INTO submission_events (
+                event_id,
+                run_id,
+                event_type,
+                occurred_at,
+                payload_json
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    uuid.uuid4().hex,
+                    event["run_id"],
+                    event["event"],
+                    event["timestamp"],
+                    json.dumps(event, sort_keys=True, separators=(",", ":")),
+                )
+                for event in prepared
+            ],
+        )
 
 
 def read_events(path: Path | None = None) -> list[dict[str, Any]]:
-    log_path = path or default_log_path()
-    if not log_path.exists():
+    database_path = path or default_database_path()
+    if not database_path.exists():
         return []
 
+    with _database(database_path) as connection:
+        _ensure_schema(connection)
+        rows = connection.execute(
+            """
+            SELECT sequence, payload_json
+            FROM submission_events
+            ORDER BY sequence
+            """
+        ).fetchall()
+
     events: list[dict[str, Any]] = []
-    for line_number, line in enumerate(log_path.read_text(encoding="utf-8").splitlines(), start=1):
-        if not line.strip():
-            continue
+    for sequence, payload_json in rows:
         try:
-            raw_event = json.loads(line)
+            raw_event = json.loads(payload_json)
         except json.JSONDecodeError as error:
-            raise ValueError(f"{log_path}:{line_number}: invalid JSONL event") from error
+            raise ValueError(
+                f"{database_path}: event {sequence} contains invalid JSON"
+            ) from error
         if not isinstance(raw_event, dict):
-            raise ValueError(f"{log_path}:{line_number}: event must be an object")
+            raise ValueError(
+                f"{database_path}: event {sequence} payload must be an object"
+            )
         events.append(raw_event)
     return events
+
+
+@contextmanager
+def _database(path: Path) -> Iterator[sqlite3.Connection]:
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = _connect(path)
+        with connection:
+            yield connection
+    except sqlite3.Error as error:
+        raise SubmissionDatabaseError(
+            f"unable to use submissions database {path}: {error}"
+        ) from error
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def _connect(path: Path) -> sqlite3.Connection:
+    database_existed = path.exists()
+    connection = sqlite3.connect(path, timeout=5.0)
+    try:
+        if not database_existed:
+            path.chmod(0o600)
+        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA journal_mode = DELETE")
+        connection.execute("PRAGMA synchronous = FULL")
+        return connection
+    except Exception:
+        connection.close()
+        raise
+
+
+def _ensure_schema(connection: sqlite3.Connection) -> None:
+    version = _schema_version(connection)
+    if version == 0:
+        connection.execute("BEGIN IMMEDIATE")
+        version = _schema_version(connection)
+        if version == 0:
+            connection.execute(
+                """
+                CREATE TABLE submission_events (
+                    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT NOT NULL UNIQUE,
+                    run_id TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE INDEX submission_events_by_run
+                ON submission_events (run_id, sequence)
+                """
+            )
+            connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            version = SCHEMA_VERSION
+        connection.commit()
+
+    if version != SCHEMA_VERSION:
+        raise SubmissionDatabaseError(
+            f"unsupported submissions database schema version {version}; "
+            f"expected {SCHEMA_VERSION}"
+        )
+
+
+def _schema_version(connection: sqlite3.Connection) -> int:
+    return int(connection.execute("PRAGMA user_version").fetchone()[0])
+
+
+def _prepare_event(event: dict[str, Any]) -> dict[str, Any]:
+    event_type = event.get("event")
+    run_id = event.get("run_id")
+    if not isinstance(event_type, str) or not event_type:
+        raise ValueError("submission event requires a non-empty 'event' string")
+    if not isinstance(run_id, str) or not run_id:
+        raise ValueError("submission event requires a non-empty 'run_id' string")
+    timestamp = event.get("timestamp")
+    if timestamp is not None and not isinstance(timestamp, str):
+        raise ValueError("submission event 'timestamp' must be a string")
+    prepared = dict(event)
+    prepared["timestamp"] = timestamp or _timestamp()
+    return prepared
 
 
 def records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
@@ -235,8 +376,7 @@ def append_cancel_requested_events(
         )
         for record in records
     ]
-    for event in events:
-        append_event(event, path=path)
+    append_events(events, path=path)
     return events
 
 

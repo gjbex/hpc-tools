@@ -19,7 +19,7 @@ compare it with a direct authoritative check where possible.
 7. **Slurm** — what do queue, pending reason, validation, and accounting say?
 8. **Application** — what do standard output, standard error, and result checks
    say?
-9. **Local lifecycle** — does the submission log describe the same job?
+9. **Local lifecycle** — does the submission database describe the same job?
 10. **Agent layer** — did Codex or MCP receive the same profile, environment,
     command, and evidence?
 
@@ -323,7 +323,7 @@ Do not install into system Python/R, broaden permissions, or add unreviewed
 repositories. Search compatible site bundles first, then prepare a small
 project environment or reviewed container as appropriate.
 
-## Submission-log state looks stale or wrong
+## Submission-database state looks stale or wrong
 
 List active and complete views:
 
@@ -348,7 +348,7 @@ Remember:
 - `close` is terminal in the local view and does not cancel the job;
 - logs are not synchronized between workstations.
 
-Do not edit or reorder `submissions.jsonl` as a routine fix. Preserve it, check
+Do not edit or reorder `submissions.sqlite3` as a routine fix. Preserve it, check
 the event stream and active config path, and close or supersede records
 deliberately.
 
@@ -428,7 +428,7 @@ Include:
   with sensitive data removed.
 
 Do not include private keys, tokens, passwords, one-time codes, full SSH-agent
-state, confidential input data, or an unsanitized configuration/submission log.
+state, confidential input data, or an unsanitized configuration/submission database.
 
 Separate a cluster incident from a reproducible hpc-tools defect. A useful
 report states what was expected, what happened, which layer failed, and the

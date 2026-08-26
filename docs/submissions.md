@@ -2,10 +2,10 @@
 
 Slurm tells you whether a job is pending, running, or finished. It does not
 tell you whether the results were collected, interpreted, or deliberately
-abandoned. The hpc-tools submission log bridges that gap with a small local
+abandoned. The hpc-tools submission database bridges that gap with a small local
 workflow record.
 
-The log is useful for work that spans several sessions: long jobs, package
+The database is useful for work that spans several sessions: long jobs, package
 installation jobs, hardware probes, benchmark campaigns, and analyses whose
 results need attention after Slurm has finished.
 
@@ -14,18 +14,19 @@ prove that a recorded path exists. The separate `hpc cancel` operation can add
 an audit event for matching records, but Slurm remains authoritative for the
 actual job state.
 
-## Submission Log Workflow
+## Submission Database Workflow
 
-`hpc submit` records successful real Slurm submissions in an append-only local
-JSONL log, normally:
+`hpc submit` records successful real Slurm submissions in a local SQLite
+database, normally:
 
 ```text
-~/.config/hpc-tools/submissions.jsonl
+~/.config/hpc-tools/submissions.sqlite3
 ```
 
-The log is not a mutable status database. It is an event stream. `hpc
-submissions list` reconstructs the current view by replaying events for each
-`run_id`.
+The database stores immutable lifecycle events in insertion order.
+`hpc submissions list` reconstructs the current view by replaying events for
+each `run_id`. SQLite provides transactional writes and a versioned schema; the
+database is not a mirror of current Slurm state.
 
 This matters for two reasons:
 
@@ -73,24 +74,24 @@ hpc submissions mark-analysed <run-id> --path <report-path>
 hpc submissions close <run-id> --reason <reason>
 ```
 
-The `submissions` commands that modify the workflow log are local operations
+The `submissions` commands that modify the workflow database are local operations
 and do not require the cluster profile. `observe` and `cancel` are different:
 they need `--profile` because they interact with Slurm on the associated
 cluster. `cancel` uses a Slurm job ID, not a local run ID.
 
-Use a non-default log only when you have a deliberate reason to isolate a
+Use a non-default database only when you have a deliberate reason to isolate a
 workflow:
 
 ```bash
-hpc submissions --log ./campaign-submissions.jsonl list
+hpc submissions --database ./campaign-submissions.sqlite3 list
 hpc --profile <profile> submissions \
-    --log ./campaign-submissions.jsonl observe
+    --database ./campaign-submissions.sqlite3 observe
 hpc --profile <profile> cancel <job-id> \
-    --cluster <cluster> --log ./campaign-submissions.jsonl
+    --cluster <cluster> --database ./campaign-submissions.sqlite3
 ```
 
-Pass the same `--log` path to every command in that workflow. A custom log is
-not merged with the default log automatically.
+Pass the same `--database` path to every command in that workflow. A custom
+database is not merged with the default database automatically.
 
 ## Event Model
 
@@ -106,7 +107,7 @@ The current event types are:
 `submitted` is appended automatically by `hpc submit` and by higher-level
 wrappers such as `hpc r submit-install` when the real `sbatch` call succeeds.
 `cancel_requested` is appended by `hpc cancel` when `scancel` succeeds and the
-job matches an active record in the selected log.
+job matches an active record in the selected database.
 
 The remaining events are appended explicitly through `hpc submissions ...`
 subcommands.
@@ -192,7 +193,7 @@ Or observe one local run ID:
 hpc --profile <profile> submissions observe <run-id>
 ```
 
-The command replays the local log, selects active records belonging to the
+The command replays the local database, selects active records belonging to the
 chosen profile, queries `sacct` for their recorded Slurm job and cluster IDs,
 and appends an `observed` event for each successful query. Use the same profile
 that submitted the run. A run ID belonging to another profile is deliberately
@@ -242,7 +243,7 @@ artifact to exist and be associated with this run.
 
 The current commands do not validate that a supplied run ID already exists.
 Always copy it from `submissions list`; a typo would append an unrelated event
-to the JSONL stream.
+to the SQLite event table.
 
 ## Recommended Workflow
 
@@ -307,10 +308,10 @@ Work from the `ACTION` column:
 4. `triage`: preserve logs, diagnose the failure, then rerun or close;
 5. `closed`: visible only with `list --all`; no action remains.
 
-The log is local to the machine and configuration directory. Restarting a
+The database is local to the machine and configuration directory. Restarting a
 shell or Codex does not lose it, but moving to another workstation does unless
-you transfer it deliberately. A copied log can contain remote paths, job names,
-accounting output, and other operational metadata; protect it according to the
+you transfer it deliberately. A copied database can contain remote paths, job
+names, accounting output, and other operational metadata; protect it according to the
 sensitivity of the project.
 
 ## Audit completed work
@@ -322,10 +323,12 @@ hpc submissions list --all
 ```
 
 The table is a summary of the latest derived state. For a detailed audit, the
-append-only JSONL file retains all recorded events and raw accounting output.
-Read it with normal JSONL-aware tooling, but do not rewrite or reorder it.
+append-only SQLite event table retains all recorded events and raw accounting
+output. Inspect it with SQLite-aware tooling when
+needed, but use hpc-tools commands for updates rather than modifying rows
+directly.
 
-An event log is not a backup. Preserve result artifacts and scientific
+An event database is not a backup. Preserve result artifacts and scientific
 provenance in project or archival storage, and follow the cluster's retention
 policy.
 
@@ -348,7 +351,7 @@ stateDiagram-v2
 
 ## Notes
 
-- Do not edit `submissions.jsonl` directly unless the CLI is unavailable or
+- Do not edit `submissions.sqlite3` directly unless the CLI is unavailable or
   broken.
 - `observe` appends Slurm accounting snapshots; it does not collect result files
   for you.
@@ -356,12 +359,15 @@ stateDiagram-v2
   not itself evidence that Slurm has reached `CANCELLED`.
 - `mark-collected` and `mark-analysed` record paths only. They do not copy
   files.
-- The log is intentionally append-only; current state is derived, not updated in
-  place.
+- Lifecycle events are intentionally append-only; current state is derived,
+  not updated in place.
 - `close` changes only the local workflow view. It does not call `scancel`,
   delete remote output, or release storage; use the separate `cancel` command
   before closing when a live job must be stopped.
 - Events are not synchronized automatically between machines or users.
+- SQLite requires reliable filesystem locking. Keep an active multi-request
+  broker database on node-local or otherwise verified POSIX storage; do not use
+  one database as a concurrent multi-node service.
 
 See [Running Slurm jobs](slurm-jobs.md) for submission and failure diagnosis,
 and [Software environments and dependencies](software-environments.md) for

@@ -185,7 +185,7 @@ Keep the following state classes distinct:
 | State | Typical location | Examples |
 | --- | --- | --- |
 | installed software | pipx environment or Codex cache | `hpc`, bundled CLI plugins, installed Codex plugin |
-| durable local user state | `~/.config/hpc-tools/` or XDG equivalent | profiles, references, reference sets, submission log |
+| durable local user state | `~/.config/hpc-tools/` or XDG equivalent | profiles, references, reference sets, submission database |
 | repository examples | this source checkout | sample profiles, job scripts, sample probe results |
 | remote working state | target cluster | checkouts, job scripts, environments, raw outputs, probe results |
 | live external state | Slurm and site services | pending jobs, allocation balances, current outages |
@@ -215,15 +215,15 @@ conflict, investigate rather than silently preferring whichever is convenient.
 
 See [Cluster references and sharing](reference-sets.md) for the sharing boundary.
 
-## The submission log is an event stream
+## The submission database stores an event stream
 
 Successful real `hpc submit` operations are recorded locally, normally in:
 
 ```text
-~/.config/hpc-tools/submissions.jsonl
+~/.config/hpc-tools/submissions.sqlite3
 ```
 
-The log is append-only. It records events such as submission, observation,
+The event table is append-only. It records events such as submission, observation,
 collection, analysis, and closure, then derives the current workflow state by
 replaying them.
 
@@ -352,7 +352,7 @@ usually also needs:
 - relevant hardware or node-class context;
 - result and analysis artifact locations.
 
-Do not treat a job ID or submission-log entry as a complete provenance record.
+Do not treat a job ID or submission-database entry as a complete provenance record.
 
 ## A pre-submission checklist
 

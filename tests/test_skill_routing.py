@@ -93,7 +93,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc submissions mark-analysed", text)
         self.assertIn("hpc submissions close", text)
         self.assertIn("hpc status", text)
-        self.assertIn("Do not edit `submissions.jsonl` directly", text)
+        self.assertIn("Do not edit `submissions.sqlite3` directly", text)
         self.assertIn("superseded reason", text)
 
     def test_cluster_discovery_skill_covers_slurm_limits(self) -> None:
@@ -164,7 +164,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("CUDA cache sizes", text)
         self.assertIn("hpc submissions mark-collected", text)
         self.assertIn("hpc submissions close", text)
-        self.assertIn("do not update the local JSONL\nsubmission log by hand", text)
+        self.assertIn("do not update the local SQLite\nsubmission database by hand", text)
         self.assertIn("superseded reason", text)
         self.assertIn("Completion Criteria", text)
 

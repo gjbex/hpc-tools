@@ -4,7 +4,7 @@ import argparse
 from importlib import resources
 from typing import Any
 
-from hpc_tools import plugin_system
+from hpc_tools import plugin_system, submissions
 from hpc_tools.commands.common import _section_command, _tool_check_loop
 from hpc_tools.config import (
     ConfigError,
@@ -98,6 +98,7 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print(f"config: {default_config_path()}")
     print(f"profile_references: {config_dir / 'profiles' / '<profile>'}")
     print(f"reference_sets: {default_reference_sets_dir()}")
+    print(f"submissions_database: {submissions.default_database_path()}")
     print("codex_skills: ~/.codex/skills/")
     print(f"hardware_probe_template: {package_probe}")
     print(f"cuda_device_properties_template: {package_cuda_probe}")

@@ -21,7 +21,7 @@ when:
 - you want an operation to remain explicitly under shell control.
 
 The CLI provides generic SSH and Slurm commands, packaged probes and container
-templates, the local submission log, reference-set management, and bundled
+templates, the local submission database, reference-set management, and bundled
 workflow plugins.
 
 Install it independently with:

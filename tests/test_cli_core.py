@@ -185,6 +185,10 @@ class CliCoreTests(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("config: /tmp/xdg/hpc-tools/config.toml", output)
         self.assertIn("profile_references: /tmp/xdg/hpc-tools/profiles/<profile>", output)
+        self.assertIn(
+            "submissions_database: /tmp/xdg/hpc-tools/submissions.sqlite3",
+            output,
+        )
         self.assertIn("reference_sets: /tmp/xdg/hpc-tools/reference-sets", output)
         self.assertIn("codex_skills: ~/.codex/skills/", output)
         self.assertIn("cuda_device_properties_template:", output)

@@ -13,12 +13,12 @@ from hpc_tools.execution import run_command_capture
 def register(subparsers: Any, handlers: Any) -> None:
     submissions_parser = subparsers.add_parser(
         "submissions",
-        help="Inspect and update the local Slurm submission event log",
+        help="Inspect and update the local Slurm submission database",
     )
     submissions_parser.add_argument(
-        "--log",
+        "--database",
         type=Path,
-        help="Submission JSONL log path; defaults to the hpc-tools config directory",
+        help="Submission SQLite database path; defaults to the hpc-tools config directory",
     )
     submissions_subparsers = submissions_parser.add_subparsers(
         dest="submissions_command",
@@ -28,7 +28,7 @@ def register(subparsers: Any, handlers: Any) -> None:
 
     submissions_list_parser = submissions_subparsers.add_parser(
         "list",
-        help="List active submissions by replaying the event log",
+        help="List active submissions by replaying stored events",
     )
     submissions_list_parser.add_argument(
         "--all",
@@ -39,7 +39,7 @@ def register(subparsers: Any, handlers: Any) -> None:
 
     submissions_observe_parser = submissions_subparsers.add_parser(
         "observe",
-        help="Query Slurm accounting for active submissions and append observed events",
+        help="Query Slurm accounting for active submissions and store observed events",
     )
     submissions_observe_parser.add_argument(
         "run_id",
@@ -50,7 +50,7 @@ def register(subparsers: Any, handlers: Any) -> None:
 
     submissions_collect_parser = submissions_subparsers.add_parser(
         "mark-collected",
-        help="Append a results_collected event for a run",
+        help="Store a results_collected event for a run",
     )
     submissions_collect_parser.add_argument("run_id", help="Run ID")
     submissions_collect_parser.add_argument(
@@ -62,7 +62,7 @@ def register(subparsers: Any, handlers: Any) -> None:
 
     submissions_analyse_parser = submissions_subparsers.add_parser(
         "mark-analysed",
-        help="Append an analysed event for a run",
+        help="Store an analysed event for a run",
     )
     submissions_analyse_parser.add_argument("run_id", help="Run ID")
     submissions_analyse_parser.add_argument("--path", required=True, help="Report or notebook path")
@@ -70,7 +70,7 @@ def register(subparsers: Any, handlers: Any) -> None:
 
     submissions_close_parser = submissions_subparsers.add_parser(
         "close",
-        help="Append a closed event for a run",
+        help="Store a closed event for a run",
     )
     submissions_close_parser.add_argument("run_id", help="Run ID")
     submissions_close_parser.add_argument("--reason", help="Reason for closing this run")
@@ -78,7 +78,7 @@ def register(subparsers: Any, handlers: Any) -> None:
 
 def cmd_submissions_list(args: argparse.Namespace, profile: Profile | None) -> int:
     del profile
-    events = submissions.read_events(args.log)
+    events = submissions.read_events(args.database)
     records = (
         submissions.records_from_events(events)
         if args.all
@@ -88,7 +88,7 @@ def cmd_submissions_list(args: argparse.Namespace, profile: Profile | None) -> i
     return 0
 
 def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
-    events = submissions.read_events(args.log)
+    events = submissions.read_events(args.database)
     records = submissions.active_records(events)
     if args.run_id:
         records = [record for record in records if record.run_id == args.run_id]
@@ -117,7 +117,7 @@ def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
                 elapsed=elapsed,
                 raw_output=raw_output,
             ),
-            path=args.log,
+            path=args.database,
         )
         observed_records.append(record)
 
@@ -125,7 +125,7 @@ def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
         print("Dry run; no observations appended.")
         return 0
 
-    refreshed_events = submissions.read_events(args.log)
+    refreshed_events = submissions.read_events(args.database)
     observed_run_ids = {record.run_id for record in observed_records}
     refreshed_records = [
         record for record in submissions.records_from_events(refreshed_events)
@@ -138,7 +138,7 @@ def cmd_submissions_mark_collected(args: argparse.Namespace, profile: Profile | 
     del profile
     submissions.append_event(
         submissions.mark_event(args.run_id, "results_collected", path=args.path),
-        path=args.log,
+        path=args.database,
     )
     return 0
 
@@ -146,7 +146,7 @@ def cmd_submissions_mark_analysed(args: argparse.Namespace, profile: Profile | N
     del profile
     submissions.append_event(
         submissions.mark_event(args.run_id, "analysed", path=args.path),
-        path=args.log,
+        path=args.database,
     )
     return 0
 
@@ -154,6 +154,6 @@ def cmd_submissions_close(args: argparse.Namespace, profile: Profile | None) -> 
     del profile
     submissions.append_event(
         submissions.mark_event(args.run_id, "closed", reason=args.reason),
-        path=args.log,
+        path=args.database,
     )
     return 0

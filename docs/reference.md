@@ -125,10 +125,10 @@ commands.
 
 | Command | Purpose and important options |
 | --- | --- |
-| `hpc submit JOBSCRIPT [-C DIRECTORY] [--test-only] [--validate-first] [SLURM_OVERRIDES...]` | Run `sbatch` from the remote directory. Successful real submissions are appended to the local submission log. |
+| `hpc submit JOBSCRIPT [-C DIRECTORY] [--test-only] [--validate-first] [SLURM_OVERRIDES...]` | Run `sbatch` from the remote directory. Successful real submissions are appended to the local submission database. |
 | `hpc jobs [-M CLUSTER]` | Show the current user's queued and running jobs. Without a cluster override, it shows the clusters visible to the login context. |
 | `hpc job JOBID [-M CLUSTER]` | Query one job in the live queue. Completed jobs normally require `sacct`. |
-| `hpc cancel JOBID [-M CLUSTER] [--reason TEXT] [--log PATH]` | Request cancellation of one numeric job, array task, or job step. On success, append `cancel_requested` to matching active local records. |
+| `hpc cancel JOBID [-M CLUSTER] [--reason TEXT] [--database PATH]` | Request cancellation of one numeric job, array task, or job step. On success, append `cancel_requested` to matching active local records. |
 | `hpc queue` | Run the profile's site-specific `queue_command`. |
 | `hpc sacct JOBID [-M CLUSTER]` | Show accounting fields for a job: `JobID`, `JobName`, `Partition`, `Account`, `State`, `ExitCode`, and `Elapsed`. |
 
@@ -141,22 +141,22 @@ establishes scientific correctness, suitable scaling, or affordable cost.
 otherwise the current Slurm context. Its narrow job-ID grammar deliberately
 excludes `scancel` filters and lists, so one call cannot cancel jobs by user,
 partition, name, or state. Global `--dry-run` prints the command without
-requesting cancellation or changing the local event log. A successful
+requesting cancellation or changing the local event database. A successful
 `scancel` return records only `cancel_requested`; use `sacct` or `submissions
 observe` to verify the eventual scheduler state.
 
 ### Local submission records
 
-Use `--log PATH` immediately after `submissions` to operate on a non-default
-event log.
+Use `--database PATH` immediately after `submissions` to operate on a non-default
+event database.
 
 | Command | Purpose and important options |
 | --- | --- |
-| `hpc submissions [--log PATH] list [--all]` | Replay the event log and list active records; `--all` includes closed records. |
-| `hpc submissions [--log PATH] observe [RUN_ID]` | Query `sacct` through the stored profile and append observations for one or all active runs. |
-| `hpc submissions [--log PATH] mark-collected RUN_ID --path PATH` | Record where results were collected. This records the claim; it does not copy or verify the results. |
-| `hpc submissions [--log PATH] mark-analysed RUN_ID --path PATH` | Record an analysis artifact path. It does not run or validate the analysis. |
-| `hpc submissions [--log PATH] close RUN_ID [--reason TEXT]` | Close a record locally. It does not cancel a Slurm job or remove remote files. |
+| `hpc submissions [--database PATH] list [--all]` | Replay the event database and list active records; `--all` includes closed records. |
+| `hpc submissions [--database PATH] observe [RUN_ID]` | Query `sacct` through the stored profile and append observations for one or all active runs. |
+| `hpc submissions [--database PATH] mark-collected RUN_ID --path PATH` | Record where results were collected. This records the claim; it does not copy or verify the results. |
+| `hpc submissions [--database PATH] mark-analysed RUN_ID --path PATH` | Record an analysis artifact path. It does not run or validate the analysis. |
+| `hpc submissions [--database PATH] close RUN_ID [--reason TEXT]` | Close a record locally. It does not cancel a Slurm job or remove remote files. |
 
 See [Track work from submission to analysis](submissions.md) for the state and
 action model.
@@ -369,11 +369,13 @@ retain their site's output. `slurm-limits` is a labelled collection of Slurm
 controller, partition, node, QoS, and association output rather than a single
 rectangular table.
 
-## Submission-log format
+## Submission-database format
 
-The default log is `submissions.jsonl` in the hpc-tools configuration
-directory. It is append-only JSON Lines: each nonblank line is one JSON object.
-Every event receives a local ISO 8601 timestamp with timezone information.
+The default database is `submissions.sqlite3` in the hpc-tools configuration
+directory. It uses a versioned SQLite schema with an append-only
+`submission_events` table. Each event stores a generated identifier, run ID,
+event type, local ISO 8601 timestamp with timezone information, and a JSON
+payload. Current workflow state is reconstructed in insertion order.
 
 The event types are:
 
@@ -389,12 +391,11 @@ A generated run ID has the form
 `YYYYmmddTHHMMSSZ-PROFILE-JOBID-RANDOM8`. It identifies the local run record;
 the Slurm job ID and optional cluster identify the scheduler job.
 
-The reader groups events by `run_id` and replays them in file order. The file
-has no schema-version field, locking, remote synchronization, or cryptographic
-integrity check. Avoid concurrent writers, protect it as user data, and back it
-up before manual repair. A malformed JSON line makes the log unreadable until
-that line is corrected. See [Submission tracking](submissions.md) before
-editing it.
+The reader groups events by `run_id` and replays them in database insertion
+order. The schema is versioned with SQLite `PRAGMA user_version`, and writes use
+transactions with a busy timeout. The database has no remote synchronization or
+cryptographic integrity check. Protect it as user data and use hpc-tools rather
+than editing rows directly.
 
 ## Reference-set manifest format
 
@@ -456,7 +457,7 @@ set, otherwise `~/.config/hpc-tools`.
 | `~/.config/hpc-tools/config.toml` | Default profile configuration. |
 | `~/.config/hpc-tools/profiles/PROFILE/` | Durable profile-specific reference files and reports. |
 | `~/.config/hpc-tools/reference-sets/NAME/` | Installed shared reference sets. |
-| `~/.config/hpc-tools/submissions.jsonl` | Default local submission event log. |
+| `~/.config/hpc-tools/submissions.sqlite3` | Default local submission event database. |
 | `~/.codex/skills/` | Optional copied standalone skills. This is separate from both the Python package and a Codex plugin installation. |
 
 These are defaults, not literal paths under every environment. Run `hpc paths`
@@ -470,7 +471,7 @@ state or copied skills.
 | --- | --- |
 | `HPC_TOOLS_CONFIG` | Select the default configuration file when `--config` is absent. |
 | `HPC_TOOLS_EXECUTOR` | Select `ssh` or `local` when `--executor` is absent. The compatibility default is `ssh`. |
-| `XDG_CONFIG_HOME` | Relocate the hpc-tools configuration directory, reference sets, profile references, and default submission log. |
+| `XDG_CONFIG_HOME` | Relocate the hpc-tools configuration directory, reference sets, profile references, and default submission database. |
 
 Remote commands also run in the selected profile's login-shell environment, so
 remote variables such as `$HOME`, module initialization, and site-specific
@@ -498,7 +499,7 @@ The optional MCP server is a structured agent interface, not an alternative
 CLI syntax. Its current read tools cover profiles, paths, hardware context,
 reference sets, plugins, submissions, status, jobs, Slurm limits, modules,
 storage, and site environment. Confirm-gated tools cover reference changes,
-submission-log marks, local probe/container writes, and remote probe/container
+submission-database marks, local probe/container writes, and remote probe/container
 installation. Slurm submission is exposed only through the evidence chain:
 
 ```text
@@ -583,8 +584,8 @@ deployment boundary.
 : The local hpc-tools identifier linking append-only submission events. It is
   distinct from the Slurm job ID.
 
-**submission log**
-: The local JSONL event history created after successful `hpc submit` calls and
+**submission database**
+: The local SQLite event history created after successful `hpc submit` calls and
   extended by observation and lifecycle-marking commands.
 
 **validation**

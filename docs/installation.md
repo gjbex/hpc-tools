@@ -166,7 +166,7 @@ hpc paths
 ```
 
 Review release notes before upgrading when a workflow depends on command output
-or an on-disk format. Profiles, references, and submission logs are durable
+or an on-disk format. Profiles, references, and submission databases are durable
 user state and are not part of the pipx environment, but compatibility still
 matters when their schemas evolve.
 
@@ -205,7 +205,7 @@ pipx uninstall hpc-tools
 
 Removing the pipx environment removes the `hpc` and `hpc-mcp` executables it
 provided. It does not remove user-managed configuration, profile references,
-reference sets, submission logs, copied skills, remote job scripts, probe
+reference sets, submission databases, copied skills, remote job scripts, probe
 results, or benchmark artifacts.
 
 The durable local state normally remains under:
@@ -221,7 +221,7 @@ or, when `XDG_CONFIG_HOME` is unset:
 ```
 
 Inspect that state before deciding whether it should be retained, archived, or
-removed. In particular, `submissions.jsonl` may be the only local index of
+removed. In particular, `submissions.sqlite3` may be the only local index of
 unfinished remote work.
 
 ## Remove the Codex plugin
@@ -274,5 +274,5 @@ balance, statement, quote, hardware, or status commands depend on corresponding
 profile fields. This is a configuration issue, not necessarily an installation
 failure.
 
-For SSH, Slurm, package, probe, submission-log, Codex, and MCP failures,
+For SSH, Slurm, package, probe, submission-database, Codex, and MCP failures,
 continue with the full [Troubleshooting](troubleshooting.md) guide.

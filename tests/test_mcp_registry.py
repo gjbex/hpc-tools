@@ -102,7 +102,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "config",
                 "cluster",
                 "reason",
-                "log",
+                "database",
                 "dry_run",
                 "confirm",
             ],

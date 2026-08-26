@@ -235,7 +235,7 @@ Use pilot-first submission for arrays:
 5. Submit the remaining tasks only after the pilot proves the mapping, modules,
    output paths, and runtime assumptions.
 
-For real submissions, use `hpc submit` so the local append-only submission log
+For real submissions, use `hpc submit` so the local submission database
 captures the run:
 
 ```bash

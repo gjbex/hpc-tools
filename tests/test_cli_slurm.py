@@ -73,15 +73,15 @@ class CliCoreTests(unittest.TestCase):
                 "wice",
                 "--reason",
                 "superseded",
-                "--log",
-                "/tmp/submissions.jsonl",
+                "--database",
+                "/tmp/submissions.sqlite3",
             ]
         )
 
         self.assertIs(args.handler, cmd_cancel)
         self.assertEqual(args.cluster, "wice")
         self.assertEqual(args.reason, "superseded")
-        self.assertEqual(args.log, Path("/tmp/submissions.jsonl"))
+        self.assertEqual(args.database, Path("/tmp/submissions.sqlite3"))
 
     def test_cancel_success_logs_request_for_matching_active_run(self) -> None:
         profile = make_profile()
@@ -116,13 +116,13 @@ class CliCoreTests(unittest.TestCase):
             "hpc_tools.commands.slurm.submissions.read_events",
             return_value=tracked_events,
         ), mock.patch(
-            "hpc_tools.commands.slurm.submissions.append_event"
-        ) as append_event:
+            "hpc_tools.commands.slurm.submissions.append_events"
+        ) as append_events:
             result = cmd_cancel(args, profile)
 
         self.assertEqual(result, 0)
         self.assertEqual(execute.call_args.args[1], "scancel -M wice 12345")
-        event = append_event.call_args.args[0]
+        event = append_events.call_args.args[0][0]
         self.assertEqual(event["event"], "cancel_requested")
         self.assertEqual(event["run_id"], "run-1")
         self.assertEqual(event["reason"], "superseded")
@@ -140,12 +140,12 @@ class CliCoreTests(unittest.TestCase):
                 subprocess.CompletedProcess([], 1, "", "invalid job id\n"),
             ],
         ), mock.patch(
-            "hpc_tools.commands.slurm.submissions.append_event"
-        ) as append_event, contextlib.redirect_stderr(io.StringIO()):
+            "hpc_tools.commands.slurm.submissions.append_events"
+        ) as append_events, contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(cmd_cancel(dry_args, profile), 0)
             self.assertEqual(cmd_cancel(failed_args, profile), 1)
 
-        append_event.assert_not_called()
+        append_events.assert_not_called()
 
     def test_slurm_limits_command_covers_controller_partition_qos_and_assoc(self) -> None:
         command = slurm.slurm_limits_command(cluster="wice", partition="batch", qos="normal")

@@ -123,11 +123,11 @@ class CliCoreTests(unittest.TestCase):
 
     def test_submissions_list_parser(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["submissions", "--log", "/tmp/log.jsonl", "list"])
+        args = parser.parse_args(["submissions", "--database", "/tmp/submissions.sqlite3", "list"])
 
         self.assertEqual(args.command, "submissions")
         self.assertEqual(args.submissions_command, "list")
-        self.assertEqual(str(args.log), "/tmp/log.jsonl")
+        self.assertEqual(str(args.database), "/tmp/submissions.sqlite3")
 
     def test_references_list_parser(self) -> None:
         parser = build_parser()

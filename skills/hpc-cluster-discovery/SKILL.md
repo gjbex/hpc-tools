@@ -50,7 +50,7 @@ Treat local references and live command output as complementary:
 - Call out mismatches explicitly instead of silently choosing one source.
 
 For a quick cluster status overview, prefer `hpc status`. It returns the full
-status page, quota, balance, and current submission log in one report before
+status page, quota, balance, and current submission database in one report before
 you start drilling into a specific subsystem. Let the assistant summarize the
 attention-worthy items when you need a triage view.
 
@@ -171,7 +171,7 @@ hpc --profile <profile> quote srun -M <cluster> -p <partition> \
 ```
 
 Omit `--reservation` when the target partition does not require one. Validate
-and submit through `hpc submit` so the local submission log can track the run:
+and submit through `hpc submit` so the local submission database can track the run:
 
 ```bash
 hpc --profile <profile> submit --validate-first \
@@ -244,7 +244,7 @@ evidence source for each claim, especially when comparing CPU generation,
 memory capacity, NUMA layout, local storage, GPUs, CUDA cache/shared-memory
 properties, or measured memory bandwidth. After CUDA device-property results
 have been folded into the durable report, use `hpc submissions` to update the
-append-only local submission log. Do not edit `submissions.jsonl` directly
+local submission database. Do not edit `submissions.sqlite3` directly
 unless the CLI is unavailable or broken:
 
 ```bash

@@ -236,7 +236,7 @@ The following tools can change local state:
 
 Without `confirm=true`, they return a preview and do not write. Review the
 destination, selected profile, archive, generated content, overwrite flag, and
-submission-log event before confirming.
+submission-database event before confirming.
 
 `force=true` can replace existing generated files or reference sets. The
 confirmation flag does not back up overwritten state. Prefer versioned outputs
@@ -278,9 +278,9 @@ returns success, the tool appends a `cancel_requested` event to each matching
 active local submission record. It does not set the record state to
 `CANCELLED`: use `hpc_job`, Slurm accounting, or a later submission observation
 to confirm scheduler state. A request for an untracked job can succeed without
-appending a local event; `logged_run_ids` makes that distinction visible. If
-the scheduler request succeeds but the local event log cannot be updated,
-`log_error` reports the audit failure without hiding the scheduler result.
+appending a local event; `recorded_run_ids` makes that distinction visible. If
+the scheduler request succeeds but the local event database cannot be updated,
+`database_error` reports the audit failure without hiding the scheduler result.
 
 As with submission, `confirm=true` is a protocol gate, not proof of human
 authorization in an unattended Slurm job. A restricted runtime still needs
@@ -304,7 +304,7 @@ The protocol is stricter than the ordinary CLI:
 4. A real submission additionally requires `confirm=true` and
    `dry_run=false`.
 5. A successful parsed `sbatch` response is appended to the normal local
-   submission log.
+   submission database.
 
 The resource shape covers:
 

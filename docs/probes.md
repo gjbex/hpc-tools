@@ -222,7 +222,7 @@ hpc --profile example submit \
 
 Avoid `--validate-first` when you require a human review point after validation;
 it submits immediately when the test succeeds. The successful real submission
-is added to the local submission log.
+is added to the local submission database.
 
 Follow the job using its Slurm ID:
 

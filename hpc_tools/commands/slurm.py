@@ -109,9 +109,9 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         help="Reason recorded with matching local submission records",
     )
     cancel_parser.add_argument(
-        "--log",
+        "--database",
         type=Path,
-        help="Submission JSONL log path; defaults to the hpc-tools config directory",
+        help="Submission SQLite database path; defaults to the hpc-tools config directory",
     )
     cancel_parser.set_defaults(handler=handlers.cmd_cancel)
 
@@ -334,7 +334,7 @@ def cmd_cancel(args: argparse.Namespace, profile: Profile) -> int:
             cluster=cluster,
             command=command,
             reason=args.reason,
-            log=args.log,
+            database=args.database,
         )
     return completed.returncode
 
@@ -443,7 +443,7 @@ def _log_cancellation_request(
     cluster: str | None,
     command: str,
     reason: str | None,
-    log: Path | None,
+    database: Path | None,
 ) -> list[dict[str, Any]]:
     try:
         return submissions.append_cancel_requested_events(
@@ -452,7 +452,7 @@ def _log_cancellation_request(
             cluster=cluster,
             cancel_command=command,
             reason=reason,
-            path=log,
+            path=database,
         )
     except (OSError, ValueError) as error:
         print(

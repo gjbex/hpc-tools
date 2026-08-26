@@ -53,7 +53,7 @@ Do not include user-specific or sensitive state:
 
 - `config.toml`, SSH targets, usernames, email addresses, or keys;
 - Slurm accounts, balances, quote history, or allocation details;
-- `submissions.jsonl` or personal job history;
+- `submissions.sqlite3` or personal job history;
 - tokens, private project paths, or unpublished input details;
 - raw probe directories or large result trees.
 

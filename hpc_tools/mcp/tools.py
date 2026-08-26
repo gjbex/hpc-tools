@@ -54,6 +54,7 @@ def hpc_paths() -> dict[str, Any]:
         "config": str(default_config_path()),
         "profile_references": str(config_dir / "profiles" / "<profile>"),
         "reference_sets": str(default_reference_sets_dir()),
+        "submissions_database": str(submissions.default_database_path()),
         "codex_skills": "~/.codex/skills/",
         "hardware_probe_template": str(resources.files("hpc_tools.data").joinpath("hardware-probe.slurm")),
         "cuda_device_properties_template": str(
@@ -120,13 +121,13 @@ def hpc_plugins_list() -> dict[str, Any]:
         ]
     }
 
-def hpc_submissions_list(all: bool = False, log: str | None = None) -> dict[str, Any]:
-    """List hpc-tools submission records from the append-only local event log."""
-    log_path = Path(log).expanduser() if log else None
-    events = submissions.read_events(log_path)
+def hpc_submissions_list(all: bool = False, database: str | None = None) -> dict[str, Any]:
+    """List hpc-tools submission records from the local SQLite database."""
+    database_path = Path(database).expanduser() if database else None
+    events = submissions.read_events(database_path)
     records = submissions.records_from_events(events) if all else submissions.active_records(events)
     return {
-        "log": str(log_path or submissions.default_log_path()),
+        "database": str(database_path or submissions.default_database_path()),
         "all": all,
         "submissions": [_submission_record_to_dict(record) for record in records],
     }
@@ -169,11 +170,11 @@ def hpc_cancel_job(
     config: str | None = None,
     cluster: str | None = None,
     reason: str | None = None,
-    log: str | None = None,
+    database: str | None = None,
     dry_run: bool = True,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Cancel one Slurm job and log the request; execution requires confirmation."""
+    """Cancel one Slurm job and record the request; execution requires confirmation."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
     selected_cluster = cluster or resolved.default_cluster
     command = slurm.cancel_command(jobid, selected_cluster)
@@ -183,9 +184,9 @@ def hpc_cancel_job(
         confirm=confirm,
         dry_run=dry_run,
     )
-    log_path = Path(log).expanduser() if log else submissions.default_log_path()
+    database_path = Path(database).expanduser() if database else submissions.default_database_path()
     cancellation_events: list[dict[str, Any]] = []
-    log_error = None
+    database_error = None
     if result["executed"] and result["returncode"] == 0:
         try:
             cancellation_events = submissions.append_cancel_requested_events(
@@ -194,18 +195,18 @@ def hpc_cancel_job(
                 cluster=selected_cluster,
                 cancel_command=command,
                 reason=reason,
-                path=log_path,
+                path=database_path,
             )
         except (OSError, ValueError) as error:
-            log_error = str(error)
+            database_error = str(error)
     return result | {
         "operation": "cancel_job",
         "jobid": jobid,
         "cluster": selected_cluster,
         "reason": reason,
-        "log": str(log_path),
-        "logged_run_ids": [event["run_id"] for event in cancellation_events],
-        "log_error": log_error,
+        "database": str(database_path),
+        "recorded_run_ids": [event["run_id"] for event in cancellation_events],
+        "database_error": database_error,
     }
 
 def hpc_slurm_limits(
@@ -338,42 +339,42 @@ def hpc_references_attach(
 def hpc_submissions_mark_collected(
     run_id: str,
     path: str | None = None,
-    log: str | None = None,
+    database: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Append a results_collected event to the submission log; requires confirm=true."""
+    """Append a results_collected event to the submission database; requires confirm=true."""
     return _append_submission_mark_event(
         run_id,
         "results_collected",
         path=path,
-        log=log,
+        database=database,
         confirm=confirm,
     )
 
 def hpc_submissions_mark_analysed(
     run_id: str,
     path: str | None = None,
-    log: str | None = None,
+    database: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Append an analysed event to the submission log; requires confirm=true."""
+    """Append an analysed event to the submission database; requires confirm=true."""
     return _append_submission_mark_event(
         run_id,
         "analysed",
         path=path,
-        log=log,
+        database=database,
         confirm=confirm,
     )
 
 def hpc_submissions_close(
     run_id: str,
     reason: str | None = None,
-    log: str | None = None,
+    database: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Append a closed event to the submission log; requires confirm=true."""
+    """Append a closed event to the submission database; requires confirm=true."""
     event = submissions.mark_event(run_id, "closed", reason=reason)
-    return _append_submission_event(event, log=log, confirm=confirm)
+    return _append_submission_event(event, database=database, confirm=confirm)
 
 def hpc_write_probe(
     kind: str = "hardware",

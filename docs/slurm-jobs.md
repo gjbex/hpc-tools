@@ -174,7 +174,7 @@ hpc --profile example submit \
     simulation.sbatch
 ```
 
-A successful real submission is added to the local submission log. If the
+A successful real submission is added to the local submission database. If the
 remote response cannot be parsed, `hpc` warns that tracking failed; the job may
 still have been submitted, so inspect the queue before retrying.
 

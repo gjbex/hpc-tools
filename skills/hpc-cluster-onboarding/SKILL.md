@@ -97,7 +97,7 @@ uv pip install -e ".[mcp]"
 ```
 
 The MCP server is a guarded structured interface over active hpc-tools
-configuration, profile references, reference sets, submission logs, generated
+configuration, profile references, reference sets, submission databases, generated
 probe scripts, and container bundles. Local writes and remote installs require
 `confirm=true`; remote install tools preview commands unless `dry_run=false` is
 also set. Slurm submission is available only through the
@@ -325,8 +325,8 @@ probe-derived facts separate from documentation-derived facts. Consolidate both
 full hardware-probe and CUDA device-property findings into the profile hardware
 report under `~/.config/hpc-tools/profiles/<profile>/`. After the report is
 updated, use `hpc submissions mark-collected`, `hpc submissions mark-analysed`,
-and `hpc submissions close` for the matching runs; do not update the local JSONL
-submission log by hand unless the CLI is unavailable or broken. If an earlier
+and `hpc submissions close` for the matching runs; do not update the local SQLite
+submission database by hand unless the CLI is unavailable or broken. If an earlier
 probe attempt failed and a later corrected run succeeded, close the failed run
 with a superseded reason so onboarding state reflects only unresolved work.
 

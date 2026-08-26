@@ -87,23 +87,28 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
     def test_local_mcp_tools_work_without_profile_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            log_path = root / "submissions.jsonl"
+            database_path = root / "submissions.sqlite3"
 
             with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(root)}, clear=True):
                 paths = mcp_server.hpc_paths()
                 references = mcp_server.hpc_references_list()
                 plugins = mcp_server.hpc_plugins_list()
-                submissions = mcp_server.hpc_submissions_list(log=str(log_path))
+                submissions = mcp_server.hpc_submissions_list(database=str(database_path))
                 probe = mcp_server.hpc_write_probe(output="-")
                 container = mcp_server.hpc_write_container(output=str(root / "bundle"))
 
         self.assertTrue(paths["config"].endswith("hpc-tools/config.toml"))
+        self.assertTrue(
+            paths["submissions_database"].endswith(
+                "hpc-tools/submissions.sqlite3"
+            )
+        )
         self.assertEqual(references["reference_sets"], [])
         self.assertIn("plugins", plugins)
         self.assertEqual(submissions["submissions"], [])
         self.assertIn("#SBATCH --job-name=hardware-probe", probe["contents"])
         self.assertIn("create_apptainer_container.slurm", container["files"])
-        self.assertFalse(log_path.exists())
+        self.assertFalse(database_path.exists())
         self.assertFalse((root / "bundle").exists())
 
     def test_profile_required_tools_reject_missing_or_unknown_profiles(self) -> None:

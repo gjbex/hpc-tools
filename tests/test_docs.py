@@ -12,7 +12,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
         self.assertIn("## Complete CLI command reference", reference)
         self.assertIn("## Configuration schema", reference)
-        self.assertIn("## Submission-log format", reference)
+        self.assertIn("## Submission-database format", reference)
         self.assertIn("## Reference-set manifest format", reference)
         self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", reference)
         self.assertIn("Unknown TOML keys are currently ignored", reference)
@@ -143,10 +143,21 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("NUMA", text)
         self.assertIn("600 GB", text)
 
+    def test_project_information_documents_submission_database_schema(self) -> None:
+        text = (ROOT / "docs" / "project-information.md").read_text(encoding="utf-8")
+
+        self.assertIn("### Submission database schema", text)
+        self.assertIn("CREATE TABLE submission_events", text)
+        self.assertIn("CREATE INDEX submission_events_by_run", text)
+        self.assertIn("PRAGMA user_version = 1", text)
+        self.assertIn("PRAGMA journal_mode = DELETE", text)
+        self.assertIn("PRAGMA synchronous = FULL", text)
+        self.assertIn("mode `0600`", text)
+
     def test_submissions_doc_covers_action_semantics_and_diagram(self) -> None:
         text = SUBMISSIONS_DOC.read_text(encoding="utf-8")
 
-        self.assertIn("Submission Log Workflow", text)
+        self.assertIn("Submission Database Workflow", text)
         self.assertIn("STATE", text)
         self.assertIn("ACTION", text)
         self.assertIn("triage", text)

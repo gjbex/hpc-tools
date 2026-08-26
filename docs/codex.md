@@ -205,7 +205,7 @@ submit.
 ## Resume work across Codex tasks
 
 Codex conversation state is not the durable workflow record. Successful
-hpc-tools submissions are recorded in the local append-only log:
+hpc-tools submissions are recorded in the local SQLite submission database:
 
 ```console
 hpc submissions list

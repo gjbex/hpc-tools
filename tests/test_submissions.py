@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import sqlite3
+import stat
 import tempfile
 import unittest
 
 from hpc_tools import submissions
 
 
-class SubmissionLogTests(unittest.TestCase):
+class SubmissionDatabaseTests(unittest.TestCase):
     def test_parse_sbatch_submission_with_cluster(self) -> None:
         job_id, cluster = submissions.parse_sbatch_submission(
             "Submitted batch job 60351238 on cluster wice\n"
@@ -156,17 +159,82 @@ class SubmissionLogTests(unittest.TestCase):
 
     def test_append_and_read_events(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            log_path = Path(directory) / "submissions.jsonl"
+            database_path = Path(directory) / "submissions.sqlite3"
 
             submissions.append_event(
                 {"event": "closed", "run_id": "run-1", "reason": "done"},
-                path=log_path,
+                path=database_path,
             )
 
-            events = submissions.read_events(log_path)
+            events = submissions.read_events(database_path)
             self.assertEqual(events[0]["event"], "closed")
             self.assertEqual(events[0]["reason"], "done")
             self.assertIn("timestamp", events[0])
+
+    def test_database_has_versioned_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "submissions.sqlite3"
+            submissions.append_event(
+                {"event": "submitted", "run_id": "run-1"},
+                path=database_path,
+            )
+
+            with sqlite3.connect(database_path) as connection:
+                version = connection.execute("PRAGMA user_version").fetchone()[0]
+                count = connection.execute(
+                    "SELECT COUNT(*) FROM submission_events"
+                ).fetchone()[0]
+                journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+            mode = stat.S_IMODE(database_path.stat().st_mode)
+
+        self.assertEqual(submissions.SCHEMA_VERSION, version)
+        self.assertEqual(1, count)
+        self.assertEqual("delete", journal_mode)
+        self.assertEqual(0o600, mode)
+
+    def test_append_events_is_atomic_when_validation_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "submissions.sqlite3"
+
+            with self.assertRaisesRegex(ValueError, "non-empty 'run_id'"):
+                submissions.append_events(
+                    [
+                        {"event": "submitted", "run_id": "run-1"},
+                        {"event": "observed"},
+                    ],
+                    path=database_path,
+                )
+
+            self.assertFalse(database_path.exists())
+
+    def test_concurrent_event_appends_are_serialized(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "submissions.sqlite3"
+            def append(index: int) -> None:
+                submissions.append_event(
+                    {"event": "submitted", "run_id": f"run-{index}"},
+                    path=database_path,
+                )
+
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                list(executor.map(append, range(20)))
+
+            events = submissions.read_events(database_path)
+
+        self.assertEqual(20, len(events))
+        self.assertEqual(
+            {f"run-{index}" for index in range(20)},
+            {event["run_id"] for event in events},
+        )
+
+    def test_unknown_database_schema_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "submissions.sqlite3"
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("PRAGMA user_version = 99")
+
+            with self.assertRaisesRegex(ValueError, "unsupported.*version 99"):
+                submissions.read_events(database_path)
 
     def test_parse_sacct_observation_for_array_job(self) -> None:
         state, exit_code, elapsed = submissions.parse_sacct_observation(

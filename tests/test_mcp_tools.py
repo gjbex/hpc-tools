@@ -74,7 +74,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = self._write_config(root)
-            log_path = root / "submissions.jsonl"
+            database_path = root / "submissions.sqlite3"
             submissions.append_event(
                 {
                     "event": "submitted",
@@ -85,7 +85,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     "jobscript": "job.slurm",
                     "remote_directory": "$VSC_DATA/Projects/demo",
                 },
-                path=log_path,
+                path=database_path,
             )
             completed = mock.Mock(returncode=0, stdout="", stderr="")
 
@@ -98,19 +98,19 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     config=str(config_path),
                     cluster="wice",
                     reason="superseded",
-                    log=str(log_path),
+                    database=str(database_path),
                     dry_run=False,
                     confirm=True,
                 )
 
-            events = submissions.read_events(log_path)
+            events = submissions.read_events(database_path)
 
         self.assertTrue(result["executed"])
-        self.assertEqual(result["logged_run_ids"], ["run-1"])
+        self.assertEqual(result["recorded_run_ids"], ["run-1"])
         self.assertEqual(result["command"], "scancel -M wice 12345")
         self.assertEqual(events[-1]["event"], "cancel_requested")
         self.assertEqual(events[-1]["reason"], "superseded")
-        self.assertIsNone(result["log_error"])
+        self.assertIsNone(result["database_error"])
         execute.assert_called_once()
 
     def test_cancel_job_preserves_success_when_local_log_update_fails(self) -> None:
@@ -122,7 +122,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 return_value=completed,
             ), mock.patch(
                 "hpc_tools.mcp.tools.submissions.append_cancel_requested_events",
-                side_effect=OSError("read-only log"),
+                side_effect=OSError("read-only database"),
             ):
                 result = mcp_server.hpc_cancel_job(
                     "12345",
@@ -133,8 +133,8 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
         self.assertTrue(result["executed"])
         self.assertEqual(result["returncode"], 0)
-        self.assertEqual(result["logged_run_ids"], [])
-        self.assertEqual(result["log_error"], "read-only log")
+        self.assertEqual(result["recorded_run_ids"], [])
+        self.assertEqual(result["database_error"], "read-only database")
 
     def test_cancel_job_rejects_non_job_filters(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -271,7 +271,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = self._write_config(root)
-            log_path = root / "hpc-tools" / "submissions.jsonl"
+            database_path = root / "hpc-tools" / "submissions.sqlite3"
 
             with mock.patch.dict(
                 "os.environ",
@@ -285,7 +285,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertTrue(jobs["dry_run"])
         self.assertEqual(hardware_sources["profile"], "genius")
         self.assertEqual(active["submissions"], [])
-        self.assertFalse(log_path.exists())
+        self.assertFalse(database_path.exists())
         remote.assert_not_called()
 
     def test_references_create_requires_confirm_before_writing(self) -> None:
@@ -330,25 +330,26 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
     def test_submissions_close_requires_confirm_before_append(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            log_path = Path(directory) / "submissions.jsonl"
+            database_path = Path(directory) / "submissions.sqlite3"
 
             preview = mcp_server.hpc_submissions_close(
                 "run-1",
                 reason="done",
-                log=str(log_path),
+                database=str(database_path),
             )
             self.assertTrue(preview["confirm_required"])
-            self.assertFalse(log_path.exists())
+            self.assertFalse(database_path.exists())
 
             result = mcp_server.hpc_submissions_close(
                 "run-1",
                 reason="done",
-                log=str(log_path),
+                database=str(database_path),
                 confirm=True,
             )
 
             self.assertTrue(result["appended"])
-            self.assertIn('"event": "closed"', log_path.read_text(encoding="utf-8"))
+            events = submissions.read_events(database_path)
+            self.assertEqual("closed", events[0]["event"])
 
     def test_write_probe_requires_confirm_before_writing_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

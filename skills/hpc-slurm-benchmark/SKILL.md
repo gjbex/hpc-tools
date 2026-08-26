@@ -180,7 +180,7 @@ For sweeps or repeated jobs, use pilot-first submission:
 5. Submit the remaining cases only after the pilot proves path, modules,
    scheduler options, and runtime configuration.
 
-Use `hpc submit` for real submissions so the local append-only submission log can
+Use `hpc submit` for real submissions so the local submission database can
 be used to resume work:
 
 ```bash
@@ -208,9 +208,9 @@ memory, maximum RSS, node list, loaded modules, and the recorded runtime
 environment.
 
 After completion, transfer compact artifacts locally. Prefer CSV/JSON timing
-files plus Slurm output logs. When using the hpc-tools submission log, update the
+files plus Slurm output logs. When using the hpc-tools submission database, update the
 submission lifecycle after collection and analysis, or propose doing so when the
-user may want to keep the active log clean:
+user may want to keep the active database focused:
 
 ```bash
 hpc submissions mark-collected <run-id> --path <results-path>

@@ -252,7 +252,7 @@ this command merely to see what it does; use `--dry-run` or `--test-only` for
 that.
 
 On success, Slurm prints a job ID. hpc-tools also appends the successful real
-submission to its local event log when the `sbatch` output can be parsed.
+submission to its local event database when the `sbatch` output can be parsed.
 
 ## 10. Follow the job
 

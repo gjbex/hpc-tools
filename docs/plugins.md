@@ -10,7 +10,7 @@ Keep the core CLI focused on:
 - remote command execution
 - profile and config handling
 - reference-set management
-- Slurm quoting, submission, accounting, and submission logs
+- Slurm quoting, submission, accounting, and submission databases
 - generic module discovery
 
 Move workflow-specific helpers into plugins, for example:
@@ -78,7 +78,7 @@ Plugins register top-level subcommands through a narrow Python interface:
 - `requires_profile(argv)`
 
 This keeps the first API intentionally small. Plugins should rely on core helper
-modules for SSH, Slurm, config, and submission-log behavior instead of
+modules for SSH, Slurm, config, and submission-database behavior instead of
 reimplementing that infrastructure.
 
 ## Packaging
@@ -178,5 +178,5 @@ the core CLI. Likely additions are:
 - Profile-aware plugin commands should defer to the same config and SSH
   mechanisms that the core CLI already uses.
 - Closed submission runs should remain hidden from `hpc submissions list` even
-  when later metadata events are appended; the submission-log fix added during
+  when later metadata events are appended; the submission-database fix added during
   this plugin slice is covered by regression tests.

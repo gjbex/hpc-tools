@@ -256,9 +256,9 @@ hpc --profile <profile> sacct <jobid> --cluster <cluster>
 ```
 
 `hpc submit` appends successful real submissions to the local append-only
-submission event log. Use it to resume after long queue waits or after restarting
-the Codex session. Update the log through `hpc submissions`; do not edit
-`submissions.jsonl` directly unless the CLI is unavailable or broken:
+submission event database. Use it to resume after long queue waits or after restarting
+the Codex session. Update the database through `hpc submissions`; do not edit
+`submissions.sqlite3` directly unless the CLI is unavailable or broken:
 
 ```bash
 hpc --profile <profile> submissions list
