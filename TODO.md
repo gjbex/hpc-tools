@@ -54,22 +54,62 @@ interactive client. They are not authorization for unattended execution.
 - [x] Keep installation, reference mutation, probe generation, arbitrary site
   inspection, and unrelated local-state mutation out of this preset.
 
-### 2. Add delegation policy and accounting
+### 2. Add delegation policy, ownership, and agent accounting
 
-- [ ] Define a versioned, operator-issued delegation manifest.
-- [ ] Bind the delegation to the parent Slurm job/allocation and selected cluster profile.
-- [ ] Define allowed accounts, clusters, partitions, QoS values, reservations,
-  container images, script identities or hashes, and filesystem roots.
-- [ ] Define per-job limits for nodes, tasks, CPUs, memory, GPUs, wall time, and
-  array size/concurrency.
-- [ ] Define aggregate limits across the delegation, including submission
-  count and total or concurrently active resources.
-- [ ] Add an expiry time and explicit policy version.
+Keep the responsibility split explicit:
+
+- Slurm remains authoritative for Linux identity, account associations,
+  partitions, QoS, reservations, resource limits, scheduling, and cluster-wide
+  usage/accounting. The MCP server must not emulate Slurm accounts or
+  partitions, maintain a second account balance, or claim that its checks make
+  a scheduler-invalid request valid.
+- The delegation policy may only narrow what Slurm permits. Its account,
+  cluster, partition, QoS, reservation, container, path, and resource fields
+  are allowlists or tighter ceilings selected by the delegation issuer, not
+  replacement scheduler policy.
+- The MCP ledger supplies controls Slurm does not provide for one unattended
+  agent delegation: ownership of delegated job IDs, idempotent mutation,
+  expiry, an optional agent-scoped compute budget, and an audit trail.
+- Scheduler-native limits should be queried from Slurm and relied on where
+  available. Ledger budgets are appropriate only for delegation-specific caps
+  that an ordinary user cannot create or delegate through site-managed Slurm
+  associations or QoS.
+- These controls protect the MCP-mediated agent path, not the Unix user from
+  themselves. The server and ledger must run outside the agent container, and
+  the container must have neither Slurm commands nor credentials that bypass
+  MCP.
+
+Required work:
+
+- [ ] Define a versioned, issuer-authorized delegation manifest.
+- [ ] Bind the delegation to the parent Slurm job/allocation, selected cluster
+  profile, and authenticated MCP client or unguessable delegation credential.
+- [ ] Define narrowing allowlists for accounts, clusters, partitions, QoS
+  values, reservations, approved container images, script identities or
+  hashes, and filesystem roots.
+- [ ] Define optional per-job ceilings for nodes, tasks, CPUs, memory, GPUs,
+  wall time, and array size/concurrency. Slurm remains the final authority and
+  may impose stricter limits.
+- [ ] Define only the aggregate agent budget that Slurm cannot already enforce
+  for this delegation, such as accepted submission count and concurrently
+  active or cumulatively requested resources. Specify reservation, release,
+  cancellation, and terminal-job accounting semantics before implementation.
+- [ ] Add an expiry time, explicit policy version, issuer identity, and
+  revocation mechanism.
 - [ ] Add idempotency keys so retries cannot create duplicate jobs or consume
-  the submission budget twice.
-- [ ] Store delegation state in a persistent ledger and update counters
-  atomically across concurrent MCP requests.
-- [ ] Record an append-only audit event for every accepted and rejected mutation.
+  the delegation budget twice.
+- [ ] Extend or complement the submission database with server-owned delegation
+  and job-ownership records; do not treat the agent-readable submission history
+  as the authorization ledger.
+- [ ] Update ownership and budget state atomically across concurrent MCP
+  requests, including an explicit recovery state for a scheduler-accepted
+  submission whose ledger update is interrupted.
+- [ ] Record an append-only audit event for every accepted and rejected
+  mutation, while keeping mutable reservation/counter state separately
+  queryable.
+- [ ] Reconcile ledger state with Slurm queue and accounting data without
+  importing unrelated jobs merely because they share the same Unix user or
+  Slurm account.
 
 ### 3. Complete and restrict the job lifecycle API
 
