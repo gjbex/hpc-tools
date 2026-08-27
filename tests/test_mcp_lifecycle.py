@@ -6,8 +6,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from hpc_tools import delegation, mcp_server
 from test_mcp_fixtures import McpFixtures
+
+from hpc_tools import delegation, mcp_server
 
 
 class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
@@ -146,6 +147,22 @@ class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
         self.assertEqual(0, summary["active_jobs"])
         self.assertIn("sacct -n -P -M wice -j 123", result["command"])
 
+    def test_accounting_rejects_unowned_job_before_scheduler(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._write_config(root)
+            runtime = self._runtime(root)
+            self._own(runtime, job_id="123")
+            with delegation.delegation_scope(runtime), mock.patch(
+                "hpc_tools.mcp.common.run_command_capture"
+            ) as remote, self.assertRaisesRegex(
+                delegation.DelegationError, "outside"
+            ):
+                mcp_server.hpc_job_accounting(
+                    "999", config=str(config), cluster="wice"
+                )
+        remote.assert_not_called()
+
     def test_delegated_cancel_uses_authority_and_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -185,16 +202,55 @@ class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
             self._own(runtime, job_id="123")
             with delegation.delegation_scope(runtime), mock.patch(
                 "hpc_tools.mcp.common.run_command_capture"
-            ) as remote:
-                with self.assertRaisesRegex(delegation.DelegationError, "outside"):
-                    mcp_server.hpc_cancel_job(
-                        "999",
-                        config=str(config),
-                        cluster="wice",
-                        idempotency_key="cancel-1",
-                        dry_run=False,
-                    )
+            ) as remote, self.assertRaisesRegex(
+                delegation.DelegationError, "outside"
+            ):
+                mcp_server.hpc_cancel_job(
+                    "999",
+                    config=str(config),
+                    cluster="wice",
+                    idempotency_key="cancel-1",
+                    dry_run=False,
+                )
         remote.assert_not_called()
+
+    def test_delegated_cancel_recovers_uncertain_when_result_audit_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._write_config(root)
+            runtime = self._runtime(root)
+            self._own(runtime, job_id="123")
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+            with delegation.delegation_scope(runtime), mock.patch(
+                "hpc_tools.mcp.common.run_command_capture", return_value=completed
+            ) as remote, mock.patch.object(
+                delegation.DelegationLedger,
+                "record_lifecycle_result",
+                side_effect=delegation.DelegationError("audit unavailable"),
+            ):
+                result = mcp_server.hpc_cancel_job(
+                    "123",
+                    config=str(config),
+                    cluster="wice",
+                    idempotency_key="cancel-uncertain",
+                    dry_run=False,
+                )
+
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            replay = ledger.reserve_lifecycle_operation(
+                runtime.manifest,
+                idempotency_key="cancel-uncertain",
+                operation="cancel",
+                job_id="123",
+                cluster="wice",
+            )
+
+        self.assertTrue(result["ledger_recorded"])
+        self.assertEqual("uncertain", result["ledger_status"])
+        self.assertEqual("audit unavailable", result["ledger_error"])
+        self.assertIsNone(result["ledger_recovery_error"])
+        self.assertEqual("uncertain", replay["status"])
+        remote.assert_called_once()
 
 
 if __name__ == "__main__":

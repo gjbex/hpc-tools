@@ -85,12 +85,25 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         )
         self.assertEqual(mcp_server.resource_templates_for_preset("slurm-job"), ())
         restricted = set(mcp_server.tool_names_for_preset("slurm-job"))
-        self.assertNotIn("hpc_profiles_list", restricted)
-        self.assertNotIn("hpc_paths", restricted)
-        self.assertNotIn("hpc_profile_show", restricted)
-        self.assertNotIn("hpc_slurm_limits", restricted)
-        self.assertNotIn("hpc_storage_inspect", restricted)
-        self.assertNotIn("hpc_install_container", restricted)
+        forbidden_tools = set(mcp_server.TOOL_NAMES) - restricted
+        self.assertTrue(
+            {
+                "hpc_profiles_list", "hpc_paths", "hpc_profile_show",
+                "hpc_slurm_limits", "hpc_storage_inspect", "hpc_site_env",
+                "hpc_submissions_list", "hpc_references_create",
+                "hpc_install_probe", "hpc_install_container",
+            }.issubset(forbidden_tools)
+        )
+        self.assertTrue(restricted.isdisjoint(forbidden_tools))
+        restricted_resources = set(
+            mcp_server.resource_uris_for_preset("slurm-job")
+        )
+        self.assertTrue(
+            restricted_resources.isdisjoint(
+                set(mcp_server.RESOURCE_URIS)
+                | set(mcp_server.RESOURCE_TEMPLATES)
+            )
+        )
 
     def test_unknown_mcp_preset_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unknown MCP preset"):

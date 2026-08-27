@@ -21,7 +21,7 @@ except ModuleNotFoundError:  # pragma: no cover
 from hpc_tools.config import ConfigError, default_config_dir
 
 MANIFEST_VERSION = 1
-LEDGER_SCHEMA_VERSION = 1
+LEDGER_SCHEMA_VERSION = 2
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
 PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
@@ -159,6 +159,15 @@ def load_manifest(
         raw = tomllib.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise DelegationError(f"invalid delegation manifest {path}: {error}") from error
+    _reject_unknown_keys(
+        raw,
+        {
+            "format_version", "id", "issuer", "profile", "parent_job_id",
+            "issued_at", "expires_at", "allowed", "per_job_limits", "budget",
+            "filesystem",
+        },
+        "delegation manifest",
+    )
     if raw.get("format_version") != MANIFEST_VERSION:
         raise DelegationError(
             f"unsupported delegation manifest version {raw.get('format_version')!r}; "
@@ -184,6 +193,7 @@ def load_manifest(
         "accounts", "clusters", "partitions", "qos", "reservations",
         "containers", "script_sha256", "roots",
     )
+    _reject_unknown_keys(allowed_table, set(keys), "allowed")
     allowed = {key: _strings(allowed_table, key) for key in keys}
     if not allowed["accounts"] or not allowed["clusters"]:
         raise DelegationError("allowed accounts and clusters must not be empty")
@@ -204,6 +214,28 @@ def load_manifest(
                 "filesystem.work_root must be authorized by allowed.roots"
             )
 
+    per_job_limits = _positive_ints(
+        raw.get("per_job_limits", {}),
+        "per_job_limits",
+        allowed_keys={
+            "nodes", "tasks", "cpus_per_task", "gpus", "gpus_per_node",
+            "gpus_per_task", "array_tasks", "array_concurrency", "wall_seconds",
+            "memory_mib", "memory_per_cpu_mib",
+        },
+    )
+    budget = _positive_ints(
+        raw.get("budget", {}),
+        "budget",
+        allowed_keys={
+            "max_submissions", "max_active_jobs", "max_total_nodes",
+            "max_total_tasks", "max_total_cpus_per_task", "max_total_gpus",
+            "max_total_gpus_per_node", "max_total_gpus_per_task",
+            "max_total_array_tasks", "max_total_array_concurrency",
+            "max_total_wall_seconds", "max_total_memory_mib",
+            "max_total_memory_per_cpu_mib",
+        },
+    )
+
     return DelegationManifest(
         identifier=identifier,
         issuer=_string(raw, "issuer"),
@@ -212,8 +244,8 @@ def load_manifest(
         issued_at=issued,
         expires_at=expires,
         allowed=allowed,
-        per_job_limits=_positive_ints(raw.get("per_job_limits", {}), "per_job_limits"),
-        budget=_positive_ints(raw.get("budget", {}), "budget"),
+        per_job_limits=per_job_limits,
+        budget=budget,
         filesystem=filesystem,
         source_path=path,
         digest=hashlib.sha256(payload).hexdigest(),
@@ -450,6 +482,63 @@ class DelegationLedger:
                 {"idempotency_key": idempotency_key, "job_id": job_id, "cluster": cluster},
             )
 
+    def record_accepted_submission_uncertain(
+        self,
+        manifest: DelegationManifest,
+        *,
+        idempotency_key: str,
+        job_id: str,
+        cluster: str | None,
+        reason: str,
+    ) -> None:
+        """Fail closed after Slurm accepted a job but normal persistence failed.
+
+        This deliberately omits the audit insert: it is the recovery path for a
+        failed ledger/audit transaction. Ownership and consumed budget are more
+        important than pretending the audit record was durable.
+        """
+        job_id = normalize_job_id(job_id)
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            row = db.execute(
+                """SELECT status,job_id FROM submission_operations
+                   WHERE delegation_id=? AND idempotency_key=?""",
+                (manifest.identifier, idempotency_key),
+            ).fetchone()
+            if not row:
+                raise DelegationError("submission has no ledger reservation")
+            if row[0] not in {"reserved", "uncertain"}:
+                raise DelegationError(
+                    f"cannot recover submission operation in state {row[0]!r}"
+                )
+            if row[1] not in {None, job_id}:
+                raise DelegationError("submission recovery conflicts with recorded job ID")
+            db.execute(
+                """UPDATE submission_operations
+                   SET status='uncertain',job_id=?,cluster=?,error=?,updated_at=?
+                   WHERE delegation_id=? AND idempotency_key=?""",
+                (
+                    job_id, cluster, reason, _now(), manifest.identifier,
+                    idempotency_key,
+                ),
+            )
+            db.execute(
+                """INSERT OR IGNORE INTO job_ownership
+                   (delegation_id,job_id,cluster,idempotency_key,created_at)
+                   VALUES (?,?,?,?,?)""",
+                (
+                    manifest.identifier, job_id, cluster or "", idempotency_key,
+                    _now(),
+                ),
+            )
+            owned = db.execute(
+                """SELECT idempotency_key FROM job_ownership
+                   WHERE delegation_id=? AND job_id=? AND cluster=?""",
+                (manifest.identifier, job_id, cluster or ""),
+            ).fetchone()
+            if not owned or owned[0] != idempotency_key:
+                raise DelegationError("submission recovery could not record job ownership")
+
     def release_reservation(
         self,
         manifest: DelegationManifest,
@@ -512,7 +601,8 @@ class DelegationLedger:
                 raise DelegationError("cannot reconcile a job outside the delegation")
             db.execute(
                 """UPDATE submission_operations SET status='terminal',updated_at=?
-                   WHERE delegation_id=? AND idempotency_key=? AND status='submitted'""",
+                   WHERE delegation_id=? AND idempotency_key=?
+                     AND status IN ('submitted','uncertain')""",
                 (_now(), manifest.identifier, row[0]),
             )
             self._audit(
@@ -671,7 +761,8 @@ class DelegationLedger:
             changed = db.execute(
                 """UPDATE lifecycle_operations
                    SET status=?,result_json=?,updated_at=?
-                   WHERE delegation_id=? AND idempotency_key=? AND status='reserved'""",
+                   WHERE delegation_id=? AND idempotency_key=?
+                     AND status IN ('reserved','uncertain')""",
                 (
                     status,
                     json.dumps(result, sort_keys=True, separators=(",", ":")),
@@ -686,6 +777,34 @@ class DelegationLedger:
                 db, manifest.identifier, "lifecycle_result", status,
                 {"idempotency_key": idempotency_key, "result": result},
             )
+
+    def record_accepted_lifecycle_uncertain(
+        self,
+        manifest: DelegationManifest,
+        *,
+        idempotency_key: str,
+        result: dict[str, Any],
+        reason: str,
+    ) -> None:
+        """Persist a non-replayable recovery state without relying on audit."""
+        recovery_result = dict(result)
+        recovery_result["persistence_error"] = reason
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            changed = db.execute(
+                """UPDATE lifecycle_operations
+                   SET status='uncertain',result_json=?,updated_at=?
+                   WHERE delegation_id=? AND idempotency_key=?
+                     AND status IN ('reserved','uncertain')""",
+                (
+                    json.dumps(
+                        recovery_result, sort_keys=True, separators=(",", ":")
+                    ),
+                    _now(), manifest.identifier, idempotency_key,
+                ),
+            ).rowcount
+            if changed != 1:
+                raise DelegationError("lifecycle operation has no active reservation")
 
     def owns_job(self, delegation_id: str, job_id: str, cluster: str | None) -> bool:
         base_job_id = normalize_job_id(job_id)
@@ -772,6 +891,16 @@ class DelegationLedger:
             raise DelegationError("delegation is revoked")
         if _parse_time(row[1]) <= datetime.now(timezone.utc):
             raise DelegationError("delegation is expired")
+
+    def _registered(
+        self, db: sqlite3.Connection, manifest: DelegationManifest
+    ) -> None:
+        row = db.execute(
+            "SELECT manifest_sha256 FROM delegations WHERE delegation_id=?",
+            (manifest.identifier,),
+        ).fetchone()
+        if not row or row[0] != manifest.digest:
+            raise DelegationError("delegation is not registered with this ledger")
 
     def _audit(
         self,
@@ -871,6 +1000,7 @@ class DelegationLedger:
                     cluster TEXT NOT NULL, idempotency_key TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     PRIMARY KEY (delegation_id,job_id,cluster),
+                    UNIQUE (job_id,cluster),
                     FOREIGN KEY (delegation_id,idempotency_key)
                       REFERENCES submission_operations(delegation_id,idempotency_key)
                 );
@@ -970,13 +1100,28 @@ def _strings(data: dict[str, Any], key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def _positive_ints(value: Any, name: str) -> dict[str, int]:
+def _positive_ints(
+    value: Any,
+    name: str,
+    *,
+    allowed_keys: set[str] | None = None,
+) -> dict[str, int]:
     if not isinstance(value, dict):
         raise DelegationError(f"{name} must be a table")
+    if allowed_keys is not None:
+        _reject_unknown_keys(value, allowed_keys, name)
     for key, item in value.items():
         if not isinstance(item, int) or isinstance(item, bool) or item < 1:
             raise DelegationError(f"{name}.{key} must be a positive integer")
     return dict(value)
+
+
+def _reject_unknown_keys(
+    value: dict[str, Any], allowed: set[str], name: str
+) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise DelegationError(f"unsupported {name} field(s): {', '.join(unknown)}")
 
 
 def _filesystem_policy(value: Any) -> FilesystemPolicy | None:

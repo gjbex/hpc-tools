@@ -374,8 +374,13 @@ def hpc_submit_job(
     stderr = completed.stderr
     logged = False
     database_error = None
+    ledger_error = None
+    ledger_recovery_error = None
+    ledger_status = "not_applicable" if runtime is None else "reserved"
     submission_event = None
     ledger_recorded = runtime is None
+    submitted_job_id = None
+    submitted_cluster = None
     if completed.returncode == 0:
         try:
             job_id, cluster = submissions.parse_sbatch_submission(stdout + stderr)
@@ -389,14 +394,33 @@ def hpc_submit_job(
                 )
             raise
         selected_cluster = cluster or normalized.get("cluster") or resolved.default_cluster
+        submitted_job_id = job_id
+        submitted_cluster = selected_cluster
         if ledger is not None and idempotency_key is not None:
-            ledger.record_submission(
-                runtime.manifest,
-                idempotency_key=idempotency_key,
-                job_id=job_id,
-                cluster=selected_cluster,
-            )
-            ledger_recorded = True
+            try:
+                ledger.record_submission(
+                    runtime.manifest,
+                    idempotency_key=idempotency_key,
+                    job_id=job_id,
+                    cluster=selected_cluster,
+                )
+                ledger_recorded = True
+                ledger_status = "submitted"
+            except delegation.DelegationError as persistence_error:
+                ledger_error = str(persistence_error)
+                try:
+                    ledger.record_accepted_submission_uncertain(
+                        runtime.manifest,
+                        idempotency_key=idempotency_key,
+                        job_id=job_id,
+                        cluster=selected_cluster,
+                        reason=ledger_error,
+                    )
+                    ledger_recorded = True
+                    ledger_status = "uncertain"
+                except delegation.DelegationError as recovery_error:
+                    ledger_recovery_error = str(recovery_error)
+                    ledger_status = "unrecorded"
         submission_event = submissions.submitted_event(
             profile=resolved.name,
             job_id=job_id,
@@ -423,6 +447,8 @@ def hpc_submit_job(
             idempotency_key=idempotency_key,
             reason=f"sbatch failed with return code {completed.returncode}",
         )
+        ledger_recorded = True
+        ledger_status = "failed"
         if staged is not None:
             staging_cleanup_error = staged.discard()
     return preview | {
@@ -430,6 +456,11 @@ def hpc_submit_job(
         "idempotent_replay": False,
         "executed": True,
         "ledger_recorded": ledger_recorded,
+        "ledger_status": ledger_status,
+        "ledger_error": ledger_error,
+        "ledger_recovery_error": ledger_recovery_error,
+        "job_id": submitted_job_id,
+        "cluster": submitted_cluster,
         "logged": logged,
         "database": str(
             Path(database).expanduser()

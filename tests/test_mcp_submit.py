@@ -397,11 +397,53 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     result = mcp_server.hpc_submit_job(**submit_arguments)
                     replay = mcp_server.hpc_submit_job(**submit_arguments)
 
+                uncertain_arguments = arguments | {"idempotency_key": "request-2"}
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    side_effect=[quote_result, validation_result],
+                ):
+                    uncertain_quote = mcp_server.hpc_quote_job(**uncertain_arguments)
+                    uncertain_validation = mcp_server.hpc_validate_job(
+                        **uncertain_arguments
+                    )
+                uncertain_scheduler_result = mock.Mock(
+                    returncode=0,
+                    stdout="Submitted batch job 60351239 on cluster wice\n",
+                    stderr="",
+                )
+                with mock.patch(
+                    "hpc_tools.mcp.submit.run_command_capture",
+                    return_value=uncertain_scheduler_result,
+                ) as uncertain_submit, mock.patch.object(
+                    delegation.DelegationLedger,
+                    "record_submission",
+                    side_effect=delegation.DelegationError("audit unavailable"),
+                ):
+                    uncertain = mcp_server.hpc_submit_job(
+                        **(
+                            uncertain_arguments
+                            | {
+                                "quote_evidence": uncertain_quote["quote_evidence"],
+                                "validation_evidence": uncertain_validation[
+                                    "validation_evidence"
+                                ],
+                                "dry_run": False,
+                            }
+                        )
+                    )
+
             self.assertTrue(result["ledger_recorded"])
             self.assertFalse(result["logged"])
             self.assertEqual("history unavailable", result["database_error"])
             self.assertTrue(replay["idempotent_replay"])
             self.assertFalse(replay["executed"])
             submit.assert_called_once()
+            uncertain_submit.assert_called_once()
             ledger = delegation.DelegationLedger(ledger_path)
             self.assertTrue(ledger.owns_job("delegate-1", "60351238", "wice"))
+            self.assertTrue(uncertain["ledger_recorded"])
+            self.assertEqual("uncertain", uncertain["ledger_status"])
+            self.assertEqual("audit unavailable", uncertain["ledger_error"])
+            self.assertIsNone(uncertain["ledger_recovery_error"])
+            self.assertEqual("60351239", uncertain["job_id"])
+            self.assertTrue(ledger.owns_job("delegate-1", "60351239", "wice"))

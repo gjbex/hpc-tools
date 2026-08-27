@@ -82,6 +82,9 @@ max_open_files = 1024
 
 Accounts and clusters are mandatory non-empty allowlists. A delegation that
 submits restricted container jobs also needs at least one approved container.
+Unknown manifest, allowlist, per-job-limit, budget, and filesystem keys are
+rejected. This is intentional: a misspelled ceiling must not silently become
+an unenforced operator policy.
 Optional scheduler-field allowlists may be empty; if a request supplies that
 field, its value must occur in the corresponding allowlist. An empty
 `script_sha256` list permits any regular, non-symlink payload below `work_root`;
@@ -134,6 +137,15 @@ remains consumed until an operator reconciles it. Terminal reconciliation
 changes `submitted` to `terminal`, releasing active-job capacity while
 retaining cumulative submission and resource consumption.
 
+If Slurm returns a job ID but the normal ownership/audit transaction fails, the
+server attempts a smaller recovery transaction. It records the job ID and
+ownership as `uncertain` without requiring another audit insert. This is a
+deliberate fail-closed trade-off: the accepted job remains visible to lifecycle
+authorization and consumes budget, while the missing audit event is reported
+as a persistence error. Cancellation uses the same pattern: an accepted
+`scancel` whose result/audit transaction fails becomes `uncertain`, so replay
+cannot invoke `scancel` again blindly.
+
 `max_submissions` counts accepted reservations immediately so concurrent
 requests cannot overrun the cap. A definite submission failure refunds it;
 successful, uncertain, terminal, and cancelled jobs remain cumulative.
@@ -149,13 +161,13 @@ Slurm account balances.
 
 The authorization ledger is separate from `submissions.sqlite3`. The latter
 is agent-readable lifecycle history and must not be used as authorization
-state. Ledger schema version 1 uses `PRAGMA user_version = 1` and these tables:
+state. Ledger schema version 2 uses `PRAGMA user_version = 2` and these tables:
 
 | Table | Purpose |
 | --- | --- |
 | `delegations` | Manifest digest, issuer, profile, parent allocation, expiry, and revocation state. |
 | `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, and resulting job identity. |
-| `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization. |
+| `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization; a job/cluster pair is globally unique in one ledger. |
 | `lifecycle_operations` | Idempotent cancellation reservations and scheduler results. |
 | `delegation_audit` | Append-only accepted and rejected mutation decisions. |
 
@@ -165,9 +177,46 @@ this does not make arbitrary network filesystems safe for SQLite. Use
 node-local or otherwise verified storage, and do not use one file as a
 distributed multi-node database.
 
+There is no schema migration from version 1 because this authorization format
+has not entered production and existing delegation data was explicitly out of
+scope. A non-version-2 ledger is rejected rather than modified implicitly.
+
 The Python API exposes `DelegationLedger.revoke` for an operator control
 plane and `DelegationLedger.reconcile_job` for scheduler reconciliation.
 Neither operation is exposed to the restricted agent MCP surface.
+
+## Operator audit and recovery
+
+Treat any `ledger_status` other than `submitted`, `succeeded`, or `failed` as
+an operator event. Responses include `ledger_error` for the failed normal
+transaction and `ledger_recovery_error` if even the conservative recovery
+transaction could not be written.
+
+For an `uncertain` submission, use the returned job ID and cluster to query
+Slurm directly from the host namespace. The job is already ledger-owned and its
+budget remains reserved. Calling delegated job accounting is safe; a terminal
+Slurm state reconciles either `submitted` or `uncertain` to `terminal`. If the
+job never existed, the operator must make an explicit control-plane decision
+before releasing or correcting the reservation; the restricted agent has no
+such operation.
+
+For an `uncertain` cancellation, inspect `squeue`/`sacct` from the host and then
+call `DelegationLedger.record_lifecycle_result` through an operator-controlled
+recovery procedure. That method can finalize an `uncertain` operation once the
+scheduler outcome is known. Do not give this recovery capability to the agent.
+
+If `ledger_status` is `unrecorded`, retain the response containing the Slurm job
+ID or cancellation target, stop further mutations for that delegation, and
+repair or restore the ledger before reconciling against Slurm. The original
+reservation normally still blocks replay. A crash after Slurm accepts a request
+but before any local durable write is the unavoidable two-system transaction
+gap: SQLite and Slurm do not provide a shared atomic commit. Sites requiring
+automatic recovery across that gap need a durable broker that periodically
+reconciles reserved operations with scheduler records and submission metadata.
+
+The authorization audit is append-only through the server API, but SQLite does
+not provide tamper-evident logging. Copy or stream audit records to protected,
+independently retained storage if forensic non-repudiation is required.
 
 ## Restricted lifecycle authorization
 
@@ -190,3 +239,17 @@ the submission operation to `terminal` and releases active-job capacity.
 Scheduler and authorization-ledger updates occur before best-effort writes to
 the ordinary submission-history database, so a history failure is reported but
 does not erase the authoritative result.
+
+## Security verification scope
+
+The automated suite checks the exact restricted MCP registry, malformed and
+expired manifests, parent-allocation binding, every scheduler/payload allowlist
+dimension, concurrent idempotency and budget enforcement, lifecycle ownership,
+audit-failure recovery, and an Apptainer-like clean-environment harness with no
+Slurm, SSH, or Munge commands on the agent `PATH`.
+
+That harness validates generated arguments and environment flow; it does not
+emulate Linux mount namespaces, the host kernel, site Apptainer configuration,
+Munge, or Slurm. Operators must still build the reviewed SIF, run
+`apptainer test`, exercise the real Unix-socket relay, inspect effective mounts,
+and submit/cancel a tiny delegate job on every target cluster.

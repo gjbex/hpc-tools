@@ -156,20 +156,20 @@ Required work:
 
 ### 5. Test and document the security properties
 
-- [ ] Add registry tests proving forbidden tools and resources are absent from
+- [x] Add registry tests proving forbidden tools and resources are absent from
   the `slurm-job` preset.
-- [ ] Test expired, malformed, and wrong-parent delegations.
-- [ ] Test unauthorized account, partition, QoS, path, container, script, and
+- [x] Test expired, malformed, and wrong-parent delegations.
+- [x] Test unauthorized account, partition, QoS, path, container, script, and
   resource requests.
-- [ ] Test duplicate and concurrent submissions against the same idempotency
+- [x] Test duplicate and concurrent submissions against the same idempotency
   key and exhausted budgets.
-- [ ] Test that jobs outside the delegation cannot be listed, inspected,
+- [x] Test that jobs outside the delegation cannot be listed, inspected,
   accounted, or cancelled.
-- [ ] Test failure recovery when Slurm accepts a mutation but ledger or audit
+- [x] Test failure recovery when Slurm accepts a mutation but ledger or audit
   persistence fails.
-- [ ] Add an integration test using an Apptainer-like restricted environment
+- [x] Add an integration test using an Apptainer-like restricted environment
   with no Slurm executables available to the agent.
-- [ ] Document deployment topology, trust boundaries, manifest format,
+- [x] Document deployment topology, trust boundaries, manifest format,
   operator workflow, audit/recovery procedures, and known limitations.
 
 ## Intended minimal MCP interface

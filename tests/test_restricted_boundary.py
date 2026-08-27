@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import socket
 import stat
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -203,6 +205,99 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertIn(f"{paths['input']}:{paths['input']}:ro", command)
             self.assertNotIn(str(paths["state"]), rendered)
             self.assertNotIn(str(runtime.ledger_path), rendered)
+
+    def test_apptainer_like_clean_environment_exposes_no_scheduler_commands(self) -> None:
+        """Exercise the generated argv through a clean-environment runtime shim.
+
+        This checks the launcher/runtime contract without claiming kernel-level
+        mount isolation, which requires a real target-site Apptainer pilot.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, paths = self._fixture(root)
+            empty_bin = root / "empty-bin"
+            empty_bin.mkdir()
+            shim = paths["apptainer"]
+            shim.write_text(
+                f"""#!{sys.executable}
+import os
+import subprocess
+import sys
+
+arguments = sys.argv[1:]
+if not arguments or arguments.pop(0) != "exec":
+    raise SystemExit(90)
+container_environment = {{"PATH": {str(empty_bin)!r}}}
+value_options = {{"--no-mount", "--bind", "--env", "--pwd", "--env-file"}}
+flag_options = {{"--containall", "--cleanenv", "--no-home"}}
+index = 0
+while index < len(arguments):
+    option = arguments[index]
+    if option in flag_options:
+        index += 1
+        continue
+    if option in value_options:
+        value = arguments[index + 1]
+        if option == "--env":
+            name, content = value.split("=", 1)
+            container_environment[name] = content
+        index += 2
+        continue
+    break
+if index >= len(arguments):
+    raise SystemExit(91)
+command = arguments[index + 1:]
+raise SystemExit(subprocess.run(command, env=container_environment).returncode)
+""",
+                encoding="utf-8",
+            )
+            shim.chmod(0o700)
+            socket_directory = root / "socket"
+            socket_directory.mkdir(mode=0o700)
+            probe = (
+                "import json,os,shutil; "
+                f"commands={restricted_launch.FORBIDDEN_COMMANDS!r}; "
+                "print(json.dumps({'available': [name for name in commands "
+                "if shutil.which(name)], 'environment': sorted(os.environ), "
+                "'socket': os.environ.get('HPC_TOOLS_MCP_SOCKET')}))"
+            )
+            command = restricted_launch.build_apptainer_command(
+                manifest=runtime.manifest,
+                agent_image=paths["container"],
+                socket_directory=socket_directory,
+                agent_command=[sys.executable, "-c", probe],
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "PATH": os.environ.get("PATH", ""),
+                    "SSH_AUTH_SOCK": "/tmp/ssh-agent",
+                    "OPENAI_API_KEY": "must-not-cross",
+                    "HPC_TOOLS_MCP_LEDGER": str(runtime.ledger_path),
+                },
+                clear=True,
+            ):
+                completed = subprocess.run(
+                    command,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    env=restricted_launch._sanitized_apptainer_environment(),
+                )
+
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            observation = json.loads(completed.stdout)
+            self.assertEqual([], observation["available"])
+            self.assertTrue(
+                set(observation["environment"]).issubset(
+                    {"HOME", "HPC_TOOLS_MCP_SOCKET", "PATH", "LC_CTYPE"}
+                )
+            )
+            self.assertNotIn("OPENAI_API_KEY", observation["environment"])
+            self.assertNotIn("HPC_TOOLS_MCP_LEDGER", observation["environment"])
+            self.assertEqual(
+                "/run/hpc-tools-mcp/server.sock", observation["socket"]
+            )
 
     def test_launcher_dry_run_requires_parent_job_and_keeps_private_state_unbound(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

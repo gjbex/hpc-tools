@@ -18,9 +18,13 @@ from hpc_tools.commands.probes import (
 )
 from hpc_tools.commands.remote import _module_spider_command, _storage_inspect_command
 from hpc_tools.commands.slurm import build_status_report
-from hpc_tools.config import ConfigError, default_config_dir, default_config_path, default_reference_sets_dir
+from hpc_tools.config import (
+    ConfigError,
+    default_config_dir,
+    default_config_path,
+    default_reference_sets_dir,
+)
 from hpc_tools.hardware import render_hardware_context
-from hpc_tools.references import resolve_reference_context
 from hpc_tools.mcp.common import (
     _append_submission_event,
     _append_submission_mark_event,
@@ -36,7 +40,12 @@ from hpc_tools.mcp.common import (
     _submission_record_to_dict,
     _write_preview,
 )
-from hpc_tools.mcp.parsers import _parse_module_spider_output, _parse_slurm_limits_output
+from hpc_tools.mcp.parsers import (
+    _parse_module_spider_output,
+    _parse_slurm_limits_output,
+)
+from hpc_tools.references import resolve_reference_context
+
 
 def hpc_profiles_list(config: str | None = None) -> dict[str, Any]:
     """List profiles from the hpc-tools config."""
@@ -328,23 +337,41 @@ def hpc_cancel_job(
         dry_run=dry_run,
     )
     ledger_error = None
+    ledger_recovery_error = None
+    ledger_status = "not_applicable" if runtime is None else "not_executed"
+    ledger_recorded = runtime is None
     if ledger is not None and idempotency_key is not None and result["executed"]:
+        lifecycle_result = {
+            "operation": "cancel_job",
+            "jobid": jobid,
+            "cluster": selected_cluster,
+            "returncode": result["returncode"],
+            "stdout": result["stdout"],
+            "stderr": result["stderr"],
+        }
         try:
             ledger.record_lifecycle_result(
                 runtime.manifest,
                 idempotency_key=idempotency_key,
                 succeeded=result["returncode"] == 0,
-                result={
-                    "operation": "cancel_job",
-                    "jobid": jobid,
-                    "cluster": selected_cluster,
-                    "returncode": result["returncode"],
-                    "stdout": result["stdout"],
-                    "stderr": result["stderr"],
-                },
+                result=lifecycle_result,
             )
+            ledger_recorded = True
+            ledger_status = "succeeded" if result["returncode"] == 0 else "failed"
         except delegation.DelegationError as error:
             ledger_error = str(error)
+            try:
+                ledger.record_accepted_lifecycle_uncertain(
+                    runtime.manifest,
+                    idempotency_key=idempotency_key,
+                    result=lifecycle_result,
+                    reason=ledger_error,
+                )
+                ledger_recorded = True
+                ledger_status = "uncertain"
+            except delegation.DelegationError as recovery_error:
+                ledger_recovery_error = str(recovery_error)
+                ledger_status = "unrecorded"
 
     database_path = Path(database).expanduser() if database else submissions.default_database_path()
     cancellation_events: list[dict[str, Any]] = []
@@ -372,10 +399,10 @@ def hpc_cancel_job(
         "recorded_run_ids": [event["run_id"] for event in cancellation_events],
         "database_error": database_error,
         "idempotent_replay": False,
-        "ledger_recorded": runtime is None or (
-            result["executed"] and ledger_error is None
-        ),
+        "ledger_recorded": ledger_recorded,
+        "ledger_status": ledger_status,
         "ledger_error": ledger_error,
+        "ledger_recovery_error": ledger_recovery_error,
     }
     return response
 

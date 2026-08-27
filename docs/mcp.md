@@ -303,7 +303,11 @@ record. It does not set the record state to
 to confirm scheduler state. A request for an untracked job can succeed without
 appending a local event; `recorded_run_ids` makes that distinction visible. If
 the scheduler request succeeds but the local event database cannot be updated,
-`database_error` reports the audit failure without hiding the scheduler result.
+`database_error` reports the history failure without hiding the scheduler result.
+If the authoritative lifecycle/audit transaction fails after `scancel`, the
+tool attempts a non-audited `uncertain` recovery record. Inspect
+`ledger_status`, `ledger_error`, and `ledger_recovery_error`; an uncertain key
+cannot call `scancel` again until an operator reconciles it.
 
 A successful cancellation request is not proof of terminal scheduler state.
 Call `hpc_job_accounting`; terminal accounting reconciles active ledger
@@ -332,6 +336,13 @@ The protocol is stricter than the ordinary CLI:
 5. Delegated mode records ownership in the private ledger before appending the
    normal local submission event. Failure of the latter is reported through
    `database_error` without hiding scheduler or ledger success.
+
+If `sbatch` returns a job ID but normal ledger/audit persistence fails, the
+server conservatively records ownership and consumed budget as `uncertain`.
+The response retains `job_id` and `cluster` and reports `ledger_error`. If that
+recovery also fails, `ledger_status=unrecorded` and `ledger_recovery_error`
+require immediate host-operator reconciliation; retrying the same key remains
+blocked by its original reservation when that reservation is still readable.
 
 The resource shape covers:
 
