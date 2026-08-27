@@ -119,6 +119,20 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn('command = "hpc-mcp-relay"', config)
         self.assertIn("required = true", config)
 
+    def test_packaged_boundary_fixture_contains_no_agent_or_scheduler_client(self) -> None:
+        definition = (
+            resources.files("hpc_tools.data")
+            .joinpath("containers", "agent-boundary", "Apptainer.def")
+            .read_text(encoding="utf-8")
+        )
+
+        self.assertIn("restricted agent boundary fixture", definition)
+        self.assertIn("hpc-mcp-relay", definition)
+        self.assertNotIn("@openai/codex", definition)
+        self.assertNotIn("codex-agent", definition)
+        for command in restricted_launch.FORBIDDEN_COMMANDS:
+            self.assertIn(command, definition)
+
     def test_prepared_job_uses_snapshot_fixed_logs_and_restricted_binds(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime, paths = self._fixture(Path(directory))

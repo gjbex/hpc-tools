@@ -88,6 +88,24 @@ configuration](https://learn.chatgpt.com/docs/extend/mcp). The Apptainer
 boundary remains authoritative: the inner Codex sandbox is useful defence in
 depth, but its kernel support must be tested on the target compute node.
 
+### Keep boundary tests independent of Codex
+
+The `agent-boundary` bundle preserves the minimal Python-and-relay definition
+without installing an agent:
+
+```console
+hpc write-container --kind agent-boundary restricted-boundary-build
+cd restricted-boundary-build
+apptainer build --fakeroot restricted-boundary.sif Apptainer.def
+apptainer test restricted-boundary.sif
+```
+
+Use this fixture for quick development of the negative command checks,
+launcher binds, environment filtering, and host relay boundary without an API
+credential or the larger Codex installation. It deliberately does not test
+Codex startup, authentication, sandbox behavior, or MCP configuration; the
+full `agent` image remains necessary for those integration tests.
+
 ## Define the filesystem boundary
 
 A delegation that permits new jobs needs a `[filesystem]` table:

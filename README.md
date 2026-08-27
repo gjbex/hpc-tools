@@ -259,6 +259,9 @@ The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
 mode and treats the restricted relay as a required MCP server. Generate its
 reviewed build bundle with
 `hpc write-container --kind agent restricted-codex-build`.
+For faster boundary-only development without an installed agent or API
+credential, use
+`hpc write-container --kind agent-boundary restricted-boundary-build`.
 
 It also exposes durable local context as MCP resources:
 

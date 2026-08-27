@@ -114,7 +114,7 @@ LOCAL_COMMANDS = {
     "plugins",
 }
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
-CONTAINER_KINDS = {"agent", "generic", "r", "conda"}
+CONTAINER_KINDS = {"agent", "agent-boundary", "generic", "r", "conda"}
 JSON_NATIVE_HANDLERS = {
     "cmd_benchmark_summarize",
     "cmd_benchmark_compare",

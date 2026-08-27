@@ -195,6 +195,26 @@ class CliCoreTests(unittest.TestCase):
             self.assertIn("-- codex-agent -", slurm)
             self.assertFalse((output / "mcp.json").exists())
 
+    def test_write_agent_boundary_container_bundle(self) -> None:
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "agent-boundary"
+            args = parser.parse_args(
+                ["write-container", "--kind", "agent-boundary", str(output)]
+            )
+
+            self.assertEqual(0, args.handler(args, None))
+            definition = (output / "Apptainer.def").read_text(encoding="utf-8")
+            self.assertIn("restricted agent boundary fixture", definition)
+            self.assertIn("From: python:3.12.11-slim-bookworm", definition)
+            self.assertIn("hpc-mcp-relay", definition)
+            self.assertNotIn("@openai/codex", definition)
+            self.assertNotIn("codex-agent", definition)
+            self.assertEqual(
+                {"Apptainer.def", "hpc-mcp-relay"},
+                {path.name for path in output.iterdir()},
+            )
+
     def test_write_hardware_probe_rejects_existing_file_without_force(self) -> None:
         parser = build_parser()
         with tempfile.TemporaryDirectory() as directory:
