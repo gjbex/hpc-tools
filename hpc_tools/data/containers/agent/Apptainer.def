@@ -1,17 +1,29 @@
 Bootstrap: docker
-From: python:3.12.11-slim-bookworm
+From: node:22.16.0-bookworm-slim
 
 %labels
-    org.opencontainers.image.title hpc-tools restricted agent boundary base
-    org.opencontainers.image.description Minimal Python runtime and MCP relay without SSH or Slurm clients
+    org.opencontainers.image.title hpc-tools restricted Codex CLI agent
+    org.opencontainers.image.description Codex CLI 0.150.1 and MCP relay without SSH, Slurm, or Munge clients
+    org.opencontainers.image.version 0.150.1
 
 %files
     hpc-mcp-relay /opt/hpc-tools/hpc-mcp-relay
+    codex-agent /opt/hpc-tools/codex-agent
+    config.toml /opt/hpc-tools/config.toml
 
 %post
     set -eu
-    chmod 0755 /opt/hpc-tools/hpc-mcp-relay
+    apt-get update
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends --yes \
+        ca-certificates \
+        python3-minimal
+    npm install --global @openai/codex@0.150.1
+    npm cache clean --force
+    rm -rf /var/lib/apt/lists/*
+    chmod 0755 /opt/hpc-tools/hpc-mcp-relay /opt/hpc-tools/codex-agent
+    chmod 0644 /opt/hpc-tools/config.toml
     ln -s /opt/hpc-tools/hpc-mcp-relay /usr/local/bin/hpc-mcp-relay
+    ln -s /opt/hpc-tools/codex-agent /usr/local/bin/codex-agent
 
 %environment
     export HOME=/tmp
@@ -19,8 +31,11 @@ From: python:3.12.11-slim-bookworm
 
 %test
     set -eu
+    command -v codex >/dev/null
+    command -v codex-agent >/dev/null
     command -v python3 >/dev/null
     command -v hpc-mcp-relay >/dev/null
+    test "$(codex --version)" = "codex-cli 0.150.1"
     for command in ssh scp sftp sbatch scancel squeue sacct scontrol srun salloc munge unmunge; do
         if command -v "$command" >/dev/null 2>&1; then
             echo "forbidden command present: $command" >&2
@@ -29,4 +44,4 @@ From: python:3.12.11-slim-bookworm
     done
 
 %runscript
-    exec "$@"
+    exec /usr/local/bin/codex-agent "$@"

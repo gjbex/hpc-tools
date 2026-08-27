@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${HPC_TOOLS_MCP_SOCKET:-}" ]; then
+    echo "codex-agent: HPC_TOOLS_MCP_SOCKET is not set" >&2
+    exit 2
+fi
+
+codex_home=$(mktemp -d /tmp/codex-home.XXXXXX)
+chmod 0700 "$codex_home"
+cp /opt/hpc-tools/config.toml "$codex_home/config.toml"
+chmod 0600 "$codex_home/config.toml"
+export CODEX_HOME="$codex_home"
+
+if [ -n "${OPENAI_API_KEY:-}" ]; then
+    printf '%s' "$OPENAI_API_KEY" | codex login --with-api-key >/dev/null
+elif [ -n "${CODEX_ACCESS_TOKEN:-}" ]; then
+    printf '%s' "$CODEX_ACCESS_TOKEN" | codex login --with-access-token >/dev/null
+else
+    echo "codex-agent: OPENAI_API_KEY or CODEX_ACCESS_TOKEN is required" >&2
+    exit 2
+fi
+
+unset OPENAI_API_KEY CODEX_ACCESS_TOKEN
+
+exec codex exec \
+    --strict-config \
+    --ephemeral \
+    --sandbox workspace-write \
+    --skip-git-repo-check \
+    "$@"

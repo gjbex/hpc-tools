@@ -25,7 +25,7 @@ test does not validate the image for target compute nodes.
 
 | Kind | Generated files | Starting point |
 | --- | --- | --- |
-| `agent` | restricted-agent definition, MCP relay/config, Slurm launcher template | Run an unattended agent behind the restricted MCP boundary. |
+| `agent` | pinned Codex CLI definition, batch wrapper, MCP relay/config, Slurm launcher | Run unattended Codex behind the restricted MCP boundary. |
 | `generic` | `create_apptainer_container.slurm` | Build an existing definition file. |
 | `conda` | build script, `environment.yml`, `labels.txt` | Build an image with a packed conda environment. |
 | `r` | build script, `apt_packages.txt`, `install_packages.R`, `labels.txt` | Generate a recipe with HPCCM, then build an R image. |
@@ -40,7 +40,7 @@ No profile is needed:
 
 ```console
 hpc write-container --kind generic container-build
-hpc write-container --kind agent restricted-agent-build
+hpc write-container --kind agent restricted-codex-build
 hpc write-container --kind conda conda-container-build
 hpc write-container --kind r r-container-build
 ```

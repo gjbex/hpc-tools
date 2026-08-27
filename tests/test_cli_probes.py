@@ -179,9 +179,21 @@ class CliCoreTests(unittest.TestCase):
             )
 
             self.assertEqual(0, args.handler(args, None))
-            self.assertIn("hpc-mcp-relay", (output / "Apptainer.def").read_text())
+            definition = (output / "Apptainer.def").read_text(encoding="utf-8")
+            wrapper = (output / "codex-agent").read_text(encoding="utf-8")
+            config = (output / "config.toml").read_text(encoding="utf-8")
+            slurm = (output / "restricted-agent.slurm").read_text(encoding="utf-8")
+            self.assertIn("@openai/codex@0.150.1", definition)
+            self.assertIn("hpc-mcp-relay", definition)
+            self.assertIn("config.toml /opt/hpc-tools/config.toml", definition)
             self.assertIn("def relay_main", (output / "hpc-mcp-relay").read_text())
-            self.assertTrue((output / "restricted-agent.slurm").exists())
+            self.assertIn("--ephemeral", wrapper)
+            self.assertIn("--sandbox workspace-write", wrapper)
+            self.assertIn("[mcp_servers.hpc-tools]", config)
+            self.assertIn("required = true", config)
+            self.assertIn("--agent-env-file", slurm)
+            self.assertIn("-- codex-agent -", slurm)
+            self.assertFalse((output / "mcp.json").exists())
 
     def test_write_hardware_probe_rejects_existing_file_without_force(self) -> None:
         parser = build_parser()

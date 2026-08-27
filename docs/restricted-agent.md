@@ -20,6 +20,7 @@ Slurm allocation, host namespace
 │   └── Slurm and Munge access
 ├── private single-client Unix socket bridge
 └── Apptainer parent-agent container
+    ├── Codex CLI and ephemeral per-run configuration
     ├── hpc-mcp-relay
     ├── work root (read/write)
     ├── completed/delegate output root (read-only)
@@ -35,40 +36,57 @@ delegated computation containers.
 
 ## Prepare the agent image
 
-The packaged `agent` container bundle is a minimal boundary base containing
-Python and `hpc-mcp-relay`, with no SSH, Slurm, or Munge clients. It deliberately
-does not install a particular agent. Write the bundle, then extend the reviewed
-definition with the site's non-interactive agent runtime.
+The packaged `agent` container bundle is a runnable Codex CLI image. It contains
+the pinned `@openai/codex` package, Python for `hpc-mcp-relay`, a Codex-native
+MCP configuration, and a `codex-agent` batch wrapper. It contains no SSH,
+Slurm, or Munge clients. Definitions for other agents can be added as separate
+container kinds later; this recipe deliberately has one testable runtime rather
+than pretending that agent configuration is portable.
 
 Build from the generated bundle directory so the `%files` source resolves:
 
 ```console
-hpc write-container --kind agent restricted-agent-build
-cd restricted-agent-build
-apptainer build --fakeroot restricted-agent.sif Apptainer.def
-apptainer test restricted-agent.sif
+hpc write-container --kind agent restricted-codex-build
+cd restricted-codex-build
+apptainer build --fakeroot restricted-codex.sif Apptainer.def
+apptainer test restricted-codex.sif
 ```
 
-Replace the example base-image tag with a reviewed digest when exact build
-reproducibility matters. Keep the built SIF out of Git and record its checksum.
-The host launcher repeats a negative preflight before every run. It rejects an
-agent or approved worker image exposing common SSH, Slurm, or Munge commands,
-`/etc/slurm`, `/etc/ssh`, or common Munge socket directories under the actual
-containment flags.
+The Codex and Node versions are pinned, but the OCI base tag is mutable. Replace
+it with a reviewed digest when exact build reproducibility matters. Keep the
+built SIF out of Git and record its checksum. A Codex version bump is a reviewed
+recipe change: update the package version, image label, `%test` assertion, and
+the corresponding tests together.
 
-Configure the in-image MCP client with the equivalent of the generated
-`mcp.json`:
+The image `%test` checks the exact Codex version and absence of common SSH,
+Slurm, and Munge commands. The host launcher repeats a negative preflight before
+every run and also rejects `/etc/slurm`, `/etc/ssh`, and common Munge socket
+directories under the actual containment flags.
 
-```json
-{
-  "mcpServers": {
-    "hpc-tools": {
-      "command": "hpc-mcp-relay",
-      "args": []
-    }
-  }
-}
+The generated `config.toml` uses Codex's native stdio MCP configuration and
+makes the relay required:
+
+```toml
+[mcp_servers.hpc-tools]
+command = "hpc-mcp-relay"
+required = true
+startup_timeout_sec = 20
+tool_timeout_sec = 300
 ```
+
+The wrapper copies that file into a new mode-`0700` `CODEX_HOME` in the
+container's private temporary filesystem. It runs `codex exec` with
+`--strict-config`, `--ephemeral`, `--sandbox workspace-write`, and
+`--skip-git-repo-check`. Consequently no conversation rollout is retained and
+shell writes are limited to the work root already selected by the outer
+Apptainer boundary. The required MCP setting makes a missing host relay a hard
+startup failure rather than silently giving the agent a different tool surface.
+
+These choices follow the supported [Codex non-interactive
+mode](https://learn.chatgpt.com/docs/non-interactive-mode) and [Codex MCP
+configuration](https://learn.chatgpt.com/docs/extend/mcp). The Apptainer
+boundary remains authoritative: the inner Codex sandbox is useful defence in
+depth, but its kernel support must be tested on the target compute node.
 
 ## Define the filesystem boundary
 
@@ -104,16 +122,17 @@ safe for SQLite.
 
 ## Start the parent allocation
 
-Adapt the generated `restricted-agent.slurm` and submit it normally. The
-essential invocation is:
+Adapt the generated `restricted-agent.slurm`, place the task text in a prompt
+file, and submit the script normally. The essential invocation is:
 
-```console
+```bash
 hpc-agent-launch \
     --manifest /protected/agent-001.toml \
     --ledger /protected/delegations.sqlite3 \
     --profile example \
-    --agent-image /project/images/restricted-agent.sif \
-    -- your-agent --non-interactive
+    --agent-env-file /protected/codex.env \
+    --agent-image /project/images/restricted-codex.sif \
+    -- codex-agent - < /protected/task.txt
 ```
 
 The launcher requires `SLURM_JOB_ID` to match the manifest and uses the site's
@@ -130,13 +149,18 @@ credentials, `LD_PRELOAD`, and agent-controlled
 outer environment. The container explicitly receives only a temporary home and
 the MCP socket path from this layer.
 
-If the agent requires dedicated credentials or endpoint configuration, place
-only those values in a protected mode-`0600` file outside all bind roots and
-select it with `--agent-env-file`. Apptainer reads the file on the host; the
-launcher does not print its values or mount the file. The values are necessarily
-visible to the parent agent process and a compromised agent could disclose
-them, so prefer short-lived, narrowly scoped credentials or an external
-credential broker. The file is never passed to delegated jobs.
+For programmatic Codex use, OpenAI recommends API-key authentication. Put
+`OPENAI_API_KEY=<key>` in the protected mode-`0600` environment file outside
+all bind roots and select it with `--agent-env-file`. `CODEX_ACCESS_TOKEN` is
+also supported for a site that provisions short-lived workload tokens. The
+wrapper feeds the value to `codex login`, then removes both credential variables
+from the environment before starting the agent. Apptainer reads the file on the
+host; the launcher does not print its values or mount the file. The value and
+temporary Codex authentication state are necessarily accessible to the parent
+agent process, so a compromised agent could still disclose them. Prefer
+short-lived, narrowly scoped credentials or an external credential broker. The
+file is never passed to delegated jobs. See [Codex
+authentication](https://learn.chatgpt.com/docs/auth).
 
 ## Submit a delegated computation
 
@@ -180,6 +204,10 @@ one job must still provide their own coordination and atomic-output protocol.
 
 ## Known limitations
 
+- The packaged image currently targets Codex CLI only. Its pinned Codex and
+  Node versions require deliberate maintenance, and an OCI digest should be
+  recorded for reproducible deployment. Other agent runtimes need their own
+  reviewed definition, entrypoint, MCP configuration, and negative tests.
 - The generated delegate wrapper currently supports one Slurm node and one
   task, including multiple CPUs assigned to that task. Job arrays are supported.
   Multi-task, multi-node, GPU, and GRES requests fail closed until a site adds

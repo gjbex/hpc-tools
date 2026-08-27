@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from importlib import resources
-from pathlib import Path
 import shlex
 import sys
+from importlib import resources
+from pathlib import Path
 from typing import Any
 
 from hpc_tools import slurm
@@ -342,7 +342,8 @@ def _container_bundle(kind: str) -> dict[str, str]:
             "hpc-mcp-relay": resources.files("hpc_tools").joinpath("mcp_bridge.py").read_text(
                 encoding="utf-8"
             ),
-            "mcp.json": data.joinpath("mcp.json").read_text(encoding="utf-8"),
+            "codex-agent": data.joinpath("codex-agent").read_text(encoding="utf-8"),
+            "config.toml": data.joinpath("codex-config.toml").read_text(encoding="utf-8"),
             "restricted-agent.slurm": data.joinpath("restricted-agent.slurm").read_text(
                 encoding="utf-8"
             ),

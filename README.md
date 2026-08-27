@@ -255,8 +255,10 @@ image. The in-container `hpc-mcp-relay` reaches that restricted server over a
 private Unix socket. Delegated jobs are wrapped in approved SIF images with
 server-generated output paths and per-job writable directories. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
-Generate its reviewed starter bundle with
-`hpc write-container --kind agent restricted-agent-build`.
+The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
+mode and treats the restricted relay as a required MCP server. Generate its
+reviewed build bundle with
+`hpc write-container --kind agent restricted-codex-build`.
 
 It also exposes durable local context as MCP resources:
 

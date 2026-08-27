@@ -1,0 +1,5 @@
+[mcp_servers.hpc-tools]
+command = "hpc-mcp-relay"
+required = true
+startup_timeout_sec = 20
+tool_timeout_sec = 300

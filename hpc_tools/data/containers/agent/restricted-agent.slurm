@@ -15,13 +15,16 @@ umask 077
 
 manifest=/path/to/protected/delegation.toml
 ledger=/path/to/protected/delegations.sqlite3
-agent_image=/path/to/restricted-agent.sif
+agent_image=/path/to/restricted-codex.sif
+agent_env_file=/path/to/protected/codex.env
+prompt_file=/path/to/task.txt
 
-# Replace the final command with the site's non-interactive agent invocation.
-# The image must configure its MCP client to execute hpc-mcp-relay.
+# codex.env must be mode 0600 and outside every directory bound into the image.
+# For programmatic use it normally contains one line: OPENAI_API_KEY=<key>
 hpc-agent-launch \
     --manifest "$manifest" \
     --ledger "$ledger" \
     --profile example \
+    --agent-env-file "$agent_env_file" \
     --agent-image "$agent_image" \
-    -- your-agent --non-interactive
+    -- codex-agent - < "$prompt_file"

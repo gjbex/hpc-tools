@@ -13,6 +13,7 @@ import textwrap
 import threading
 import time
 import unittest
+from importlib import resources
 from pathlib import Path
 from unittest import mock
 
@@ -95,6 +96,28 @@ class RestrictedBoundaryTests(unittest.TestCase):
             slurm_url=None, storage_reference=None, storage_url=None,
             status_url=None, reference_set=None, default_cluster="alpha", email=None,
         )
+
+    def test_packaged_codex_agent_is_pinned_ephemeral_and_relay_only(self) -> None:
+        assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
+        definition = assets.joinpath("Apptainer.def").read_text(encoding="utf-8")
+        wrapper = assets.joinpath("codex-agent").read_text(encoding="utf-8")
+        config = assets.joinpath("codex-config.toml").read_text(encoding="utf-8")
+
+        self.assertIn("From: node:22.16.0-bookworm-slim", definition)
+        self.assertIn("npm install --global @openai/codex@0.150.1", definition)
+        self.assertNotIn("@openai/codex@latest", definition)
+        self.assertIn('test "$(codex --version)" = "codex-cli 0.150.1"', definition)
+        for command in restricted_launch.FORBIDDEN_COMMANDS:
+            self.assertIn(command, definition)
+        self.assertIn("mktemp -d /tmp/codex-home.XXXXXX", wrapper)
+        self.assertIn("--strict-config", wrapper)
+        self.assertIn("--ephemeral", wrapper)
+        self.assertIn("--sandbox workspace-write", wrapper)
+        self.assertIn("--skip-git-repo-check", wrapper)
+        self.assertNotIn("set -x", wrapper)
+        self.assertIn("[mcp_servers.hpc-tools]", config)
+        self.assertIn('command = "hpc-mcp-relay"', config)
+        self.assertIn("required = true", config)
 
     def test_prepared_job_uses_snapshot_fixed_logs_and_restricted_binds(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
