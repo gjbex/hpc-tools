@@ -344,6 +344,7 @@ def _container_bundle(kind: str) -> dict[str, str]:
             ),
         }
     if kind == "agent":
+        delegated_skill = data.joinpath("skills", "hpc-delegated-slurm")
         return {
             "Apptainer.def": data.joinpath("Apptainer.def").read_text(encoding="utf-8"),
             "hpc-mcp-relay": resources.files("hpc_tools").joinpath("mcp_bridge.py").read_text(
@@ -351,6 +352,19 @@ def _container_bundle(kind: str) -> dict[str, str]:
             ),
             "codex-agent": data.joinpath("codex-agent").read_text(encoding="utf-8"),
             "config.toml": data.joinpath("codex-config.toml").read_text(encoding="utf-8"),
+            "task.md": data.joinpath("task.md").read_text(encoding="utf-8"),
+            "skills/hpc-delegated-slurm/SKILL.md": delegated_skill.joinpath(
+                "SKILL.md"
+            ).read_text(encoding="utf-8"),
+            "skills/hpc-delegated-slurm/references/job-design.md": delegated_skill.joinpath(
+                "references", "job-design.md"
+            ).read_text(encoding="utf-8"),
+            "skills/hpc-delegated-slurm/references/arrays.md": delegated_skill.joinpath(
+                "references", "arrays.md"
+            ).read_text(encoding="utf-8"),
+            "skills/hpc-delegated-slurm/references/result-validation.md": delegated_skill.joinpath(
+                "references", "result-validation.md"
+            ).read_text(encoding="utf-8"),
             "restricted-agent.slurm": data.joinpath("restricted-agent.slurm").read_text(
                 encoding="utf-8"
             ),
@@ -397,6 +411,16 @@ def _write_bundle_assets(output_dir: Path, bundle: dict[str, str], *, force: boo
 def _install_bundle_command(*, directory: str, bundle: dict[str, str], force: bool = False) -> str:
     remote_dir = slurm._quote_remote_path_expression(directory)
     commands = [f"mkdir -p {remote_dir} && cd {remote_dir}"]
+    parent_directories = sorted(
+        {
+            str(Path(relative_path).parent)
+            for relative_path in bundle
+            if Path(relative_path).parent != Path(".")
+        },
+        key=lambda value: (len(Path(value).parts), value),
+    )
+    for parent_directory in parent_directories:
+        commands.append(f"mkdir -p {shlex.quote(parent_directory)}")
     if not force:
         for relative_path in bundle:
             quoted_path = shlex.quote(relative_path)

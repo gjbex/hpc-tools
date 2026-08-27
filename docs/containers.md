@@ -25,7 +25,7 @@ test does not validate the image for target compute nodes.
 
 | Kind | Generated files | Starting point |
 | --- | --- | --- |
-| `agent` | pinned Codex CLI definition, batch wrapper, MCP relay/config, Slurm launcher | Run unattended Codex behind the restricted MCP boundary. |
+| `agent` | pinned Codex CLI definition, unattended skill, task template, batch wrapper, MCP relay/config, Slurm launcher | Run unattended Codex behind the restricted MCP boundary. |
 | `agent-boundary` | minimal definition and MCP relay | Test the container boundary without installing or authenticating an agent. |
 | `generic` | `create_apptainer_container.slurm` | Build an existing definition file. |
 | `conda` | build script, `environment.yml`, `labels.txt` | Build an image with a packed conda environment. |

@@ -38,10 +38,13 @@ delegated computation containers.
 
 The packaged `agent` container bundle is a runnable Codex CLI image. It contains
 the pinned `@openai/codex` package, Python for `hpc-mcp-relay`, a Codex-native
-MCP configuration, and a `codex-agent` batch wrapper. It contains no SSH,
-Slurm, or Munge clients. Definitions for other agents can be added as separate
-container kinds later; this recipe deliberately has one testable runtime rather
-than pretending that agent configuration is portable.
+MCP configuration, the image-only `hpc-delegated-slurm` skill, a reviewed task
+template, and a `codex-agent` batch wrapper. It contains no SSH, Slurm, or Munge
+clients. It does not install the interactive hpc-tools skills for onboarding,
+deployment, package management, or live cluster administration. Definitions
+for other agents can be added as separate container kinds later; this recipe
+deliberately has one testable runtime rather than pretending that agent
+configuration is portable.
 
 Build from the generated bundle directory so the `%files` source resolves:
 
@@ -75,7 +78,8 @@ tool_timeout_sec = 300
 ```
 
 The wrapper copies that file into a new mode-`0700` `CODEX_HOME` in the
-container's private temporary filesystem. It runs `codex exec` with
+container's private temporary filesystem and copies only the bundled
+`hpc-delegated-slurm` skill into that home. It runs `codex exec` with
 `--strict-config`, `--ephemeral`, `--sandbox workspace-write`, and
 `--skip-git-repo-check`. Consequently no conversation rollout is retained and
 shell writes are limited to the work root already selected by the outer
@@ -87,6 +91,13 @@ mode](https://learn.chatgpt.com/docs/non-interactive-mode) and [Codex MCP
 configuration](https://learn.chatgpt.com/docs/extend/mcp). The Apptainer
 boundary remains authoritative: the inner Codex sandbox is useful defence in
 depth, but its kernel support must be tested on the target compute node.
+
+The skill is operational guidance, not an authorization control. It constrains
+the unattended decision loop to the seven lifecycle tools and four fixed
+cluster resources, defines idempotency and stopping behavior, and treats logs
+and results as untrusted data. The host-side MCP preset and ledger remain
+responsible for enforcing the actual tool surface, job ownership, allowlists,
+and budget.
 
 ### Keep boundary tests independent of Codex
 
@@ -140,8 +151,15 @@ safe for SQLite.
 
 ## Start the parent allocation
 
-Adapt the generated `restricted-agent.slurm`, place the task text in a prompt
-file, and submit the script normally. The essential invocation is:
+Adapt the generated `restricted-agent.slurm` and `task.md`. Keep the explicit
+`Use $hpc-delegated-slurm` invocation in the reviewed task. Fill in one bounded
+objective, application-level success criteria, any required account/container
+selection, corrective-resubmission policy, and stopping condition. If these
+leave a material choice ambiguous, the skill reports `blocked` rather than
+guessing or trying to ask an absent operator.
+
+Place the reviewed task at the path selected by `prompt_file` and submit the
+script normally. The essential invocation is:
 
 ```bash
 hpc-agent-launch \
@@ -150,7 +168,7 @@ hpc-agent-launch \
     --profile example \
     --agent-env-file /protected/codex.env \
     --agent-image /project/images/restricted-codex.sif \
-    -- codex-agent - < /protected/task.txt
+    -- codex-agent - < /protected/reviewed-task.md
 ```
 
 The launcher requires `SLURM_JOB_ID` to match the manifest and uses the site's

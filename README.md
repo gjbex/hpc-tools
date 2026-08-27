@@ -256,8 +256,10 @@ private Unix socket. Delegated jobs are wrapped in approved SIF images with
 server-generated output paths and per-job writable directories. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
 The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
-mode and treats the restricted relay as a required MCP server. Generate its
-reviewed build bundle with
+mode, installs only the image-specific `hpc-delegated-slurm` skill, and treats
+the restricted relay as a required MCP server. The generated `task.md` makes
+the objective, success checks, retry authority, and stopping condition
+explicit. Generate the reviewed build bundle with
 `hpc write-container --kind agent restricted-codex-build`.
 For faster boundary-only development without an installed agent or API
 credential, use

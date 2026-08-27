@@ -10,6 +10,8 @@ codex_home=$(mktemp -d /tmp/codex-home.XXXXXX)
 chmod 0700 "$codex_home"
 cp /opt/hpc-tools/config.toml "$codex_home/config.toml"
 chmod 0600 "$codex_home/config.toml"
+cp -R /opt/hpc-tools/skills "$codex_home/skills"
+chmod -R go-rwx "$codex_home/skills"
 export CODEX_HOME="$codex_home"
 
 if [ -n "${OPENAI_API_KEY:-}" ]; then

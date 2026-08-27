@@ -17,10 +17,11 @@ manifest=/path/to/protected/delegation.toml
 ledger=/path/to/protected/delegations.sqlite3
 agent_image=/path/to/restricted-codex.sif
 agent_env_file=/path/to/protected/codex.env
-prompt_file=/path/to/task.txt
+prompt_file=/path/to/reviewed-task.md
 
 # codex.env must be mode 0600 and outside every directory bound into the image.
 # For programmatic use it normally contains one line: OPENAI_API_KEY=<key>
+# Start from the generated task.md and keep the $hpc-delegated-slurm invocation.
 hpc-agent-launch \
     --manifest "$manifest" \
     --ledger "$ledger" \

@@ -7,7 +7,6 @@ import re
 import sys
 from pathlib import Path
 
-
 FRONTMATTER_RE = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.DOTALL)
 NAME_RE = re.compile(r"^name:\s*(?P<value>\S+)\s*$", re.MULTILINE)
 DESCRIPTION_RE = re.compile(r"^description:\s*(?P<value>.+)\s*$", re.MULTILINE)
@@ -60,12 +59,25 @@ def main(argv: list[str]) -> int:
     if not shared_files:
         fail("skills/_shared must contain shared reference Markdown files")
 
+    agent_skills_dir = (
+        root / "hpc_tools" / "data" / "containers" / "agent" / "skills"
+    )
+    agent_skill_files = sorted(agent_skills_dir.glob("*/SKILL.md"))
+    if not agent_skill_files:
+        fail("the restricted agent image must contain at least one skill")
+
     for skill_file in skill_files:
         if skill_file.parent.name.startswith("_"):
             continue
         validate_skill(skill_file, skills_dir)
+    for skill_file in agent_skill_files:
+        validate_skill(skill_file, agent_skills_dir)
 
-    print(f"validated {len(skill_files)} skills and {len(shared_files)} shared references")
+    print(
+        f"validated {len(skill_files)} interactive skills, "
+        f"{len(agent_skill_files)} restricted-agent skills, "
+        f"and {len(shared_files)} shared references"
+    )
     return 0
 
 

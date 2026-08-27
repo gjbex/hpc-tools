@@ -10,6 +10,7 @@ From: node:22.16.0-bookworm-slim
     hpc-mcp-relay /opt/hpc-tools/hpc-mcp-relay
     codex-agent /opt/hpc-tools/codex-agent
     config.toml /opt/hpc-tools/config.toml
+    skills/hpc-delegated-slurm /opt/hpc-tools/skills/hpc-delegated-slurm
 
 %post
     set -eu
@@ -36,6 +37,9 @@ From: node:22.16.0-bookworm-slim
     command -v python3 >/dev/null
     command -v hpc-mcp-relay >/dev/null
     test "$(codex --version)" = "codex-cli 0.150.1"
+    test -f /opt/hpc-tools/skills/hpc-delegated-slurm/SKILL.md
+    test -f /opt/hpc-tools/skills/hpc-delegated-slurm/references/job-design.md
+    test "$(find /opt/hpc-tools/skills -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
     for command in ssh scp sftp sbatch scancel squeue sacct scontrol srun salloc munge unmunge; do
         if command -v "$command" >/dev/null 2>&1; then
             echo "forbidden command present: $command" >&2

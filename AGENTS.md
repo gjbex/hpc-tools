@@ -48,6 +48,10 @@ release preparation.
   resources. Keep CLI commands as the human interface, and expose MCP Slurm
   submission only through the `hpc_quote_job` -> `hpc_validate_job` ->
   `hpc_submit_job` evidence chain with quote/account/validate/confirm safety.
+- Treat `hpc_tools/data/containers/agent/skills/` as the image-only skill
+  surface for unattended agents. Do not add interactive onboarding, SSH,
+  installation, or profile-management skills to that bundle. The restricted
+  MCP preset and ledger enforce authority; image skills guide behavior only.
 - Install Codex skills by copying skill directories into `~/.codex/skills`, not
   by symlinking to this checkout.
 - Use `hpc write-hardware-probe` or `hpc install-hardware-probe` for hardware
@@ -87,6 +91,9 @@ release preparation.
 - Use `hpc-container-workflows` for Apptainer definition-file workflows,
   especially HPCCM-generated recipes that must be regenerated before each
   build, and for deciding when to build containers in a Slurm job.
+- Use the image-only `hpc-delegated-slurm` skill for an unattended parent agent
+  running behind the `slurm-job` MCP preset. Do not route interactive Codex
+  sessions to it for ordinary cluster administration.
 
 ## Validation
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from test_cli_fixtures import *
 
+from hpc_tools.commands.probes import _container_bundle, _install_bundle_command
+
 
 class CliCoreTests(unittest.TestCase):
     def test_write_hardware_probe_parser(self) -> None:
@@ -182,15 +184,35 @@ class CliCoreTests(unittest.TestCase):
             definition = (output / "Apptainer.def").read_text(encoding="utf-8")
             wrapper = (output / "codex-agent").read_text(encoding="utf-8")
             config = (output / "config.toml").read_text(encoding="utf-8")
+            task = (output / "task.md").read_text(encoding="utf-8")
             slurm = (output / "restricted-agent.slurm").read_text(encoding="utf-8")
+            skill = (
+                output / "skills" / "hpc-delegated-slurm" / "SKILL.md"
+            ).read_text(encoding="utf-8")
             self.assertIn("@openai/codex@0.150.1", definition)
             self.assertIn("hpc-mcp-relay", definition)
             self.assertIn("config.toml /opt/hpc-tools/config.toml", definition)
             self.assertIn("def relay_main", (output / "hpc-mcp-relay").read_text())
             self.assertIn("--ephemeral", wrapper)
             self.assertIn("--sandbox workspace-write", wrapper)
+            self.assertIn('cp -R /opt/hpc-tools/skills "$codex_home/skills"', wrapper)
             self.assertIn("[mcp_servers.hpc-tools]", config)
             self.assertIn("required = true", config)
+            self.assertIn("Use $hpc-delegated-slurm", task)
+            self.assertIn("name: hpc-delegated-slurm", skill)
+            self.assertEqual(
+                ["hpc-delegated-slurm"],
+                sorted(path.name for path in (output / "skills").iterdir()),
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "skills"
+                    / "hpc-delegated-slurm"
+                    / "references"
+                    / "result-validation.md"
+                ).is_file()
+            )
             self.assertIn("--agent-env-file", slurm)
             self.assertIn("-- codex-agent -", slurm)
             self.assertFalse((output / "mcp.json").exists())
@@ -311,6 +333,23 @@ class CliCoreTests(unittest.TestCase):
         self.assertIn("mkdir -p $VSC_DATA/containers", command)
         self.assertIn("cat > create_apptainer_container.slurm", command)
         self.assertIn("apptainer build", command)
+
+    def test_install_agent_container_bundle_creates_skill_directories(self) -> None:
+        command = _install_bundle_command(
+            directory="$VSC_DATA/containers/agent",
+            bundle=_container_bundle("agent"),
+        )
+
+        self.assertIn("mkdir -p skills/hpc-delegated-slurm", command)
+        self.assertIn(
+            "mkdir -p skills/hpc-delegated-slurm/references",
+            command,
+        )
+        self.assertIn("cat > skills/hpc-delegated-slurm/SKILL.md", command)
+        self.assertIn(
+            "cat > skills/hpc-delegated-slurm/references/arrays.md",
+            command,
+        )
 
     def test_apptainer_container_file_is_packaged(self) -> None:
         data = resources.files("hpc_tools.data")

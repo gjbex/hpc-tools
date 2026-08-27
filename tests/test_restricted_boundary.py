@@ -19,6 +19,7 @@ from unittest import mock
 
 from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
 from hpc_tools.config import Profile
+from hpc_tools.mcp import server as mcp_registry
 
 
 class RestrictedBoundaryTests(unittest.TestCase):
@@ -118,6 +119,30 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn("[mcp_servers.hpc-tools]", config)
         self.assertIn('command = "hpc-mcp-relay"', config)
         self.assertIn("required = true", config)
+
+    def test_packaged_codex_agent_exposes_only_the_delegated_slurm_skill(self) -> None:
+        assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
+        skill_root = assets.joinpath("skills", "hpc-delegated-slurm")
+        skill = skill_root.joinpath("SKILL.md").read_text(encoding="utf-8")
+        task = assets.joinpath("task.md").read_text(encoding="utf-8")
+        definition = assets.joinpath("Apptainer.def").read_text(encoding="utf-8")
+        wrapper = assets.joinpath("codex-agent").read_text(encoding="utf-8")
+
+        self.assertEqual(
+            ["hpc-delegated-slurm"],
+            sorted(path.name for path in assets.joinpath("skills").iterdir()),
+        )
+        self.assertIn("Use $hpc-delegated-slurm", task)
+        self.assertIn("skills/hpc-delegated-slurm /opt/hpc-tools/skills", definition)
+        self.assertIn('cp -R /opt/hpc-tools/skills "$codex_home/skills"', wrapper)
+        for name in mcp_registry.SLURM_JOB_TOOL_NAMES:
+            self.assertIn(f"`{name}`", skill)
+        for uri in mcp_registry.SLURM_JOB_RESOURCE_URIS:
+            self.assertIn(f"`{uri}`", skill)
+        for forbidden in ("hpc --profile", "sbatch ", "squeue ", "ssh "):
+            self.assertNotIn(forbidden, skill)
+        for reference in ("job-design.md", "arrays.md", "result-validation.md"):
+            self.assertTrue(skill_root.joinpath("references", reference).is_file())
 
     def test_packaged_boundary_fixture_contains_no_agent_or_scheduler_client(self) -> None:
         definition = (
