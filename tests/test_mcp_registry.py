@@ -134,6 +134,8 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "reservation",
                 "time",
                 "cpus_per_task",
+                "container",
+                "idempotency_key",
                 "profile",
                 "config",
                 "dry_run",
@@ -163,6 +165,8 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "reservation",
                 "time",
                 "cpus_per_task",
+                "container",
+                "idempotency_key",
                 "profile",
                 "config",
                 "dry_run",
@@ -194,6 +198,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "reservation",
                 "time",
                 "cpus_per_task",
+                "container",
                 "idempotency_key",
                 "database",
                 "profile",
@@ -316,12 +321,24 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     submit_tool = next(
                         tool for tool in tools if tool.name == "hpc_submit_job"
                     )
+                    quote_tool = next(
+                        tool for tool in tools if tool.name == "hpc_quote_job"
+                    )
+                    validate_tool = next(
+                        tool for tool in tools if tool.name == "hpc_validate_job"
+                    )
                     cancel_tool = next(
                         tool for tool in tools if tool.name == "hpc_cancel_job"
                     )
                     for tool in (submit_tool, cancel_tool):
                         self.assertNotIn("database", tool.inputSchema["properties"])
                         self.assertNotIn("confirm", tool.inputSchema["properties"])
+                    for tool in (quote_tool, validate_tool, submit_tool):
+                        self.assertNotIn("output", tool.inputSchema["properties"])
+                        self.assertNotIn("error", tool.inputSchema["properties"])
+                        self.assertNotIn("export", tool.inputSchema["properties"])
+                        self.assertIn("container", tool.inputSchema["properties"])
+                        self.assertIn("idempotency_key", tool.inputSchema["properties"])
 
                     _, job_result = await server.call_tool(
                         "hpc_jobs",
@@ -408,17 +425,16 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                         "XDG_CONFIG_HOME": str(root),
                     },
                     clear=True,
+                ), self.assertRaisesRegex(
+                    mcp_server.ConfigError,
+                    "HPC_TOOLS_PARENT_JOB_ID",
                 ):
-                    with self.assertRaisesRegex(
-                        mcp_server.ConfigError,
-                        "HPC_TOOLS_PARENT_JOB_ID",
-                    ):
-                        mcp_server.create_server(
-                            preset="slurm-job",
-                            profile="genius",
-                            delegation_manifest=str(manifest_path),
-                            ledger=str(root / "other.sqlite3"),
-                        )
+                    mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(root / "other.sqlite3"),
+                    )
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -430,14 +446,13 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     "XDG_CONFIG_HOME": str(root),
                 },
                 clear=True,
+            ), self.assertRaisesRegex(
+                mcp_server.ConfigError,
+                "requires --delegation",
             ):
-                with self.assertRaisesRegex(
-                    mcp_server.ConfigError,
-                    "requires --delegation",
-                ):
-                    mcp_server.create_server(
-                        preset="slurm-job",
-                        profile="genius",
-                    )
+                mcp_server.create_server(
+                    preset="slurm-job",
+                    profile="genius",
+                )
 
         asyncio.run(exercise_server())

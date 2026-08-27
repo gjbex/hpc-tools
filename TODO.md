@@ -133,23 +133,25 @@ Required work:
 
 ### 4. Enforce the Apptainer boundary
 
-- [ ] Ensure the parent agent image contains neither Slurm client commands nor
+- [x] Ensure the parent agent image contains neither Slurm client commands nor
   SSH tooling or credentials.
-- [ ] Bind only explicitly authorized input, work, and output directories;
+- [x] Bind only explicitly authorized input, work, and output directories;
   review and disable unintended default/system binds where possible.
-- [ ] Create a separate directory for each delegated job before submission.
-- [ ] Generate validated host-side Slurm stdout/stderr paths beneath that job
+- [x] Create a separate directory for each delegated job before submission.
+- [x] Generate validated host-side Slurm stdout/stderr paths beneath that job
   directory rather than accepting arbitrary paths from the agent.
-- [ ] Bind common inputs read-only and give each delegated job only its own
+- [x] Bind common inputs read-only and give each delegated job only its own
   writable output/checkpoint directory unless sharing is explicitly required.
-- [ ] Run delegated computations in an approved Apptainer image under the same
+- [x] Run delegated computations in an approved Apptainer image under the same
   filesystem restrictions.
-- [ ] Do not pass the parent's MCP credential to delegated computations.
+- [x] Do not pass the parent's MCP credential to delegated computations.
   Issue a narrower derived delegation only if recursive job management is an
   explicit requirement.
-- [ ] Minimize inherited environment variables and prevent credentials or
-  secrets from being written to logs.
-- [ ] Account for symlink escape, storage exhaustion, excessive file counts,
+- [x] Minimize inherited environment variables and prevent credentials or
+  secrets from being written to launcher logs. Explicit parent-agent
+  credentials remain visible to that agent and therefore require narrow scope
+  or an external credential broker.
+- [x] Account for symlink escape, storage exhaustion, excessive file counts,
   partial outputs, and concurrent writers.
 
 ### 5. Test and document the security properties

@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any
 
 from hpc_tools import slurm
 from hpc_tools.config import ConfigError, Profile
-
 
 _EVIDENCE_SECRET: bytes | None = None
 
@@ -71,6 +71,7 @@ class SubmissionShape:
     jobscript: str
     directory: str
     overrides: Mapping[str, str]
+    boundary: Mapping[str, Any] | None = None
 
     @classmethod
     def from_submit(
@@ -92,6 +93,7 @@ class SubmissionShape:
                 for key, value in submit_overrides.values.items()
                 if value is not None
             },
+            boundary=None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -102,6 +104,8 @@ class SubmissionShape:
             "directory": self.directory,
             "overrides": dict(self.overrides),
         }
+        if self.boundary is not None:
+            shape["boundary"] = dict(self.boundary)
         shape["shape_token"] = shape_token(shape)
         return shape
 
@@ -277,6 +281,11 @@ def _coerce_shape(shape: SubmissionShape | Mapping[str, Any]) -> SubmissionShape
             str(key): str(value)
             for key, value in overrides.items()
         },
+        boundary=(
+            {str(key): value for key, value in shape["boundary"].items()}
+            if isinstance(shape.get("boundary"), Mapping)
+            else None
+        ),
     )
 
 

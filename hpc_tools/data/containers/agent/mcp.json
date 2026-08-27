@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "hpc-tools": {
+      "command": "hpc-mcp-relay",
+      "args": []
+    }
+  }
+}

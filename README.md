@@ -249,6 +249,15 @@ mode also requires `confirm=true`; delegated mode requires host-side policy,
 available budget, and an idempotency key.
 Stale or dry-run evidence is rejected.
 
+For an unattended Slurm allocation, `hpc-agent-launch` keeps `hpc-mcp`, the
+manifest, ledger, Slurm clients, and credentials outside the Apptainer agent
+image. The in-container `hpc-mcp-relay` reaches that restricted server over a
+private Unix socket. Delegated jobs are wrapped in approved SIF images with
+server-generated output paths and per-job writable directories. See the
+[restricted-agent deployment guide](docs/restricted-agent.md).
+Generate its reviewed starter bundle with
+`hpc write-container --kind agent restricted-agent-build`.
+
 It also exposes durable local context as MCP resources:
 
 - `hpc://paths`

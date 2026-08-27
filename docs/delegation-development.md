@@ -56,10 +56,9 @@ script_sha256 = []
 roots = ["/scratch/project123/delegations/agent-20260826-001"]
 
 [per_job_limits]
-nodes = 2
-tasks = 64
+nodes = 1
+tasks = 1
 cpus_per_task = 8
-gpus = 2
 wall_seconds = 14400
 array_tasks = 100
 array_concurrency = 20
@@ -68,16 +67,36 @@ memory_mib = 262144
 [budget]
 max_submissions = 20
 max_active_jobs = 4
-max_total_nodes = 30
-max_total_gpus = 10
+max_total_nodes = 20
 max_total_wall_seconds = 172800
+
+[filesystem]
+state_root = "/scratch/project123/delegations/agent-20260826-001-private"
+work_root = "/scratch/project123/delegations/agent-20260826-001/work"
+output_root = "/scratch/project123/delegations/agent-20260826-001/output"
+input_roots = ["/project/project123/common-inputs"]
+apptainer_path = "/usr/bin/apptainer"
+max_file_blocks = 2097152
+max_open_files = 1024
 ```
 
-Accounts and clusters are mandatory non-empty allowlists. Other allowlists may
-be empty. An omitted optional policy field is not a wildcard: if a request
-supplies that field, its value must occur in the corresponding allowlist.
+Accounts and clusters are mandatory non-empty allowlists. A delegation that
+submits restricted container jobs also needs at least one approved container.
+Optional scheduler-field allowlists may be empty; if a request supplies that
+field, its value must occur in the corresponding allowlist. An empty
+`script_sha256` list permits any regular, non-symlink payload below `work_root`;
+a non-empty list restricts payload snapshots to those exact digests.
 Allowed roots must be absolute normalized paths. Environment-variable,
 home-directory, relative, and parent-directory forms are rejected.
+
+The optional `[filesystem]` table becomes mandatory when the delegation creates
+new jobs through the restricted container boundary. Its state, work, output,
+and input paths must be absolute, non-overlapping, and free of symlinks. The
+state root and `apptainer_path` are host-private and omitted from the public MCP
+runtime summary. See [Run an unattended agent in Apptainer](restricted-agent.md)
+for bind modes, generated wrappers, and output semantics.
+`allowed.roots` must authorize the selected `work_root`; it does not authorize
+state or output paths for agent selection.
 
 Resource values in the manifest are positive integers. Slurm submission values
 covered by a delegation must use the restricted parser: numeric counts, one
@@ -121,8 +140,10 @@ successful, uncertain, terminal, and cancelled jobs remain cumulative.
 `max_active_jobs` counts `reserved`, `submitted`, and
 `uncertain` operations. `max_total_RESOURCE` is cumulative over reserved,
 submitted, uncertain, and terminal operations; failed reservations are
-excluded. These MCP budgets are optional delegation ceilings, not Slurm account
-balances.
+excluded. Array resource requests are multiplied by the number of array
+elements, so an array cannot consume a one-job node budget while launching many
+equivalent elements. These MCP budgets are optional delegation ceilings, not
+Slurm account balances.
 
 ## Ledger schema
 

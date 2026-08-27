@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from test_mcp_fixtures import *
+
 from hpc_tools import delegation
 
 
@@ -298,10 +299,26 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = self._write_config(root)
+            state_root = root / "state"
+            work_root = root / "work"
+            output_root = root / "output"
+            input_root = root / "input"
+            for path in (state_root, work_root, output_root, input_root):
+                path.mkdir(mode=0o700)
+            run_directory = work_root / "run"
+            run_directory.mkdir()
+            (run_directory / "job.slurm").write_text(
+                "#!/bin/sh\necho delegated\n", encoding="utf-8"
+            )
+            container_path = root / "worker.sif"
+            container_path.write_bytes(b"test image")
+            apptainer_path = root / "apptainer"
+            apptainer_path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            apptainer_path.chmod(0o700)
             manifest_path = root / "delegation.toml"
             manifest_path.write_text(
                 textwrap.dedent(
-                    """
+                    f"""
                     format_version = 1
                     id = "delegate-1"
                     issuer = "operator"
@@ -315,9 +332,15 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     partitions = ["batch"]
                     qos = []
                     reservations = []
-                    containers = []
+                    containers = ["{container_path}"]
                     script_sha256 = []
-                    roots = ["/work/delegate-1"]
+                    roots = ["{work_root}"]
+                    [filesystem]
+                    state_root = "{state_root}"
+                    work_root = "{work_root}"
+                    output_root = "{output_root}"
+                    input_roots = ["{input_root}"]
+                    apptainer_path = "{apptainer_path}"
                     [per_job_limits]
                     nodes = 1
                     [budget]
@@ -343,8 +366,10 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             )
             arguments = {
                 "config": str(config_path),
-                "directory": "/work/delegate-1/run",
+                "directory": str(run_directory),
                 "jobscript": "job.slurm",
+                "container": str(container_path),
+                "idempotency_key": "request-1",
                 "account": "proj",
                 "cluster": "wice",
                 "partition": "batch",
@@ -367,7 +392,6 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     submit_arguments = arguments | {
                         "quote_evidence": quote["quote_evidence"],
                         "validation_evidence": validation["validation_evidence"],
-                        "idempotency_key": "request-1",
                         "dry_run": False,
                     }
                     result = mcp_server.hpc_submit_job(**submit_arguments)
@@ -381,4 +405,3 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             submit.assert_called_once()
             ledger = delegation.DelegationLedger(ledger_path)
             self.assertTrue(ledger.owns_job("delegate-1", "60351238", "wice"))
-

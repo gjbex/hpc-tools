@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from hpc_tools import delegation, slurm, submissions
+from hpc_tools import delegation, restricted_jobs, slurm, slurm_contracts, submissions
 from hpc_tools.commands.slurm import _quote_command as _sam_quote_command
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import execution_plan, run_command_capture
-from hpc_tools import slurm_contracts
 from hpc_tools.mcp.common import _remote_read_result, _resolve_profile
+
 
 def hpc_quote_job(
     jobscript: str,
@@ -35,6 +35,8 @@ def hpc_quote_job(
     reservation: str | None = None,
     time: str | None = None,
     cpus_per_task: str | None = None,
+    container: str | None = None,
+    idempotency_key: str | None = None,
     profile: str | None = None,
     config: str | None = None,
     dry_run: bool = False,
@@ -70,17 +72,35 @@ def hpc_quote_job(
     account_value = normalized.get("account")
     if not account_value:
         raise ConfigError("hpc_quote_job requires an account")
-    shape = _submission_shape(resolved, jobscript, directory, normalized)
     runtime = delegation.current_runtime()
-    if runtime is not None:
-        delegation.authorize_shape(runtime.manifest, shape)
-    quote_args = _quote_args_for_submit(jobscript, normalized)
+    prepared = _prepare_request(
+        runtime,
+        resolved=resolved,
+        jobscript=jobscript,
+        directory=directory,
+        container=container,
+        idempotency_key=idempotency_key,
+        normalized=normalized,
+        stage=runtime is not None and not dry_run,
+        temporary=runtime is not None and not dry_run,
+    )
+    shape = prepared.shape
+    quote_jobscript = (
+        str(Path(prepared.directory) / prepared.jobscript)
+        if runtime is not None
+        else prepared.jobscript
+    )
+    quote_args = _quote_args_for_submit(quote_jobscript, prepared.overrides)
     command = _sam_quote_command(resolved.sam_quote_command, quote_args)
-    result = _remote_read_result(resolved, command, dry_run=dry_run)
+    try:
+        result = _remote_read_result(resolved, command, dry_run=dry_run)
+    finally:
+        prepared.cleanup()
     evidence = _submission_evidence("quote", shape, result)
     return result | {
         "resource_shape": shape,
         "quote_evidence": evidence,
+        "output_directory": prepared.output_directory,
     }
 
 def hpc_validate_job(
@@ -108,6 +128,8 @@ def hpc_validate_job(
     reservation: str | None = None,
     time: str | None = None,
     cpus_per_task: str | None = None,
+    container: str | None = None,
+    idempotency_key: str | None = None,
     profile: str | None = None,
     config: str | None = None,
     dry_run: bool = False,
@@ -138,21 +160,34 @@ def hpc_validate_job(
         time=time,
         cpus_per_task=cpus_per_task,
     )
-    shape = _submission_shape(resolved, jobscript, directory, normalized)
     runtime = delegation.current_runtime()
-    if runtime is not None:
-        delegation.authorize_shape(runtime.manifest, shape)
-    command = slurm.submit_command(
-        jobscript,
+    prepared = _prepare_request(
+        runtime,
+        resolved=resolved,
+        jobscript=jobscript,
         directory=directory,
-        test_only=True,
-        overrides=normalized,
+        container=container,
+        idempotency_key=idempotency_key,
+        normalized=normalized,
+        stage=runtime is not None and not dry_run,
+        temporary=runtime is not None and not dry_run,
     )
-    result = _remote_read_result(resolved, command, dry_run=dry_run)
+    shape = prepared.shape
+    command = slurm.submit_command(
+        prepared.jobscript,
+        directory=prepared.directory,
+        test_only=True,
+        overrides=prepared.overrides,
+    )
+    try:
+        result = _remote_read_result(resolved, command, dry_run=dry_run)
+    finally:
+        prepared.cleanup()
     evidence = _submission_evidence("validation", shape, result)
     return result | {
         "resource_shape": shape,
         "validation_evidence": evidence,
+        "output_directory": prepared.output_directory,
     }
 
 def hpc_submit_job(
@@ -182,6 +217,7 @@ def hpc_submit_job(
     reservation: str | None = None,
     time: str | None = None,
     cpus_per_task: str | None = None,
+    container: str | None = None,
     idempotency_key: str | None = None,
     database: str | None = None,
     profile: str | None = None,
@@ -215,15 +251,24 @@ def hpc_submit_job(
         time=time,
         cpus_per_task=cpus_per_task,
     )
-    shape = _submission_shape(resolved, jobscript, directory, normalized)
     runtime = delegation.current_runtime()
-    if runtime is not None:
-        delegation.authorize_shape(runtime.manifest, shape)
-    command = slurm.submit_command(
-        jobscript,
+    prepared = _prepare_request(
+        runtime,
+        resolved=resolved,
+        jobscript=jobscript,
         directory=directory,
+        container=container,
+        idempotency_key=idempotency_key,
+        normalized=normalized,
+        stage=False,
+        temporary=False,
+    )
+    shape = prepared.shape
+    command = slurm.submit_command(
+        prepared.jobscript,
+        directory=prepared.directory,
         test_only=False,
-        overrides=normalized,
+        overrides=prepared.overrides,
     )
     plan = execution_plan(resolved, command)
     _require_evidence("quote", quote_evidence, shape, executor=plan.executor)
@@ -238,6 +283,7 @@ def hpc_submit_job(
         "command": command,
         **plan.metadata(),
         "resource_shape": shape,
+        "output_directory": prepared.output_directory,
         "confirm_required": runtime is None and not confirm,
         "dry_run": dry_run,
         "executed": False,
@@ -251,6 +297,7 @@ def hpc_submit_job(
 
     ledger = None
     reservation = None
+    staged: restricted_jobs.PreparedJob | None = None
     if runtime is not None:
         if not idempotency_key:
             raise delegation.DelegationError(
@@ -279,7 +326,50 @@ def hpc_submit_job(
                 "use a new key after failure or reconcile an uncertain reservation"
             )
 
-    completed = run_command_capture(resolved, command)
+        try:
+            staged = _prepare_request(
+                runtime,
+                resolved=resolved,
+                jobscript=jobscript,
+                directory=directory,
+                container=container,
+                idempotency_key=idempotency_key,
+                normalized=normalized,
+                stage=True,
+                temporary=False,
+            )
+            if staged.shape["shape_token"] != shape["shape_token"]:
+                raise delegation.DelegationError(
+                    "job payload changed after evidence validation; quote and validate again"
+                )
+            if (staged.jobscript, staged.directory, staged.overrides) != (
+                prepared.jobscript,
+                prepared.directory,
+                prepared.overrides,
+            ):
+                raise delegation.DelegationError(
+                    "server-generated job paths changed during submission"
+                )
+        except (delegation.DelegationError, OSError) as staging_error:
+            ledger.release_reservation(
+                runtime.manifest,
+                idempotency_key=idempotency_key,
+                reason=f"unable to stage restricted job: {staging_error}",
+            )
+            raise
+
+    try:
+        completed = run_command_capture(resolved, command)
+    except OSError as execution_error:
+        if ledger is not None and idempotency_key is not None:
+            ledger.release_reservation(
+                runtime.manifest,
+                idempotency_key=idempotency_key,
+                reason=f"unable to execute sbatch: {execution_error}",
+            )
+            if staged is not None:
+                staged.discard()
+        raise
     stdout = completed.stdout
     stderr = completed.stderr
     logged = False
@@ -324,14 +414,17 @@ def hpc_submit_job(
         try:
             submissions.append_event(submission_event, path=database_path)
             logged = True
-        except (OSError, ValueError) as error:
-            database_error = str(error)
-    elif ledger is not None and idempotency_key is not None:
+        except (OSError, ValueError) as database_exception:
+            database_error = str(database_exception)
+    staging_cleanup_error = None
+    if completed.returncode != 0 and ledger is not None and idempotency_key is not None:
         ledger.release_reservation(
             runtime.manifest,
             idempotency_key=idempotency_key,
             reason=f"sbatch failed with return code {completed.returncode}",
         )
+        if staged is not None:
+            staging_cleanup_error = staged.discard()
     return preview | {
         "confirm_required": False,
         "idempotent_replay": False,
@@ -344,6 +437,7 @@ def hpc_submit_job(
             else submissions.default_database_path()
         ),
         "database_error": database_error,
+        "staging_cleanup_error": staging_cleanup_error,
         "submission_event": submission_event,
         "returncode": completed.returncode,
         "stdout": stdout,
@@ -352,6 +446,44 @@ def hpc_submit_job(
 
 def _submit_overrides(account: str | None = None, **overrides: str | None) -> dict[str, str | None]:
     return slurm_contracts.normalize_submit_overrides(account=account, **overrides)
+
+
+def _prepare_request(
+    runtime: delegation.DelegationRuntime | None,
+    *,
+    resolved: Profile,
+    jobscript: str,
+    directory: str,
+    container: str | None,
+    idempotency_key: str | None,
+    normalized: dict[str, str | None],
+    stage: bool,
+    temporary: bool,
+) -> restricted_jobs.PreparedJob:
+    if runtime is not None:
+        return restricted_jobs.prepare_job(
+            runtime,
+            profile=resolved,
+            jobscript=jobscript,
+            directory=directory,
+            container=container,
+            idempotency_key=idempotency_key,
+            overrides=normalized,
+            stage=stage,
+            temporary=temporary,
+        )
+    if container is not None:
+        raise ConfigError(
+            "container is a restricted-delegation parameter; full mode submits the jobscript directly"
+        )
+    shape = _submission_shape(resolved, jobscript, directory, normalized)
+    return restricted_jobs.PreparedJob(
+        shape=shape,
+        jobscript=jobscript,
+        directory=directory,
+        overrides=normalized,
+        output_directory="",
+    )
 
 def _quote_args_for_submit(jobscript: str, overrides: dict[str, str | None]) -> list[str]:
     return slurm_contracts.quote_args_for_submit(jobscript, overrides)

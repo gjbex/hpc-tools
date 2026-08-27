@@ -1,0 +1,32 @@
+Bootstrap: docker
+From: python:3.12.11-slim-bookworm
+
+%labels
+    org.opencontainers.image.title hpc-tools restricted agent boundary base
+    org.opencontainers.image.description Minimal Python runtime and MCP relay without SSH or Slurm clients
+
+%files
+    hpc-mcp-relay /opt/hpc-tools/hpc-mcp-relay
+
+%post
+    set -eu
+    chmod 0755 /opt/hpc-tools/hpc-mcp-relay
+    ln -s /opt/hpc-tools/hpc-mcp-relay /usr/local/bin/hpc-mcp-relay
+
+%environment
+    export HOME=/tmp
+    export PYTHONDONTWRITEBYTECODE=1
+
+%test
+    set -eu
+    command -v python3 >/dev/null
+    command -v hpc-mcp-relay >/dev/null
+    for command in ssh scp sftp sbatch scancel squeue sacct scontrol srun salloc munge unmunge; do
+        if command -v "$command" >/dev/null 2>&1; then
+            echo "forbidden command present: $command" >&2
+            exit 1
+        fi
+    done
+
+%runscript
+    exec "$@"

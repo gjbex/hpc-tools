@@ -153,6 +153,11 @@ The local executor runs cluster commands through the selected profile's
 allocation, or add process and filesystem isolation. Apptainer and explicit
 bind mounts must provide that boundary.
 
+Do not place the preceding raw `hpc-mcp` command in the agent container. Use
+`hpc-agent-launch` to create the private host server and socket bridge, and
+configure the in-container client to start `hpc-mcp-relay`. See
+[Run an unattended agent in Apptainer](restricted-agent.md).
+
 `slurm-job` fails closed unless the host supplies a valid delegation manifest
 and matching parent job ID; the preset cannot be started as an unscoped
 user-wide lifecycle server. It then enforces account/cluster/resource allowlists,

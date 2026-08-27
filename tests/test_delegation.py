@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
-from datetime import datetime, timezone
-import json
-from pathlib import Path
 import sqlite3
 import tempfile
 import textwrap
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from datetime import datetime, timezone
+from pathlib import Path
 
 from hpc_tools import delegation
 
@@ -192,6 +191,21 @@ class DelegationTests(unittest.TestCase):
                     )
                 ]
             self.assertIn("rejected", decisions)
+
+    def test_array_elements_consume_cumulative_node_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            with self.assertRaisesRegex(delegation.DelegationError, "aggregate nodes"):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="array-1",
+                    shape=self._shape(array="0-3"),
+                )
 
     def test_concurrent_first_use_and_reservations_are_serialized(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

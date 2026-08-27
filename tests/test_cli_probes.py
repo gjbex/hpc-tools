@@ -170,6 +170,19 @@ class CliCoreTests(unittest.TestCase):
                 (output / "create_apptainer_container.slurm").read_text(encoding="utf-8"),
             )
 
+    def test_write_restricted_agent_container_bundle(self) -> None:
+        parser = build_parser()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "agent"
+            args = parser.parse_args(
+                ["write-container", "--kind", "agent", str(output)]
+            )
+
+            self.assertEqual(0, args.handler(args, None))
+            self.assertIn("hpc-mcp-relay", (output / "Apptainer.def").read_text())
+            self.assertIn("def relay_main", (output / "hpc-mcp-relay").read_text())
+            self.assertTrue((output / "restricted-agent.slurm").exists())
+
     def test_write_hardware_probe_rejects_existing_file_without_force(self) -> None:
         parser = build_parser()
         with tempfile.TemporaryDirectory() as directory:

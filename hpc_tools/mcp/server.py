@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import argparse
-from functools import wraps
 import inspect
 import os
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
+from functools import wraps
+from typing import Any
 
-from hpc_tools.config import ConfigError
 from hpc_tools import delegation
+from hpc_tools.config import ConfigError
 from hpc_tools.execution import EXECUTOR_NAMES, executor_scope, resolve_executor
 from hpc_tools.mcp.resources import (
     resource_config,
@@ -53,7 +54,6 @@ from hpc_tools.mcp.tools import (
     hpc_write_container,
     hpc_write_probe,
 )
-
 
 PRESET_ENV_VAR = "HPC_TOOLS_MCP_PRESET"
 PROFILE_ENV_VAR = "HPC_TOOLS_MCP_PROFILE"
@@ -322,6 +322,11 @@ def _bind_profile(
     if "profile" not in signature.parameters:
         return function
     hidden = {"profile", "config", "database", "confirm"}
+    restricted_submission = runtime is not None and function.__name__ in {
+        "hpc_quote_job", "hpc_validate_job", "hpc_submit_job"
+    }
+    if restricted_submission:
+        hidden.update({"error", "output", "export"})
     public_parameters = [
         parameter
         for name, parameter in signature.parameters.items()
@@ -332,6 +337,8 @@ def _bind_profile(
         fixed_kwargs["database"] = None
     if "confirm" in signature.parameters:
         fixed_kwargs["confirm"] = False
+    if restricted_submission:
+        fixed_kwargs.update({"error": None, "output": None, "export": None})
 
     @wraps(function)
     def bound(**kwargs: Any) -> Any:

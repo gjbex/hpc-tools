@@ -47,6 +47,7 @@ nav:
   - Agent integrations:
       - Using hpc-tools with Codex: codex.md
       - MCP integration: mcp.md
+      - Restricted unattended agent: restricted-agent.md
   - End-to-end recipes: recipes.md
   - Troubleshooting: troubleshooting.md
   - Reference: reference.md

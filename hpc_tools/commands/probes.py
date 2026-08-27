@@ -336,6 +336,17 @@ def _cuda_device_properties_bundle() -> dict[str, str]:
 
 def _container_bundle(kind: str) -> dict[str, str]:
     data = resources.files("hpc_tools.data").joinpath("containers", "apptainer" if kind == "generic" else kind)
+    if kind == "agent":
+        return {
+            "Apptainer.def": data.joinpath("Apptainer.def").read_text(encoding="utf-8"),
+            "hpc-mcp-relay": resources.files("hpc_tools").joinpath("mcp_bridge.py").read_text(
+                encoding="utf-8"
+            ),
+            "mcp.json": data.joinpath("mcp.json").read_text(encoding="utf-8"),
+            "restricted-agent.slurm": data.joinpath("restricted-agent.slurm").read_text(
+                encoding="utf-8"
+            ),
+        }
     if kind == "generic":
         return {
             "create_apptainer_container.slurm": data.joinpath("create_apptainer_container.slurm").read_text(

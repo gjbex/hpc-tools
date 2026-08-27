@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import re
+import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import hashlib
-import json
-import os
 from pathlib import Path
-import re
-import sqlite3
-from typing import Any, Iterator
+from typing import Any
 
 try:
     import tomllib
@@ -24,10 +25,35 @@ LEDGER_SCHEMA_VERSION = 1
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
 PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
+IDEMPOTENCY_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 
 
 class DelegationError(ConfigError):
     """Raised when delegation authorization or accounting fails."""
+
+
+@dataclass(frozen=True)
+class FilesystemPolicy:
+    """Host-selected paths used to isolate an unattended agent and its jobs."""
+
+    state_root: Path
+    work_root: Path
+    output_root: Path
+    input_roots: tuple[Path, ...]
+    apptainer_path: Path
+    max_file_blocks: int | None = None
+    max_open_files: int | None = None
+
+    def public_summary(self) -> dict[str, Any]:
+        # state_root and apptainer_path are deliberately host-private details.
+        return {
+            "configured": True,
+            "work_root": str(self.work_root),
+            "output_root": str(self.output_root),
+            "input_roots": [str(path) for path in self.input_roots],
+            "max_file_blocks": self.max_file_blocks,
+            "max_open_files": self.max_open_files,
+        }
 
 
 @dataclass(frozen=True)
@@ -41,6 +67,7 @@ class DelegationManifest:
     allowed: dict[str, tuple[str, ...]]
     per_job_limits: dict[str, int]
     budget: dict[str, int]
+    filesystem: FilesystemPolicy | None
     source_path: Path
     digest: str
 
@@ -56,6 +83,11 @@ class DelegationManifest:
             "allowed": {key: list(value) for key, value in self.allowed.items()},
             "per_job_limits": self.per_job_limits,
             "budget": self.budget,
+            "filesystem": (
+                self.filesystem.public_summary()
+                if self.filesystem is not None
+                else {"configured": False}
+            ),
         }
 
 
@@ -161,6 +193,16 @@ def load_manifest(
         root = Path(value)
         if not root.is_absolute() or ".." in root.parts:
             raise DelegationError("allowed roots must be absolute normalized paths")
+    filesystem = _filesystem_policy(raw.get("filesystem"))
+    if filesystem is not None:
+        if not allowed["containers"]:
+            raise DelegationError(
+                "a filesystem policy requires at least one allowed container"
+            )
+        if not _under_roots(str(filesystem.work_root), allowed["roots"]):
+            raise DelegationError(
+                "filesystem.work_root must be authorized by allowed.roots"
+            )
 
     return DelegationManifest(
         identifier=identifier,
@@ -172,6 +214,7 @@ def load_manifest(
         allowed=allowed,
         per_job_limits=_positive_ints(raw.get("per_job_limits", {}), "per_job_limits"),
         budget=_positive_ints(raw.get("budget", {}), "budget"),
+        filesystem=filesystem,
         source_path=path,
         digest=hashlib.sha256(payload).hexdigest(),
     )
@@ -191,6 +234,24 @@ def authorize_shape(manifest: DelegationManifest, shape: dict[str, Any]) -> None
     roots = manifest.allowed["roots"]
     if roots and not _under_roots(shape.get("directory"), roots):
         raise DelegationError("submission directory is outside allowed roots")
+    boundary = shape.get("boundary")
+    if boundary is not None:
+        if not isinstance(boundary, dict):
+            raise DelegationError("submission boundary must be an object")
+        _allow(
+            "container",
+            boundary.get("container"),
+            manifest.allowed["containers"],
+            required=True,
+        )
+        script_digest = boundary.get("script_sha256")
+        if not isinstance(script_digest, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", script_digest
+        ):
+            raise DelegationError("submission boundary has no valid script SHA-256")
+        approved_scripts = manifest.allowed["script_sha256"]
+        if approved_scripts and script_digest not in approved_scripts:
+            raise DelegationError("script_sha256 is outside the delegation")
     resources = shape_resources(overrides)
     for key, limit in manifest.per_job_limits.items():
         if resources.get(key, 0) > limit:
@@ -222,6 +283,22 @@ def shape_resources(overrides: dict[str, Any]) -> dict[str, int]:
     if overrides.get("mem_per_cpu") is not None:
         result["memory_per_cpu_mib"] = _memory_mib(overrides["mem_per_cpu"])
     return result
+
+
+def budget_resources(overrides: dict[str, Any]) -> dict[str, int]:
+    """Return cumulative requested resources, including every array element."""
+    per_element = shape_resources(overrides)
+    multiplier = per_element.get("array_tasks", 1)
+    cumulative = dict(per_element)
+    cumulative["nodes"] = per_element.get("nodes", 1) * multiplier
+    cumulative["tasks"] = per_element.get("tasks", 1) * multiplier
+    for key in (
+        "cpus_per_task", "gpus", "gpus_per_node", "gpus_per_task",
+        "wall_seconds", "memory_mib", "memory_per_cpu_mib",
+    ):
+        if key in per_element:
+            cumulative[key] = per_element[key] * multiplier
+    return cumulative
 
 
 class DelegationLedger:
@@ -281,13 +358,12 @@ class DelegationLedger:
         idempotency_key: str,
         shape: dict[str, Any],
     ) -> dict[str, Any]:
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", idempotency_key):
-            raise DelegationError("invalid idempotency key")
+        validate_idempotency_key(idempotency_key)
         authorize_shape(manifest, shape)
         request_hash = hashlib.sha256(
             json.dumps(shape, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        requested = shape_resources(shape["overrides"])
+        requested = budget_resources(shape["overrides"])
         with self._transaction() as db:
             self._active(db, manifest)
             row = db.execute(
@@ -535,8 +611,7 @@ class DelegationLedger:
     ) -> dict[str, Any]:
         if operation != "cancel":
             raise DelegationError(f"unsupported lifecycle mutation {operation!r}")
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", idempotency_key):
-            raise DelegationError("invalid idempotency key")
+        validate_idempotency_key(idempotency_key)
         base_job_id = self.require_ownership(
             manifest, job_id=job_id, cluster=cluster
         )
@@ -846,6 +921,11 @@ def normalize_job_id(job_id: str) -> str:
         )
     return match.group("base")
 
+
+def validate_idempotency_key(value: str) -> None:
+    if not IDEMPOTENCY_KEY_PATTERN.fullmatch(value):
+        raise DelegationError("invalid idempotency key")
+
 def _execute_schema(db: sqlite3.Connection, script: str) -> None:
     for statement in script.split(";"):
         if statement.strip():
@@ -897,6 +977,84 @@ def _positive_ints(value: Any, name: str) -> dict[str, int]:
         if not isinstance(item, int) or isinstance(item, bool) or item < 1:
             raise DelegationError(f"{name}.{key} must be a positive integer")
     return dict(value)
+
+
+def _filesystem_policy(value: Any) -> FilesystemPolicy | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise DelegationError("filesystem must be a table")
+    known = {
+        "state_root", "work_root", "output_root", "input_roots",
+        "apptainer_path", "max_file_blocks", "max_open_files",
+    }
+    unknown = sorted(set(value) - known)
+    if unknown:
+        raise DelegationError(
+            f"unsupported filesystem field(s): {', '.join(unknown)}"
+        )
+
+    def absolute_path(name: str) -> Path:
+        raw = value.get(name)
+        if not isinstance(raw, str) or not raw:
+            raise DelegationError(f"filesystem.{name} must be a non-empty string")
+        path = Path(raw)
+        if not path.is_absolute() or ".." in path.parts:
+            raise DelegationError(
+                f"filesystem.{name} must be an absolute normalized path"
+            )
+        return path
+
+    raw_inputs = value.get("input_roots", [])
+    if not isinstance(raw_inputs, list) or not all(
+        isinstance(item, str) and item for item in raw_inputs
+    ):
+        raise DelegationError("filesystem.input_roots must be an array of strings")
+    input_roots: list[Path] = []
+    for item in raw_inputs:
+        path = Path(item)
+        if not path.is_absolute() or ".." in path.parts:
+            raise DelegationError(
+                "filesystem.input_roots must contain absolute normalized paths"
+            )
+        input_roots.append(path)
+    if len(set(input_roots)) != len(input_roots):
+        raise DelegationError("filesystem.input_roots contains duplicates")
+
+    limits = _positive_ints(
+        {
+            key: item
+            for key, item in value.items()
+            if key in {"max_file_blocks", "max_open_files"}
+        },
+        "filesystem",
+    )
+    policy = FilesystemPolicy(
+        state_root=absolute_path("state_root"),
+        work_root=absolute_path("work_root"),
+        output_root=absolute_path("output_root"),
+        input_roots=tuple(input_roots),
+        apptainer_path=absolute_path("apptainer_path"),
+        max_file_blocks=limits.get("max_file_blocks"),
+        max_open_files=limits.get("max_open_files"),
+    )
+    roots = (policy.state_root, policy.work_root, policy.output_root, *policy.input_roots)
+    for index, first in enumerate(roots):
+        for second in roots[index + 1 :]:
+            if _paths_overlap(first, second):
+                raise DelegationError(
+                    f"filesystem paths must not overlap: {first} and {second}"
+                )
+    for root in roots:
+        if _paths_overlap(policy.apptainer_path, root):
+            raise DelegationError(
+                "filesystem.apptainer_path must be outside all container bind roots"
+            )
+    return policy
+
+
+def _paths_overlap(first: Path, second: Path) -> bool:
+    return first == second or first in second.parents or second in first.parents
 
 
 def _allow(

@@ -13,3 +13,4 @@ dist/
 .venv-docs/
 venv/
 site/
+*.sif
