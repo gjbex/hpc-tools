@@ -4,7 +4,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any
 
-from hpc_tools import plugin_system, references, slurm, submissions
+from hpc_tools import delegation, plugin_system, references, slurm, submissions
 from hpc_tools.commands.core import _site_env_command
 from hpc_tools.commands.probes import (
     _container_bundle,
@@ -147,10 +147,63 @@ def hpc_jobs(
     cluster: str = "all",
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Show current user's Slurm jobs for a profile."""
+    """Show jobs, restricted to active jobs owned by the current delegation."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
-    command = slurm.squeue_user_command(cluster)
-    return _remote_read_result(resolved, command, dry_run=dry_run)
+    runtime = delegation.current_runtime()
+    if runtime is None:
+        command = slurm.squeue_user_command(cluster)
+        return _remote_read_result(resolved, command, dry_run=dry_run)
+
+    ledger = delegation.DelegationLedger(runtime.ledger_path)
+    owned = ledger.owned_jobs(runtime.manifest)
+    if cluster != "all":
+        if cluster not in runtime.manifest.allowed["clusters"]:
+            raise delegation.DelegationError(
+                f"cluster {cluster!r} is outside the delegation"
+            )
+        owned = [job for job in owned if job["cluster"] == cluster]
+    grouped: dict[str, list[str]] = {}
+    for job in owned:
+        grouped.setdefault(job["cluster"], []).append(job["job_id"])
+    queries = []
+    for selected_cluster, job_ids in sorted(grouped.items()):
+        command = slurm.squeue_jobs_command(job_ids, selected_cluster or None)
+        queries.append(_remote_read_result(resolved, command, dry_run=dry_run))
+    return {
+        "profile": resolved.name,
+        "delegation_id": runtime.manifest.identifier,
+        "cluster": cluster,
+        "owned_job_ids": [
+            {"job_id": job["job_id"], "cluster": job["cluster"]}
+            for job in owned
+        ],
+        "queries": queries,
+        "dry_run": dry_run,
+    }
+
+
+def _delegated_job_context(
+    resolved: Any,
+    *,
+    jobid: str,
+    cluster: str | None,
+) -> tuple[delegation.DelegationRuntime | None, str | None]:
+    runtime = delegation.current_runtime()
+    selected_cluster = cluster or resolved.default_cluster
+    if runtime is not None:
+        if not selected_cluster or selected_cluster == "all":
+            selected_cluster = resolved.default_cluster
+        if not selected_cluster:
+            raise delegation.DelegationError(
+                "restricted job operation requires one explicit cluster"
+            )
+        delegation.DelegationLedger(runtime.ledger_path).require_ownership(
+            runtime.manifest,
+            job_id=jobid,
+            cluster=selected_cluster,
+        )
+    return runtime, selected_cluster
+
 
 def hpc_job(
     jobid: str,
@@ -159,10 +212,69 @@ def hpc_job(
     cluster: str = "all",
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Show Slurm status for one job ID."""
+    """Show Slurm queue status for one authorized job ID."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
-    command = slurm.squeue_job_command(jobid, cluster)
-    return _remote_read_result(resolved, command, dry_run=dry_run)
+    runtime, selected_cluster = _delegated_job_context(
+        resolved, jobid=jobid, cluster=cluster
+    )
+    command = slurm.squeue_job_command(jobid, selected_cluster)
+    result = _remote_read_result(resolved, command, dry_run=dry_run)
+    return result | {
+        "delegation_id": runtime.manifest.identifier if runtime else None,
+        "owned": runtime is not None,
+    }
+
+
+def hpc_job_accounting(
+    jobid: str,
+    profile: str | None = None,
+    config: str | None = None,
+    cluster: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Show Slurm accounting for one authorized job and reconcile terminal state."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    runtime, selected_cluster = _delegated_job_context(
+        resolved, jobid=jobid, cluster=cluster
+    )
+    result = _remote_read_result(
+        resolved,
+        slurm.sacct_command(jobid, selected_cluster),
+        dry_run=dry_run,
+    )
+    state = "UNKNOWN"
+    exit_code = None
+    elapsed = None
+    ledger_reconciled = False
+    ledger_error = None
+    if not dry_run and result["returncode"] == 0:
+        state, exit_code, elapsed = submissions.parse_sacct_observation(
+            result["stdout"], delegation.normalize_job_id(jobid)
+        )
+        if runtime is not None and state != "UNKNOWN":
+            try:
+                delegation.DelegationLedger(runtime.ledger_path).reconcile_job(
+                    runtime.manifest,
+                    job_id=jobid,
+                    cluster=selected_cluster,
+                    state=state,
+                )
+                ledger_reconciled = True
+            except delegation.DelegationError as error:
+                ledger_error = str(error)
+    return result | {
+        "operation": "job_accounting",
+        "delegation_id": runtime.manifest.identifier if runtime else None,
+        "owned": runtime is not None,
+        "jobid": jobid,
+        "cluster": selected_cluster,
+        "state": state,
+        "exit_code": exit_code,
+        "elapsed": elapsed,
+        "ledger_reconciled": ledger_reconciled,
+        "ledger_error": ledger_error,
+    }
+
 
 def hpc_cancel_job(
     jobid: str,
@@ -171,19 +283,69 @@ def hpc_cancel_job(
     cluster: str | None = None,
     reason: str | None = None,
     database: str | None = None,
+    idempotency_key: str | None = None,
     dry_run: bool = True,
     confirm: bool = False,
 ) -> dict[str, Any]:
-    """Cancel one Slurm job and record the request; execution requires confirmation."""
+    """Cancel one authorized Slurm job and record the request."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
-    selected_cluster = cluster or resolved.default_cluster
+    runtime, selected_cluster = _delegated_job_context(
+        resolved, jobid=jobid, cluster=cluster
+    )
     command = slurm.cancel_command(jobid, selected_cluster)
+    ledger = None
+    reservation = None
+    if runtime is not None and not dry_run:
+        if not idempotency_key:
+            raise delegation.DelegationError(
+                "restricted cancellation requires an idempotency_key"
+            )
+        ledger = delegation.DelegationLedger(runtime.ledger_path)
+        reservation = ledger.reserve_lifecycle_operation(
+            runtime.manifest,
+            idempotency_key=idempotency_key,
+            operation="cancel",
+            job_id=jobid,
+            cluster=selected_cluster,
+        )
+        if reservation["idempotent_replay"]:
+            if reservation["status"] == "succeeded":
+                previous = reservation["result"] or {}
+                return previous | {
+                    "idempotent_replay": True,
+                    "executed": False,
+                    "ledger_recorded": True,
+                }
+            raise delegation.DelegationError(
+                f"idempotent cancellation is in {reservation['status']!r} state; "
+                "use a new key after failure or reconcile a reserved operation"
+            )
+
     result = _remote_mutation_result(
         resolved,
         command,
-        confirm=confirm,
+        confirm=(confirm or runtime is not None),
         dry_run=dry_run,
     )
+    ledger_error = None
+    if ledger is not None and idempotency_key is not None and result["executed"]:
+        try:
+            ledger.record_lifecycle_result(
+                runtime.manifest,
+                idempotency_key=idempotency_key,
+                succeeded=result["returncode"] == 0,
+                result={
+                    "operation": "cancel_job",
+                    "jobid": jobid,
+                    "cluster": selected_cluster,
+                    "returncode": result["returncode"],
+                    "stdout": result["stdout"],
+                    "stderr": result["stderr"],
+                },
+            )
+        except delegation.DelegationError as error:
+            ledger_error = str(error)
+
     database_path = Path(database).expanduser() if database else submissions.default_database_path()
     cancellation_events: list[dict[str, Any]] = []
     database_error = None
@@ -199,15 +361,23 @@ def hpc_cancel_job(
             )
         except (OSError, ValueError) as error:
             database_error = str(error)
-    return result | {
+    response = result | {
         "operation": "cancel_job",
+        "delegation_id": runtime.manifest.identifier if runtime else None,
+        "owned": runtime is not None,
         "jobid": jobid,
         "cluster": selected_cluster,
         "reason": reason,
         "database": str(database_path),
         "recorded_run_ids": [event["run_id"] for event in cancellation_events],
         "database_error": database_error,
+        "idempotent_replay": False,
+        "ledger_recorded": runtime is None or (
+            result["executed"] and ledger_error is None
+        ),
+        "ledger_error": ledger_error,
     }
+    return response
 
 def hpc_slurm_limits(
     profile: str | None = None,

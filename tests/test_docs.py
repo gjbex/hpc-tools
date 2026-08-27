@@ -162,6 +162,11 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("## Ledger schema", delegation_text)
         self.assertIn("submission_operations", delegation_text)
         self.assertIn("job_ownership", delegation_text)
+        self.assertIn("lifecycle_operations", delegation_text)
+        self.assertIn("## Restricted lifecycle authorization", delegation_text)
+        mcp_text = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
+        self.assertIn("hpc_job_accounting", mcp_text)
+        self.assertIn("only ledger-owned active jobs", mcp_text)
 
     def test_submissions_doc_covers_action_semantics_and_diagram(self) -> None:
         text = SUBMISSIONS_DOC.read_text(encoding="utf-8")

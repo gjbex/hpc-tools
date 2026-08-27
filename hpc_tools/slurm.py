@@ -40,10 +40,25 @@ def squeue_user_command(cluster: str | None = None) -> str:
 
 
 def squeue_job_command(jobid: str, cluster: str | None = None) -> str:
+    _validate_job_id(jobid)
+    _validate_cluster(cluster)
     parts = ["squeue"]
     if cluster:
         parts.extend(["-M", cluster])
     parts.extend(["-j", jobid, "-o", SQUEUE_JOB_FORMAT])
+    return _quote_command(parts)
+
+
+def squeue_jobs_command(jobids: list[str], cluster: str | None = None) -> str:
+    if not jobids:
+        raise ConfigError("at least one job ID is required")
+    for jobid in jobids:
+        _validate_job_id(jobid)
+    _validate_cluster(cluster)
+    parts = ["squeue"]
+    if cluster:
+        parts.extend(["-M", cluster])
+    parts.extend(["-j", ",".join(jobids), "-o", SQUEUE_JOB_FORMAT])
     return _quote_command(parts)
 
 
@@ -162,12 +177,27 @@ def submit_command(
 
 
 def sacct_command(jobid: str, cluster: str | None = None) -> str:
-    parts = ["sacct"]
+    _validate_job_id(jobid)
+    _validate_cluster(cluster)
+    parts = ["sacct", "-n", "-P"]
     if cluster:
         parts.extend(["-M", cluster])
     parts.extend(["-j", jobid, f"--format={SACCT_FORMAT}"])
     return _quote_command(parts)
 
+
+
+def _validate_job_id(jobid: str) -> None:
+    if not SLURM_JOB_ID_PATTERN.fullmatch(jobid):
+        raise ConfigError(
+            "job ID must be numeric, optionally followed by a heterogeneous "
+            "component, one array task, or one job step"
+        )
+
+
+def _validate_cluster(cluster: str | None) -> None:
+    if cluster and not SLURM_CLUSTER_PATTERN.fullmatch(cluster):
+        raise ConfigError("cluster must be one Slurm cluster name")
 
 def _quote_command(parts: list[str]) -> str:
     return " ".join(shlex.quote(part) for part in parts)

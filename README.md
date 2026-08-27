@@ -211,13 +211,15 @@ The MCP interface supports read-only context tools such as:
 - `hpc_status`
 - `hpc_jobs`
 - `hpc_job`
+- `hpc_job_accounting`
 - `hpc_slurm_limits`
 - `hpc_module_spider`
 - `hpc_storage_inspect`
 - `hpc_site_env`
 
 It also supports confirm-gated write and install tools, plus narrowly scoped
-confirm-gated job cancellation:
+job cancellation. Full mode is confirm-gated; a configured restricted server
+uses delegation ownership and an idempotency key:
 
 - `hpc_cancel_job`
 - `hpc_references_create`
@@ -242,8 +244,10 @@ Slurm submission is exposed only as an evidence-gated sequence:
 3. `hpc_submit_job`
 
 `hpc_submit_job` requires matching quote and validation evidence for the same
-profile, account, jobscript, remote directory, and Slurm resource shape, plus
-`confirm=true`. Stale or dry-run evidence is rejected.
+profile, account, jobscript, remote directory, and Slurm resource shape. Full
+mode also requires `confirm=true`; delegated mode requires host-side policy,
+available budget, and an idempotency key.
+Stale or dry-run evidence is rejected.
 
 It also exposes durable local context as MCP resources:
 

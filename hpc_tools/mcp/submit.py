@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from hpc_tools import delegation, slurm, submissions
@@ -182,6 +183,7 @@ def hpc_submit_job(
     time: str | None = None,
     cpus_per_task: str | None = None,
     idempotency_key: str | None = None,
+    database: str | None = None,
     profile: str | None = None,
     config: str | None = None,
     dry_run: bool = True,
@@ -236,7 +238,7 @@ def hpc_submit_job(
         "command": command,
         **plan.metadata(),
         "resource_shape": shape,
-        "confirm_required": not confirm,
+        "confirm_required": runtime is None and not confirm,
         "dry_run": dry_run,
         "executed": False,
         "logged": False,
@@ -244,7 +246,7 @@ def hpc_submit_job(
         "stdout": "",
         "stderr": "",
     }
-    if not confirm or dry_run:
+    if dry_run or (runtime is None and not confirm):
         return preview
 
     ledger = None
@@ -281,6 +283,7 @@ def hpc_submit_job(
     stdout = completed.stdout
     stderr = completed.stderr
     logged = False
+    database_error = None
     submission_event = None
     ledger_recorded = runtime is None
     if completed.returncode == 0:
@@ -313,8 +316,16 @@ def hpc_submit_job(
             submit_command=command,
             overrides=normalized,
         )
-        submissions.append_event(submission_event)
-        logged = True
+        database_path = (
+            Path(database).expanduser()
+            if database
+            else submissions.default_database_path()
+        )
+        try:
+            submissions.append_event(submission_event, path=database_path)
+            logged = True
+        except (OSError, ValueError) as error:
+            database_error = str(error)
     elif ledger is not None and idempotency_key is not None:
         ledger.release_reservation(
             runtime.manifest,
@@ -327,6 +338,12 @@ def hpc_submit_job(
         "executed": True,
         "ledger_recorded": ledger_recorded,
         "logged": logged,
+        "database": str(
+            Path(database).expanduser()
+            if database
+            else submissions.default_database_path()
+        ),
+        "database_error": database_error,
         "submission_event": submission_event,
         "returncode": completed.returncode,
         "stdout": stdout,

@@ -30,6 +30,7 @@ from hpc_tools.mcp.tools import (
     hpc_install_container,
     hpc_install_probe,
     hpc_job,
+    hpc_job_accounting,
     hpc_jobs,
     hpc_module_spider,
     hpc_paths,
@@ -73,6 +74,7 @@ FULL_TOOL_NAMES = (
     "hpc_status",
     "hpc_jobs",
     "hpc_job",
+    "hpc_job_accounting",
     "hpc_cancel_job",
     "hpc_slurm_limits",
     "hpc_module_spider",
@@ -96,6 +98,7 @@ FULL_TOOL_NAMES = (
 SLURM_JOB_TOOL_NAMES = (
     "hpc_jobs",
     "hpc_job",
+    "hpc_job_accounting",
     "hpc_cancel_job",
     "hpc_quote_job",
     "hpc_validate_job",
@@ -185,6 +188,11 @@ def create_server(
 
         selected_profile = _resolve_profile(profile_name=selected_profile).name
         manifest_path = delegation_manifest or os.environ.get(delegation.DELEGATION_ENV_VAR)
+        if not manifest_path:
+            raise ConfigError(
+                f"the slurm-job preset requires --delegation or "
+                f"{delegation.DELEGATION_ENV_VAR}"
+            )
         if manifest_path:
             parent_job_id = os.environ.get(delegation.PARENT_JOB_ENV_VAR)
             if not parent_job_id:
@@ -204,7 +212,8 @@ def create_server(
             "Guarded hpc-tools interface for agents. This server exposes "
             f"the {selected_preset} capability preset. "
             "Slurm job submission is exposed only through quote, validation, "
-            "and confirm-gated submit tools with matching evidence. "
+            "and evidence-gated submit tools. Full mode also requires explicit "
+            "confirmation; delegated mode uses host-side authorization. "
             "The slurm-job preset is restricted to stored cluster context and "
             "job-lifecycle operations bound to one selected profile. "
             f"Delegation enforcement is {'enabled' if runtime else 'not configured'}. "
@@ -224,6 +233,7 @@ def create_server(
         hpc_status,
         hpc_jobs,
         hpc_job,
+    hpc_job_accounting,
         hpc_cancel_job,
         hpc_slurm_limits,
         hpc_module_spider,
@@ -311,16 +321,22 @@ def _bind_profile(
     signature = inspect.signature(function)
     if "profile" not in signature.parameters:
         return function
+    hidden = {"profile", "config", "database", "confirm"}
     public_parameters = [
         parameter
         for name, parameter in signature.parameters.items()
-        if name not in {"profile", "config"}
+        if name not in hidden
     ]
+    fixed_kwargs: dict[str, Any] = {"profile": profile, "config": None}
+    if "database" in signature.parameters:
+        fixed_kwargs["database"] = None
+    if "confirm" in signature.parameters:
+        fixed_kwargs["confirm"] = False
 
     @wraps(function)
     def bound(**kwargs: Any) -> Any:
         with delegation.delegation_scope(runtime):
-            return function(**kwargs, profile=profile, config=None)
+            return function(**kwargs, **fixed_kwargs)
 
     bound.__signature__ = signature.replace(parameters=public_parameters)
     return bound

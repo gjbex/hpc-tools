@@ -43,7 +43,7 @@ def resource_runtime(
         }
         limitations = [
             "Slurm remains authoritative for scheduler policy and accounting",
-            "job listing and cancellation ownership enforcement are section 3 work",
+            "container and filesystem isolation remain external deployment boundaries",
         ]
     return _json_resource(
         {

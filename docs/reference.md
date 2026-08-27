@@ -500,7 +500,10 @@ CLI syntax. Its current read tools cover profiles, paths, hardware context,
 reference sets, plugins, submissions, status, jobs, Slurm limits, modules,
 storage, and site environment. Confirm-gated tools cover reference changes,
 submission-database marks, local probe/container writes, and remote probe/container
-installation. Slurm submission is exposed only through the evidence chain:
+installation. Job reads include queue inspection and `hpc_job_accounting`.
+The restricted preset scopes listing, inspection, accounting, and cancellation
+to ledger-owned jobs. Slurm submission is exposed only through the evidence
+chain:
 
 ```text
 hpc_quote_job → hpc_validate_job → hpc_submit_job

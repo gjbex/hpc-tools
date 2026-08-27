@@ -361,19 +361,21 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     "hpc_tools.mcp.submit.run_command_capture",
                     return_value=submission_result,
                 ) as submit, mock.patch(
-                    "hpc_tools.mcp.submit.submissions.append_event"
+                    "hpc_tools.mcp.submit.submissions.append_event",
+                    side_effect=OSError("history unavailable"),
                 ):
                     submit_arguments = arguments | {
                         "quote_evidence": quote["quote_evidence"],
                         "validation_evidence": validation["validation_evidence"],
                         "idempotency_key": "request-1",
-                        "confirm": True,
                         "dry_run": False,
                     }
                     result = mcp_server.hpc_submit_job(**submit_arguments)
                     replay = mcp_server.hpc_submit_job(**submit_arguments)
 
             self.assertTrue(result["ledger_recorded"])
+            self.assertFalse(result["logged"])
+            self.assertEqual("history unavailable", result["database_error"])
             self.assertTrue(replay["idempotent_replay"])
             self.assertFalse(replay["executed"])
             submit.assert_called_once()

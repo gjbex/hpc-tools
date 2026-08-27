@@ -343,6 +343,7 @@ class DelegationLedger:
         job_id: str,
         cluster: str | None,
     ) -> None:
+        job_id = normalize_job_id(job_id)
         with self._transaction() as db:
             self._active(db, manifest)
             row = db.execute(
@@ -424,6 +425,7 @@ class DelegationLedger:
         normalized = state.split("+", 1)[0].upper()
         if normalized not in terminal:
             return
+        job_id = normalize_job_id(job_id)
         with self._transaction() as db:
             row = db.execute(
                 """SELECT idempotency_key FROM job_ownership
@@ -442,12 +444,181 @@ class DelegationLedger:
                 {"job_id": job_id, "cluster": cluster, "state": normalized},
             )
 
+    def owned_jobs(
+        self,
+        manifest: DelegationManifest,
+        *,
+        include_terminal: bool = False,
+    ) -> list[dict[str, str]]:
+        with self._connection() as db:
+            self._active(db, manifest)
+            terminal_filter = "" if include_terminal else "AND operations.status != 'terminal'"
+            rows = db.execute(
+                f"""SELECT ownership.job_id,ownership.cluster,operations.status
+                    FROM job_ownership AS ownership
+                    JOIN submission_operations AS operations
+                      ON operations.delegation_id=ownership.delegation_id
+                     AND operations.idempotency_key=ownership.idempotency_key
+                    WHERE ownership.delegation_id=? {terminal_filter}
+                    ORDER BY ownership.created_at,ownership.job_id""",
+                (manifest.identifier,),
+            ).fetchall()
+        return [
+            {"job_id": row[0], "cluster": row[1], "status": row[2]}
+            for row in rows
+        ]
+
+    def require_ownership(
+        self,
+        manifest: DelegationManifest,
+        *,
+        job_id: str,
+        cluster: str | None,
+    ) -> str:
+        base_job_id = normalize_job_id(job_id)
+        with self._connection() as db:
+            self._active(db, manifest)
+            row = db.execute(
+                """SELECT 1 FROM job_ownership
+                   WHERE delegation_id=? AND job_id=? AND cluster=?""",
+                (manifest.identifier, base_job_id, cluster or ""),
+            ).fetchone()
+        if not row:
+            self.record_rejection(
+                manifest,
+                operation="job_ownership",
+                detail={"job_id": job_id, "cluster": cluster},
+            )
+            raise DelegationError(
+                f"job {job_id!r} on cluster {cluster!r} is outside the delegation"
+            )
+        return base_job_id
+
+    def reserve_lifecycle_operation(
+        self,
+        manifest: DelegationManifest,
+        *,
+        idempotency_key: str,
+        operation: str,
+        job_id: str,
+        cluster: str | None,
+    ) -> dict[str, Any]:
+        try:
+            return self._reserve_lifecycle_operation(
+                manifest,
+                idempotency_key=idempotency_key,
+                operation=operation,
+                job_id=job_id,
+                cluster=cluster,
+            )
+        except DelegationError as error:
+            self.record_rejection(
+                manifest,
+                operation=operation,
+                detail={
+                    "idempotency_key": idempotency_key,
+                    "job_id": job_id,
+                    "cluster": cluster,
+                    "reason": str(error),
+                },
+            )
+            raise
+
+    def _reserve_lifecycle_operation(
+        self,
+        manifest: DelegationManifest,
+        *,
+        idempotency_key: str,
+        operation: str,
+        job_id: str,
+        cluster: str | None,
+    ) -> dict[str, Any]:
+        if operation != "cancel":
+            raise DelegationError(f"unsupported lifecycle mutation {operation!r}")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", idempotency_key):
+            raise DelegationError("invalid idempotency key")
+        base_job_id = self.require_ownership(
+            manifest, job_id=job_id, cluster=cluster
+        )
+        with self._transaction() as db:
+            row = db.execute(
+                """SELECT operation,job_id,cluster,status,result_json
+                   FROM lifecycle_operations
+                   WHERE delegation_id=? AND idempotency_key=?""",
+                (manifest.identifier, idempotency_key),
+            ).fetchone()
+            if row:
+                if (row[0], row[1], row[2]) != (
+                    operation, base_job_id, cluster or ""
+                ):
+                    raise DelegationError(
+                        "lifecycle idempotency key was used for a different operation"
+                    )
+                self._audit(
+                    db, manifest.identifier, operation, "accepted",
+                    {"idempotency_key": idempotency_key, "idempotent_replay": True},
+                )
+                return {
+                    "idempotent_replay": True,
+                    "status": row[3],
+                    "result": json.loads(row[4]) if row[4] else None,
+                }
+            db.execute(
+                """INSERT INTO lifecycle_operations
+                   (delegation_id,idempotency_key,operation,job_id,cluster,status,
+                    created_at,updated_at)
+                   VALUES (?,?,?,?,?,'reserved',?,?)""",
+                (
+                    manifest.identifier, idempotency_key, operation,
+                    base_job_id, cluster or "", _now(), _now(),
+                ),
+            )
+            self._audit(
+                db, manifest.identifier, operation, "accepted",
+                {
+                    "idempotency_key": idempotency_key,
+                    "job_id": job_id,
+                    "cluster": cluster,
+                },
+            )
+            return {"idempotent_replay": False, "status": "reserved", "result": None}
+
+    def record_lifecycle_result(
+        self,
+        manifest: DelegationManifest,
+        *,
+        idempotency_key: str,
+        succeeded: bool,
+        result: dict[str, Any],
+    ) -> None:
+        status = "succeeded" if succeeded else "failed"
+        with self._transaction() as db:
+            changed = db.execute(
+                """UPDATE lifecycle_operations
+                   SET status=?,result_json=?,updated_at=?
+                   WHERE delegation_id=? AND idempotency_key=? AND status='reserved'""",
+                (
+                    status,
+                    json.dumps(result, sort_keys=True, separators=(",", ":")),
+                    _now(),
+                    manifest.identifier,
+                    idempotency_key,
+                ),
+            ).rowcount
+            if changed != 1:
+                raise DelegationError("lifecycle operation has no active reservation")
+            self._audit(
+                db, manifest.identifier, "lifecycle_result", status,
+                {"idempotency_key": idempotency_key, "result": result},
+            )
+
     def owns_job(self, delegation_id: str, job_id: str, cluster: str | None) -> bool:
+        base_job_id = normalize_job_id(job_id)
         with self._connection() as db:
             return db.execute(
                 """SELECT 1 FROM job_ownership
                    WHERE delegation_id=? AND job_id=? AND cluster=?""",
-                (delegation_id, job_id, cluster or ""),
+                (delegation_id, base_job_id, cluster or ""),
             ).fetchone() is not None
 
     def summary(self, manifest: DelegationManifest) -> dict[str, Any]:
@@ -628,6 +799,15 @@ class DelegationLedger:
                     FOREIGN KEY (delegation_id,idempotency_key)
                       REFERENCES submission_operations(delegation_id,idempotency_key)
                 );
+                CREATE TABLE lifecycle_operations (
+                    delegation_id TEXT NOT NULL, idempotency_key TEXT NOT NULL,
+                    operation TEXT NOT NULL, job_id TEXT NOT NULL,
+                    cluster TEXT NOT NULL, status TEXT NOT NULL,
+                    result_json TEXT, created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (delegation_id,idempotency_key),
+                    FOREIGN KEY (delegation_id) REFERENCES delegations(delegation_id)
+                );
                 CREATE TABLE delegation_audit (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                     delegation_id TEXT NOT NULL, occurred_at TEXT NOT NULL,
@@ -650,6 +830,21 @@ class DelegationLedger:
             )
 
 
+
+
+_JOB_ID_PATTERN = re.compile(
+    r"(?P<base>\d+)(?:\+\d+)?(?:_\d+)?(?:\.[A-Za-z0-9_-]+)?"
+)
+
+
+def normalize_job_id(job_id: str) -> str:
+    match = _JOB_ID_PATTERN.fullmatch(job_id)
+    if not match:
+        raise DelegationError(
+            "job ID must identify one numeric job, heterogeneous component, "
+            "array task, or job step"
+        )
+    return match.group("base")
 
 def _execute_schema(db: sqlite3.Connection, script: str) -> None:
     for statement in script.split(";"):

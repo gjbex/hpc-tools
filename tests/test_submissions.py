@@ -236,6 +236,13 @@ class SubmissionDatabaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsupported.*version 99"):
                 submissions.read_events(database_path)
 
+    def test_parse_real_seven_column_sacct_observation(self) -> None:
+        state, exit_code, elapsed = submissions.parse_sacct_observation(
+            "60351238|job|batch|proj|COMPLETED|0:0|00:02:31\n",
+            "60351238",
+        )
+        self.assertEqual(("COMPLETED", "0:0", "00:02:31"), (state, exit_code, elapsed))
+
     def test_parse_sacct_observation_for_array_job(self) -> None:
         state, exit_code, elapsed = submissions.parse_sacct_observation(
             "60351238_4|COMPLETED|0:0|00:02:31\n"

@@ -20,6 +20,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "hpc_status",
                 "hpc_jobs",
                 "hpc_job",
+                "hpc_job_accounting",
                 "hpc_cancel_job",
                 "hpc_slurm_limits",
                 "hpc_module_spider",
@@ -66,6 +67,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             (
                 "hpc_jobs",
                 "hpc_job",
+                "hpc_job_accounting",
                 "hpc_cancel_job",
                 "hpc_quote_job",
                 "hpc_validate_job",
@@ -103,6 +105,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "cluster",
                 "reason",
                 "database",
+                "idempotency_key",
                 "dry_run",
                 "confirm",
             ],
@@ -192,6 +195,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "time",
                 "cpus_per_task",
                 "idempotency_key",
+                "database",
                 "profile",
                 "config",
                 "dry_run",
@@ -285,15 +289,22 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 config_path = self._write_config(root)
+                manifest_path = self._write_delegation_manifest(root)
 
                 with mock.patch.dict(
                     "os.environ",
-                    {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
+                    {
+                        "HPC_TOOLS_CONFIG": str(config_path),
+                        "XDG_CONFIG_HOME": str(root),
+                        "HPC_TOOLS_PARENT_JOB_ID": "9001",
+                    },
                     clear=False,
                 ):
                     server = mcp_server.create_server(
                         preset="slurm-job",
                         profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(root / "ledger.sqlite3"),
                     )
                     tools = await server.list_tools()
                     names = {tool.name for tool in tools}
@@ -302,6 +313,15 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     jobs = next(tool for tool in tools if tool.name == "hpc_jobs")
                     self.assertNotIn("profile", jobs.inputSchema["properties"])
                     self.assertNotIn("config", jobs.inputSchema["properties"])
+                    submit_tool = next(
+                        tool for tool in tools if tool.name == "hpc_submit_job"
+                    )
+                    cancel_tool = next(
+                        tool for tool in tools if tool.name == "hpc_cancel_job"
+                    )
+                    for tool in (submit_tool, cancel_tool):
+                        self.assertNotIn("database", tool.inputSchema["properties"])
+                        self.assertNotIn("confirm", tool.inputSchema["properties"])
 
                     _, job_result = await server.call_tool(
                         "hpc_jobs",
@@ -321,7 +341,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     runtime_data = json.loads(runtime[0].content)
                     self.assertEqual("slurm-job", runtime_data["preset"])
                     self.assertEqual("genius", runtime_data["profile"])
-                    self.assertFalse(runtime_data["delegation"]["configured"])
+                    self.assertTrue(runtime_data["delegation"]["configured"])
 
                     hardware = await server.read_resource("hpc://cluster/hardware")
                     self.assertEqual("# hardware\n", hardware[0].content)
@@ -399,5 +419,25 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                             delegation_manifest=str(manifest_path),
                             ledger=str(root / "other.sqlite3"),
                         )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            with mock.patch.dict(
+                "os.environ",
+                {
+                    "HPC_TOOLS_CONFIG": str(config_path),
+                    "XDG_CONFIG_HOME": str(root),
+                },
+                clear=True,
+            ):
+                with self.assertRaisesRegex(
+                    mcp_server.ConfigError,
+                    "requires --delegation",
+                ):
+                    mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                    )
 
         asyncio.run(exercise_server())

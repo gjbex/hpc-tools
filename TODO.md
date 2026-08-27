@@ -115,20 +115,20 @@ Required work:
 
 ### 3. Complete and restrict the job lifecycle API
 
-- [ ] Add an MCP accounting operation corresponding to `hpc sacct` so
+- [x] Add an MCP accounting operation corresponding to `hpc sacct` so
   completed jobs remain observable after leaving the live queue.
-- [ ] Filter job listing to jobs created under the active delegation.
-- [ ] Require delegation ownership for inspection, accounting, and cancellation.
+- [x] Filter job listing to jobs created under the active delegation.
+- [x] Require delegation ownership for inspection, accounting, and cancellation.
 - [x] Enforce the delegation policy before quotation, validation, and
   submission, and recheck it atomically immediately before submission.
-- [ ] Replace interactive `confirm=true` as the authority for unattended
+- [x] Replace interactive `confirm=true` as the authority for unattended
   submission and cancellation. Authorization must come from the delegation;
   dry-run/preview may remain useful diagnostics.
-- [ ] Reconcile successful submissions and cancellations with the delegation
+- [x] Reconcile successful submissions and cancellations with the delegation
   ledger even when updating the local audit log fails.
-- [ ] Handle Slurm arrays and heterogeneous job identifiers consistently.
-- [ ] Do not add broad cancellation filters by user, partition, state, or job name.
-- [ ] Defer requeue support until duplicate-work, idempotency, and resource
+- [x] Handle Slurm arrays and heterogeneous job identifiers consistently.
+- [x] Do not add broad cancellation filters by user, partition, state, or job name.
+- [x] Defer requeue support until duplicate-work, idempotency, and resource
   accounting semantics are defined.
 
 ### 4. Enforce the Apptainer boundary

@@ -48,6 +48,35 @@ class McpFixtures:
         )
         return config_path
 
+    def _write_delegation_manifest(self, root: Path) -> Path:
+        path = root / "delegation.toml"
+        path.write_text(
+            textwrap.dedent(
+                """
+                format_version = 1
+                id = "delegate-1"
+                issuer = "operator"
+                profile = "genius"
+                parent_job_id = "9001"
+                issued_at = "2026-01-01T00:00:00Z"
+                expires_at = "2099-01-01T00:00:00Z"
+                [allowed]
+                accounts = ["proj"]
+                clusters = ["wice"]
+                partitions = ["batch"]
+                qos = []
+                reservations = []
+                containers = []
+                script_sha256 = []
+                roots = ["/work/delegate-1"]
+                [budget]
+                max_submissions = 2
+                """
+            ).strip() + "\n",
+            encoding="utf-8",
+        )
+        return path
+
     def _write_reference_set(self, root: Path, name: str) -> Path:
         reference_dir = root / "hpc-tools" / "reference-sets" / name
         reference_dir.mkdir(parents=True, exist_ok=True)

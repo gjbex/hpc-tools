@@ -50,6 +50,25 @@ class CliCoreTests(unittest.TestCase):
         self.assertEqual(args.cluster, "wice")
         self.assertIn("-M wice", slurm.squeue_job_command(args.jobid, args.cluster))
 
+    def test_job_read_commands_validate_identifiers_and_use_parsable_accounting(self) -> None:
+        self.assertEqual(
+            slurm.squeue_jobs_command(["123", "456"], "wice"),
+            "squeue -M wice -j 123,456 -o '%.18i %.9P %.32j %.8T %.10M %.10l %.6D %R'",
+        )
+        self.assertEqual(
+            slurm.sacct_command("123_7", "wice"),
+            "sacct -n -P -M wice -j 123_7 "
+            "--format=JobID,JobName%24,Partition,Account,State,ExitCode,Elapsed",
+        )
+        for invalid in ("--user=someone", "123,456", "123; id", "name"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ConfigError):
+                    slurm.squeue_job_command(invalid, "wice")
+                with self.assertRaises(ConfigError):
+                    slurm.sacct_command(invalid, "wice")
+        with self.assertRaises(ConfigError):
+            slurm.squeue_jobs_command([], "wice")
+
     def test_cancel_command_accepts_one_job_array_task_or_step(self) -> None:
         self.assertEqual(slurm.cancel_command("12345", "wice"), "scancel -M wice 12345")
         self.assertEqual(slurm.cancel_command("12345_7"), "scancel 12345_7")

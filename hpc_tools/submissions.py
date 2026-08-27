@@ -441,8 +441,17 @@ def parse_sacct_observation(output: str, job_id: str) -> tuple[str, str | None, 
         parts = line.split("|")
         if len(parts) < 4:
             continue
-        raw_job_id, state, exit_code, elapsed = parts[:4]
-        if raw_job_id == job_id or raw_job_id.startswith(f"{job_id}_"):
+        if len(parts) >= 7:
+            raw_job_id, state, exit_code, elapsed = (
+                parts[0], parts[4], parts[5], parts[6]
+            )
+        else:
+            raw_job_id, state, exit_code, elapsed = parts[:4]
+        if (
+            raw_job_id == job_id
+            or raw_job_id.startswith(f"{job_id}_")
+            or raw_job_id.startswith(f"{job_id}+")
+        ):
             candidates.append((state, exit_code, elapsed))
 
     if not candidates:

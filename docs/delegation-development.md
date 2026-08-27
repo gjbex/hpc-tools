@@ -134,7 +134,8 @@ state. Ledger schema version 1 uses `PRAGMA user_version = 1` and these tables:
 | --- | --- |
 | `delegations` | Manifest digest, issuer, profile, parent allocation, expiry, and revocation state. |
 | `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, and resulting job identity. |
-| `job_ownership` | Exact delegation/job/cluster ownership used by later lifecycle authorization. |
+| `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization. |
+| `lifecycle_operations` | Idempotent cancellation reservations and scheduler results. |
 | `delegation_audit` | Append-only accepted and rejected mutation decisions. |
 
 The database uses a rollback journal, `synchronous=FULL`, foreign keys, a
@@ -146,3 +147,25 @@ distributed multi-node database.
 The Python API exposes `DelegationLedger.revoke` for an operator control
 plane and `DelegationLedger.reconcile_job` for scheduler reconciliation.
 Neither operation is exposed to the restricted agent MCP surface.
+
+## Restricted lifecycle authorization
+
+In a configured `slurm-job` server, `hpc_jobs` obtains active base job IDs
+from `job_ownership` and passes only those IDs to `squeue`; it never lists the
+Unix user's complete queue. `hpc_job`, `hpc_job_accounting`, and
+`hpc_cancel_job` normalize one Slurm identifier to its numeric submitted base
+job and require ownership on the selected cluster before contacting Slurm.
+This permits one owned array task, heterogeneous component, or job step without
+granting access to another base job.
+
+Cancellation requires a lifecycle idempotency key. A successful replay returns
+the stored scheduler result and does not call `scancel` again. Full interactive
+mode retains the confirmation gate, whereas delegated mode derives authority
+from the host-selected manifest and ledger. Neither mode exposes cancellation
+by user, account, partition, name, state, or an arbitrary list.
+
+`hpc_job_accounting` uses parsable `sacct` output. A terminal state updates
+the submission operation to `terminal` and releases active-job capacity.
+Scheduler and authorization-ledger updates occur before best-effort writes to
+the ordinary submission-history database, so a history failure is reported but
+does not erase the authoritative result.

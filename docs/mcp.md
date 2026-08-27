@@ -108,19 +108,26 @@ add arguments. For example:
 }
 ```
 
-For an unattended agent in a Slurm allocation, select the restricted server
-surface and bind it to one profile:
+For an unattended agent in a Slurm allocation, run the server outside the
+agent container, select the restricted surface, and bind a protected delegation
+manifest, ledger, parent allocation, and profile:
 
 ```console
-hpc-mcp --executor local --preset slurm-job --profile example
+HPC_TOOLS_PARENT_JOB_ID=60350000 \
+hpc-mcp --executor local --preset slurm-job --profile example \
+    --delegation /srv/hpc-tools/delegations/agent-001.toml \
+    --ledger /srv/hpc-tools/state/delegations.sqlite3
 ```
 
-`HPC_TOOLS_MCP_PRESET=slurm-job` and `HPC_TOOLS_MCP_PROFILE=example` are
-equivalent. The restricted preset registers only:
+`HPC_TOOLS_MCP_PRESET`, `HPC_TOOLS_MCP_PROFILE`,
+`HPC_TOOLS_MCP_DELEGATION`, and `HPC_TOOLS_MCP_LEDGER` provide equivalent
+configuration. The parent job ID is deliberately host-provided rather than an
+MCP argument. The restricted preset registers only:
 
 ```text
 hpc_jobs
 hpc_job
+hpc_job_accounting
 hpc_cancel_job
 hpc_quote_job
 hpc_validate_job
@@ -146,10 +153,13 @@ The local executor runs cluster commands through the selected profile's
 allocation, or add process and filesystem isolation. Apptainer and explicit
 bind mounts must provide that boundary.
 
-The `slurm-job` preset narrows exposure, but delegation manifests, ownership
-checks, idempotency, and resource-budget enforcement remain future work. Until
-those controls are implemented, do not treat this preset alone as authorization
-for an untrusted unattended agent.
+`slurm-job` fails closed unless the host supplies a valid delegation manifest
+and matching parent job ID; the preset cannot be started as an unscoped
+user-wide lifecycle server. It then enforces account/cluster/resource allowlists,
+submission and cancellation idempotency, aggregate budgets, and exact job
+ownership from its private ledger. The manifest and ledger must remain outside
+the agent's writable container mounts. See
+[Delegation policy and ledger internals](delegation-development.md).
 
 ## Read structured tools
 
@@ -167,8 +177,9 @@ The read-oriented tools are:
 | `hpc_plugins_list` | Installed Python CLI extensions. |
 | `hpc_submissions_list` | Active or complete reconstructed submission records. |
 | `hpc_status` | Combined status-page, quota, balance, and submission summary. |
-| `hpc_jobs` | Current user's Slurm queue rows. |
-| `hpc_job` | Queue state for one job ID. |
+| `hpc_jobs` | Full mode: current user queue. Delegated mode: only ledger-owned active jobs. |
+| `hpc_job` | Queue state for one job ID; delegated mode requires ownership. |
+| `hpc_job_accounting` | Slurm accounting for one job; delegated mode requires ownership and reconciles terminal state. |
 | `hpc_slurm_limits` | Raw and best-effort parsed controller, partition, QoS, and association data. |
 | `hpc_module_spider` | Raw and best-effort parsed Lmod search result. |
 | `hpc_storage_inspect` | Bounded filesystem information for one remote path. |
@@ -273,18 +284,27 @@ the broad user, partition, name, state, or multi-job filters supported by raw
 `scancel`. The selected cluster is explicit or comes from the profile's
 `default_cluster`.
 
-Execution requires both `confirm=true` and `dry_run=false`. When `scancel`
-returns success, the tool appends a `cancel_requested` event to each matching
-active local submission record. It does not set the record state to
+In full interactive mode execution requires both `confirm=true` and
+`dry_run=false`. In delegated mode the host-side policy and ownership ledger
+replace interactive confirmation; `dry_run=false` and a fresh
+`idempotency_key` are required. A repeated successful key returns the stored
+result without calling `scancel` again. Jobs outside the delegation are
+rejected before Slurm is contacted.
+
+When `scancel` returns success, the tool records the ledger mutation before it
+appends a `cancel_requested` event to each matching active local submission
+record. It does not set the record state to
 `CANCELLED`: use `hpc_job`, Slurm accounting, or a later submission observation
 to confirm scheduler state. A request for an untracked job can succeed without
 appending a local event; `recorded_run_ids` makes that distinction visible. If
 the scheduler request succeeds but the local event database cannot be updated,
 `database_error` reports the audit failure without hiding the scheduler result.
 
-As with submission, `confirm=true` is a protocol gate, not proof of human
-authorization in an unattended Slurm job. A restricted runtime still needs
-server-side capability and delegation policy.
+A successful cancellation request is not proof of terminal scheduler state.
+Call `hpc_job_accounting`; terminal accounting reconciles active ledger
+capacity. Array tasks, heterogeneous components, and job steps inherit
+ownership from the submitted base job, but broad cancellation filters remain
+unavailable.
 
 ## Follow the submission evidence chain
 
@@ -301,10 +321,12 @@ The protocol is stricter than the ordinary CLI:
 2. `hpc_validate_job` executes `sbatch --test-only` for the proposed request.
 3. `hpc_submit_job` requires successful quote and validation evidence for the
    same resource shape.
-4. A real submission additionally requires `confirm=true` and
-   `dry_run=false`.
-5. A successful parsed `sbatch` response is appended to the normal local
-   submission database.
+4. Full mode requires `confirm=true` and `dry_run=false`. Delegated mode
+   instead requires `dry_run=false`, a fresh `idempotency_key`, matching
+   policy, and available budget.
+5. Delegated mode records ownership in the private ledger before appending the
+   normal local submission event. Failure of the latter is reported through
+   `database_error` without hiding scheduler or ledger success.
 
 The resource shape covers:
 
