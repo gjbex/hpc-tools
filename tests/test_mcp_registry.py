@@ -372,6 +372,14 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     self.assertEqual("slurm-job", runtime_data["preset"])
                     self.assertEqual("genius", runtime_data["profile"])
                     self.assertTrue(runtime_data["delegation"]["configured"])
+                    self.assertEqual(
+                        "cancel",
+                        runtime_data["delegation"]["lifecycle"]["on_cancel"],
+                    )
+                    self.assertEqual(
+                        "running",
+                        runtime_data["delegation"]["controller"]["state"],
+                    )
 
                     hardware = await server.read_resource("hpc://cluster/hardware")
                     self.assertEqual("# hardware\n", hardware[0].content)
@@ -388,7 +396,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 manifest_path.write_text(
                     textwrap.dedent(
                         """
-                        format_version = 1
+                        format_version = 2
                         id = "delegate-1"
                         issuer = "operator"
                         profile = "genius"
@@ -426,6 +434,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     data = json.loads(runtime[0].content)
                     self.assertTrue(data["delegation"]["configured"])
                     self.assertEqual("delegate-1", data["delegation"]["identifier"])
+                    self.assertEqual(1, data["delegation"]["controller"]["generation"])
                     self.assertEqual(
                         2,
                         data["delegation"]["usage"]["remaining"]["max_submissions"],

@@ -18,5 +18,7 @@ Maximum corrective submissions:
 0
 
 Stopping condition:
-Finish before delegation expiry. Leave valid queued or running jobs in place
-and report their IDs unless this task explicitly requires cancellation.
+Finish before delegation expiry. While valid delegated jobs remain active,
+continue bounded observation instead of voluntarily ending the parent. The
+host lifecycle policy controls requeue, final cancellation, or an explicitly
+authorized leave-running outcome; report that outcome and all affected IDs.

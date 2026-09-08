@@ -171,6 +171,17 @@ hpc-agent-launch \
     -- codex-agent - < /protected/reviewed-task.md
 ```
 
+Keep the template's lifecycle directives aligned with the manifest:
+
+```bash
+#SBATCH --requeue
+#SBATCH --signal=B:USR1@600
+```
+
+The batch shell runs the launcher in the background and forwards `USR1`,
+`TERM`, and `INT`; replacing that pattern with a foreground invocation can
+delay shell trap handling and defeat the advance-warning path.
+
 The launcher requires `SLURM_JOB_ID` to match the manifest and uses the site's
 private `SLURM_TMPDIR` for the MCP socket unless `--runtime-directory` selects
 another private mode-`0700` directory. It invokes Apptainer with
@@ -197,6 +208,60 @@ agent process, so a compromised agent could still disclose them. Prefer
 short-lived, narrowly scoped credentials or an external credential broker. The
 file is never passed to delegated jobs. See [Codex
 authentication](https://learn.chatgpt.com/docs/auth).
+
+## Parent termination and delegated jobs
+
+Before it starts the agent, the launcher submits one small host-side Slurm job
+with an `afterany:<parent-job-id>` dependency and records its exact ID in the
+protected ledger. This control job runs `hpc-agent-reap`; neither the executable
+nor the cleanup script is present in the agent container. It is intentionally
+outside the delegation compute budget.
+
+At the advance wall-time warning, the launcher freezes new submissions, stops
+the current agent and MCP bridge, and asks Slurm to requeue the exact parent job
+ID. A successful requeue preserves delegated jobs. The restarted parent gets a
+new controller generation and must reconcile every active owned job through
+`hpc_jobs` before the ledger permits another submission. Codex state is
+ephemeral, so the new attempt reconstructs progress from the reviewed task,
+runtime resource, ledger-owned IDs, and durable job artifacts.
+
+When the parent reaches a final state, the dependent cleanup job applies the
+manifest policy. The defaults are:
+
+```toml
+[lifecycle]
+on_cancel = "cancel"
+on_timeout = "requeue-or-cancel"
+on_failure = "cancel"
+on_normal_exit_with_active_jobs = "cancel"
+max_requeues = 3
+warning_seconds = 600
+```
+
+Explicit parent cancellation, failed or exhausted requeue, final timeout,
+failure, and normal exit with active jobs therefore cancel only the exact
+active job IDs owned by that delegation. `leave-running` is possible only when
+the protected manifest explicitly selects it. It does not transfer ownership;
+the operator must retain a procedure for observing and cancelling those jobs.
+
+The cleanup job first checks `squeue` and then `sacct`, records idempotent
+cancellation operations, and reconciles jobs that already ended naturally. A
+parent still seen as pending, running, or requeued is not treated as terminal.
+Cleanup failures are written to `cleanup-%j.err` and the ledger's
+`controller_cleanup` row for operator recovery.
+
+This is eventual cleanup, not immediate cleanup: the control job can wait for
+resources. Sites that prohibit nested `sbatch`, cannot reliably retain a
+dependency across requeue, or require a strict cancellation-latency bound need
+a persistent broker on a service or login node instead. Verify the chosen
+behavior with a small real-cluster pilot before production use.
+
+There is another consequence of the dependent-job design: if a requeued parent
+remains pending past manifest expiry, no new MCP operation is authorized, but
+the cleanup dependency is not yet eligible. Existing delegated jobs are cleaned
+only after the parent becomes final. A site that needs cancellation at the
+exact expiry time needs a persistent broker or a separately reviewed Slurm
+deadline mechanism.
 
 ## Submit a delegated computation
 
@@ -252,6 +317,15 @@ one job must still provide their own coordination and atomic-output protocol.
 - The launcher assumes `sbatch` from within the parent allocation is permitted.
   Sites that prohibit nested submissions need a durable broker on an approved
   service or login node and a separately authenticated transport.
+- Parent requeue permission, advance-signal delivery, and `afterany` behavior
+  across same-ID requeues are site policy. The automated suite checks state and
+  command construction but cannot establish those properties for a cluster.
+- The dependent cleanup job provides eventual best-effort enforcement. A
+  scheduler outage or queued cleanup job delays cancellation and requires
+  operator inspection of its ledger status and logs.
+- A pending requeued parent can delay dependency-based cleanup beyond manifest
+  expiry. The expired manifest blocks further authority; it does not itself
+  make the cleanup job schedulable.
 - The bridge authenticates the Unix uid and possession of its private socket,
   not a distinct process identity. The restricted MCP registry and ledger
   remain the authorization boundary.

@@ -57,3 +57,4 @@ nav:
   - Contributing:
       - Build the documentation: contributing/documentation.md
       - Delegation security internals: delegation-development.md
+      - Parent-agent lifecycle design: parent-agent-lifecycle.md

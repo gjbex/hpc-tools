@@ -20,12 +20,14 @@ except ModuleNotFoundError:  # pragma: no cover
 
 from hpc_tools.config import ConfigError, default_config_dir
 
-MANIFEST_VERSION = 1
-LEDGER_SCHEMA_VERSION = 2
+MANIFEST_VERSION = 2
+LEDGER_SCHEMA_VERSION = 3
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
 PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+CONTROLLER_RESTART_ENV_VAR = "SLURM_RESTART_COUNT"
+CLEANUP_CANCEL_ATTEMPTS = 3
 
 
 class DelegationError(ConfigError):
@@ -57,6 +59,28 @@ class FilesystemPolicy:
 
 
 @dataclass(frozen=True)
+class LifecyclePolicy:
+    """Issuer-selected treatment of delegated jobs when the parent ends."""
+
+    on_cancel: str = "cancel"
+    on_timeout: str = "requeue-or-cancel"
+    on_failure: str = "cancel"
+    on_normal_exit_with_active_jobs: str = "cancel"
+    max_requeues: int = 3
+    warning_seconds: int = 600
+
+    def public_summary(self) -> dict[str, Any]:
+        return {
+            "on_cancel": self.on_cancel,
+            "on_timeout": self.on_timeout,
+            "on_failure": self.on_failure,
+            "on_normal_exit_with_active_jobs": self.on_normal_exit_with_active_jobs,
+            "max_requeues": self.max_requeues,
+            "warning_seconds": self.warning_seconds,
+        }
+
+
+@dataclass(frozen=True)
 class DelegationManifest:
     identifier: str
     issuer: str
@@ -68,6 +92,7 @@ class DelegationManifest:
     per_job_limits: dict[str, int]
     budget: dict[str, int]
     filesystem: FilesystemPolicy | None
+    lifecycle: LifecyclePolicy
     source_path: Path
     digest: str
 
@@ -83,6 +108,7 @@ class DelegationManifest:
             "allowed": {key: list(value) for key, value in self.allowed.items()},
             "per_job_limits": self.per_job_limits,
             "budget": self.budget,
+            "lifecycle": self.lifecycle.public_summary(),
             "filesystem": (
                 self.filesystem.public_summary()
                 if self.filesystem is not None
@@ -119,7 +145,9 @@ def load_runtime(
     selected = Path(
         ledger_path or os.environ.get(LEDGER_ENV_VAR) or default_ledger_path()
     ).expanduser()
-    DelegationLedger(selected).register(manifest)
+    ledger = DelegationLedger(selected)
+    ledger.register(manifest)
+    ledger.begin_controller(manifest, restart_count=_controller_restart_count())
     return DelegationRuntime(manifest, selected)
 
 
@@ -142,6 +170,7 @@ def load_manifest(
     expected_profile: str,
     expected_parent_job_id: str | None = None,
     now: datetime | None = None,
+    allow_expired: bool = False,
 ) -> DelegationManifest:
     path = path.expanduser().resolve()
     if not path.is_file():
@@ -164,7 +193,7 @@ def load_manifest(
         {
             "format_version", "id", "issuer", "profile", "parent_job_id",
             "issued_at", "expires_at", "allowed", "per_job_limits", "budget",
-            "filesystem",
+            "filesystem", "lifecycle",
         },
         "delegation manifest",
     )
@@ -183,7 +212,7 @@ def load_manifest(
         raise DelegationError("delegation profile does not match the selected profile")
     if expected_parent_job_id and parent != expected_parent_job_id:
         raise DelegationError("delegation parent job does not match the server context")
-    if _parse_time(expires) <= instant:
+    if not allow_expired and _parse_time(expires) <= instant:
         raise DelegationError(f"delegation {identifier!r} is expired")
     if _parse_time(issued) > instant:
         raise DelegationError(f"delegation {identifier!r} has a future issue time")
@@ -235,6 +264,7 @@ def load_manifest(
             "max_total_memory_per_cpu_mib",
         },
     )
+    lifecycle = _lifecycle_policy(raw.get("lifecycle"))
 
     return DelegationManifest(
         identifier=identifier,
@@ -247,6 +277,7 @@ def load_manifest(
         per_job_limits=per_job_limits,
         budget=budget,
         filesystem=filesystem,
+        lifecycle=lifecycle,
         source_path=path,
         digest=hashlib.sha256(payload).hexdigest(),
     )
@@ -361,6 +392,397 @@ class DelegationLedger:
                     ),
                 )
                 self._audit(db, manifest.identifier, "register", "accepted", {})
+            attempt = db.execute(
+                """SELECT 1 FROM controller_attempts
+                   WHERE delegation_id=? LIMIT 1""",
+                (manifest.identifier,),
+            ).fetchone()
+            if not attempt:
+                now = _now()
+                db.execute(
+                    """INSERT INTO controller_attempts
+                       (delegation_id,generation,parent_job_id,restart_count,state,
+                        reconciliation_required,started_at,updated_at)
+                       VALUES (?,1,?,0,'running',0,?,?)""",
+                    (manifest.identifier, manifest.parent_job_id, now, now),
+                )
+                self._audit(
+                    db,
+                    manifest.identifier,
+                    "controller_start",
+                    "accepted",
+                    {"generation": 1, "restart_count": 0},
+                )
+
+    def begin_controller(
+        self,
+        manifest: DelegationManifest,
+        *,
+        restart_count: int,
+    ) -> dict[str, Any]:
+        """Attach to the current attempt or begin a verified requeue attempt."""
+        if restart_count < 0:
+            raise DelegationError("controller restart count cannot be negative")
+        with self._transaction() as db:
+            self._active(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None:
+                raise DelegationError("delegation has no controller state")
+            if restart_count == row[1]:
+                return self._controller_dict(row)
+            if restart_count < row[1]:
+                raise DelegationError("controller restart count moved backwards")
+            if restart_count != row[1] + 1:
+                raise DelegationError("controller restart count skipped a generation")
+            if row[2] not in {"continuation-pending", "requeue-requested"}:
+                raise DelegationError(
+                    f"controller cannot restart from state {row[2]!r}"
+                )
+            if restart_count > manifest.lifecycle.max_requeues:
+                raise DelegationError("controller requeue limit is exhausted")
+            now = _now()
+            generation = row[0] + 1
+            db.execute(
+                """INSERT INTO controller_attempts
+                   (delegation_id,generation,parent_job_id,restart_count,state,
+                    reconciliation_required,started_at,updated_at)
+                   VALUES (?,?,?,?, 'reconciling',1,?,?)""",
+                (
+                    manifest.identifier,
+                    generation,
+                    manifest.parent_job_id,
+                    restart_count,
+                    now,
+                    now,
+                ),
+            )
+            self._audit(
+                db,
+                manifest.identifier,
+                "controller_restart",
+                "accepted",
+                {"generation": generation, "restart_count": restart_count},
+            )
+            return self._controller_dict(
+                (generation, restart_count, "reconciling", 1, None, now, now)
+            )
+
+    def controller_summary(self, manifest: DelegationManifest) -> dict[str, Any]:
+        with self._connection() as db:
+            self._active(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None:
+                raise DelegationError("delegation has no controller state")
+            result = self._controller_dict(row)
+            cleanup = db.execute(
+                """SELECT job_id,status,last_error,updated_at
+                   FROM controller_cleanup WHERE delegation_id=?""",
+                (manifest.identifier,),
+            ).fetchone()
+        result["cleanup"] = (
+            {
+                "job_id": cleanup[0],
+                "status": cleanup[1],
+                "last_error": cleanup[2],
+                "updated_at": cleanup[3],
+            }
+            if cleanup
+            else {"job_id": None, "status": "unconfigured", "last_error": None}
+        )
+        return result
+
+    def controller_summary_for_cleanup(
+        self, manifest: DelegationManifest
+    ) -> dict[str, Any]:
+        """Return controller state without requiring an unexpired delegation."""
+        with self._connection() as db:
+            self._registered(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+        if row is None:
+            raise DelegationError("delegation has no controller state")
+        return self._controller_dict(row)
+
+    def begin_draining(self, manifest: DelegationManifest, *, reason: str) -> dict[str, Any]:
+        with self._transaction() as db:
+            self._active(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None or row[2] not in {"running", "reconciling", "draining"}:
+                state = None if row is None else row[2]
+                raise DelegationError(f"controller cannot drain from state {state!r}")
+            if row[2] != "draining":
+                db.execute(
+                    """UPDATE controller_attempts SET state='draining',reason=?,updated_at=?
+                       WHERE delegation_id=? AND generation=?""",
+                    (reason, _now(), manifest.identifier, row[0]),
+                )
+                self._audit(
+                    db,
+                    manifest.identifier,
+                    "controller_drain",
+                    "accepted",
+                    {"generation": row[0], "reason": reason},
+                )
+            return self._controller_dict(
+                (row[0], row[1], "draining", row[3], reason, row[5], _now())
+            )
+
+    def request_requeue(self, manifest: DelegationManifest) -> dict[str, Any]:
+        with self._transaction() as db:
+            self._active(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None or row[2] not in {"draining", "requeue-requested"}:
+                state = None if row is None else row[2]
+                raise DelegationError(f"controller cannot requeue from state {state!r}")
+            if row[1] >= manifest.lifecycle.max_requeues:
+                raise DelegationError("controller requeue limit is exhausted")
+            if row[2] != "requeue-requested":
+                db.execute(
+                    """UPDATE controller_attempts
+                       SET state='requeue-requested',updated_at=?
+                       WHERE delegation_id=? AND generation=?""",
+                    (_now(), manifest.identifier, row[0]),
+                )
+                self._audit(
+                    db,
+                    manifest.identifier,
+                    "controller_requeue",
+                    "requested",
+                    {"generation": row[0], "restart_count": row[1]},
+                )
+            return {"generation": row[0], "restart_count": row[1]}
+
+    def record_requeue_result(
+        self,
+        manifest: DelegationManifest,
+        *,
+        accepted: bool,
+        detail: str = "",
+    ) -> None:
+        state = "continuation-pending" if accepted else "final"
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None or row[2] not in {"requeue-requested", state}:
+                current = None if row is None else row[2]
+                raise DelegationError(
+                    f"controller cannot record requeue result from state {current!r}"
+                )
+            db.execute(
+                """UPDATE controller_attempts SET state=?,reason=?,updated_at=?
+                   WHERE delegation_id=? AND generation=?""",
+                (state, detail or None, _now(), manifest.identifier, row[0]),
+            )
+            self._audit(
+                db,
+                manifest.identifier,
+                "controller_requeue",
+                "accepted" if accepted else "failed",
+                {"generation": row[0], "detail": detail},
+            )
+
+    def complete_reconciliation(self, manifest: DelegationManifest) -> None:
+        with self._transaction() as db:
+            self._active(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None or row[2] not in {"reconciling", "running"}:
+                state = None if row is None else row[2]
+                raise DelegationError(
+                    f"controller cannot reconcile from state {state!r}"
+                )
+            db.execute(
+                """UPDATE controller_attempts
+                   SET state='running',reconciliation_required=0,updated_at=?
+                   WHERE delegation_id=? AND generation=?""",
+                (_now(), manifest.identifier, row[0]),
+            )
+            self._audit(
+                db,
+                manifest.identifier,
+                "controller_reconcile",
+                "accepted",
+                {"generation": row[0]},
+            )
+
+    def finalize_controller(
+        self,
+        manifest: DelegationManifest,
+        *,
+        reason: str,
+    ) -> None:
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None:
+                raise DelegationError("delegation has no controller state")
+            db.execute(
+                """UPDATE controller_attempts SET state='final',reason=?,updated_at=?
+                   WHERE delegation_id=? AND generation=?""",
+                (reason, _now(), manifest.identifier, row[0]),
+            )
+            self._audit(
+                db,
+                manifest.identifier,
+                "controller_finalize",
+                "accepted",
+                {"generation": row[0], "reason": reason},
+            )
+
+    def record_cleanup_job(self, manifest: DelegationManifest, *, job_id: str) -> None:
+        job_id = normalize_job_id(job_id)
+        with self._transaction() as db:
+            self._active(db, manifest)
+            row = db.execute(
+                "SELECT job_id FROM controller_cleanup WHERE delegation_id=?",
+                (manifest.identifier,),
+            ).fetchone()
+            if row and row[0] != job_id:
+                raise DelegationError("delegation already has a different cleanup job")
+            db.execute(
+                """INSERT INTO controller_cleanup
+                   (delegation_id,job_id,status,updated_at)
+                   VALUES (?,?,'pending',?)
+                   ON CONFLICT(delegation_id) DO UPDATE SET updated_at=excluded.updated_at""",
+                (manifest.identifier, job_id, _now()),
+            )
+            self._audit(
+                db,
+                manifest.identifier,
+                "cleanup_register",
+                "accepted",
+                {"job_id": job_id},
+            )
+
+    def cleanup_job_id(self, manifest: DelegationManifest) -> str | None:
+        with self._connection() as db:
+            self._registered(db, manifest)
+            row = db.execute(
+                "SELECT job_id FROM controller_cleanup WHERE delegation_id=?",
+                (manifest.identifier,),
+            ).fetchone()
+        return row[0] if row else None
+
+    def record_cleanup_status(
+        self,
+        manifest: DelegationManifest,
+        *,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        if status not in {"pending", "running", "succeeded", "failed", "preserved"}:
+            raise DelegationError(f"unsupported cleanup status {status!r}")
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            changed = db.execute(
+                """UPDATE controller_cleanup SET status=?,last_error=?,updated_at=?
+                   WHERE delegation_id=?""",
+                (status, error, _now(), manifest.identifier),
+            ).rowcount
+            if changed != 1:
+                raise DelegationError("delegation has no registered cleanup job")
+            self._audit(
+                db,
+                manifest.identifier,
+                "cleanup_result",
+                status,
+                {"error": error},
+            )
+
+    def owned_jobs_for_cleanup(self, manifest: DelegationManifest) -> list[dict[str, str]]:
+        """Return active owned jobs even after delegation expiry or revocation."""
+        with self._connection() as db:
+            self._registered(db, manifest)
+            rows = db.execute(
+                """SELECT ownership.job_id,ownership.cluster,operations.status
+                   FROM job_ownership AS ownership
+                   JOIN submission_operations AS operations
+                     ON operations.delegation_id=ownership.delegation_id
+                    AND operations.idempotency_key=ownership.idempotency_key
+                   WHERE ownership.delegation_id=? AND operations.status != 'terminal'
+                   ORDER BY ownership.created_at,ownership.job_id""",
+                (manifest.identifier,),
+            ).fetchall()
+        return [
+            {"job_id": row[0], "cluster": row[1], "status": row[2]}
+            for row in rows
+        ]
+
+    def inflight_submission_count(self, manifest: DelegationManifest) -> int:
+        """Return scheduler submissions reserved before a controller drain."""
+        with self._connection() as db:
+            self._registered(db, manifest)
+            row = db.execute(
+                """SELECT COUNT(*) FROM submission_operations
+                   WHERE delegation_id=? AND status='reserved'""",
+                (manifest.identifier,),
+            ).fetchone()
+        return int(row[0])
+
+    def reserve_cleanup_cancellation(
+        self,
+        manifest: DelegationManifest,
+        *,
+        job_id: str,
+        cluster: str | None,
+    ) -> tuple[str, dict[str, Any]]:
+        base_job_id = normalize_job_id(job_id)
+        identity = f"{manifest.identifier}\0{base_job_id}\0{cluster or ''}"
+        digest = hashlib.sha256(identity.encode()).hexdigest()[:32]
+        key_prefix = f"parent-cleanup:{digest}:"
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            owned = db.execute(
+                """SELECT 1 FROM job_ownership
+                   WHERE delegation_id=? AND job_id=? AND cluster=?""",
+                (manifest.identifier, base_job_id, cluster or ""),
+            ).fetchone()
+            if not owned:
+                raise DelegationError("cleanup cannot cancel a job outside the delegation")
+            rows = db.execute(
+                """SELECT idempotency_key,status,result_json
+                   FROM lifecycle_operations
+                   WHERE delegation_id=? AND idempotency_key LIKE ?
+                   ORDER BY created_at,idempotency_key""",
+                (manifest.identifier, f"{key_prefix}%"),
+            ).fetchall()
+            if rows and (
+                rows[-1][1] != "failed" or len(rows) >= CLEANUP_CANCEL_ATTEMPTS
+            ):
+                return rows[-1][0], {
+                    "idempotent_replay": True,
+                    "status": rows[-1][1],
+                    "result": json.loads(rows[-1][2]) if rows[-1][2] else None,
+                }
+            attempt = len(rows) + 1
+            key = f"{key_prefix}{attempt}"
+            validate_idempotency_key(key)
+            now = _now()
+            db.execute(
+                """INSERT INTO lifecycle_operations
+                   (delegation_id,idempotency_key,operation,job_id,cluster,status,
+                    created_at,updated_at)
+                   VALUES (?,?,?,?,?,'reserved',?,?)""",
+                (
+                    manifest.identifier,
+                    key,
+                    "cancel",
+                    base_job_id,
+                    cluster or "",
+                    now,
+                    now,
+                ),
+            )
+            self._audit(
+                db,
+                manifest.identifier,
+                "parent_cleanup_cancel",
+                "accepted",
+                {"job_id": base_job_id, "cluster": cluster, "attempt": attempt},
+            )
+            return key, {
+                "idempotent_replay": False,
+                "status": "reserved",
+                "result": None,
+            }
 
     def reserve_submission(
         self,
@@ -398,6 +820,7 @@ class DelegationLedger:
         requested = budget_resources(shape["overrides"])
         with self._transaction() as db:
             self._active(db, manifest)
+            self._require_submission_allowed(db, manifest)
             row = db.execute(
                 """SELECT request_sha256,status,job_id,cluster FROM submission_operations
                    WHERE delegation_id=? AND idempotency_key=?""",
@@ -587,7 +1010,8 @@ class DelegationLedger:
             "BOOT_FAIL", "CANCELLED", "COMPLETED", "DEADLINE", "FAILED",
             "NODE_FAIL", "OUT_OF_MEMORY", "PREEMPTED", "REVOKED", "TIMEOUT",
         }
-        normalized = state.split("+", 1)[0].upper()
+        state_parts = state.split("+", 1)[0].strip().upper().split(maxsplit=1)
+        normalized = state_parts[0] if state_parts else ""
         if normalized not in terminal:
             return
         job_id = normalize_job_id(job_id)
@@ -892,6 +1316,46 @@ class DelegationLedger:
         if _parse_time(row[1]) <= datetime.now(timezone.utc):
             raise DelegationError("delegation is expired")
 
+    def _require_submission_allowed(
+        self, db: sqlite3.Connection, manifest: DelegationManifest
+    ) -> None:
+        row = self._latest_controller(db, manifest.identifier)
+        if row is None:
+            raise DelegationError("delegation has no controller state")
+        if row[2] != "running":
+            raise DelegationError(
+                f"delegated submission is blocked while controller is {row[2]!r}"
+            )
+        if row[3]:
+            raise DelegationError(
+                "delegated submission is blocked until startup reconciliation completes"
+            )
+
+    def _latest_controller(
+        self, db: sqlite3.Connection, delegation_id: str
+    ) -> tuple[int, int, str, int, str | None, str, str] | None:
+        return db.execute(
+            """SELECT generation,restart_count,state,reconciliation_required,
+                      reason,started_at,updated_at
+               FROM controller_attempts WHERE delegation_id=?
+               ORDER BY generation DESC LIMIT 1""",
+            (delegation_id,),
+        ).fetchone()
+
+    @staticmethod
+    def _controller_dict(
+        row: tuple[int, int, str, int, str | None, str, str]
+    ) -> dict[str, Any]:
+        return {
+            "generation": row[0],
+            "restart_count": row[1],
+            "state": row[2],
+            "reconciliation_required": bool(row[3]),
+            "reason": row[4],
+            "started_at": row[5],
+            "updated_at": row[6],
+        }
+
     def _registered(
         self, db: sqlite3.Connection, manifest: DelegationManifest
     ) -> None:
@@ -1022,6 +1486,20 @@ class DelegationLedger:
                 );
                 CREATE INDEX delegation_audit_by_delegation
                   ON delegation_audit(delegation_id,sequence);
+                CREATE TABLE controller_attempts (
+                    delegation_id TEXT NOT NULL, generation INTEGER NOT NULL,
+                    parent_job_id TEXT NOT NULL, restart_count INTEGER NOT NULL,
+                    state TEXT NOT NULL, reconciliation_required INTEGER NOT NULL,
+                    reason TEXT, started_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                    PRIMARY KEY (delegation_id,generation),
+                    UNIQUE (delegation_id,restart_count),
+                    FOREIGN KEY (delegation_id) REFERENCES delegations(delegation_id)
+                );
+                CREATE TABLE controller_cleanup (
+                    delegation_id TEXT PRIMARY KEY, job_id TEXT NOT NULL,
+                    status TEXT NOT NULL, last_error TEXT, updated_at TEXT NOT NULL,
+                    FOREIGN KEY (delegation_id) REFERENCES delegations(delegation_id)
+                );
                 """
             )
             db.execute(f"PRAGMA user_version={LEDGER_SCHEMA_VERSION}")
@@ -1055,6 +1533,15 @@ def normalize_job_id(job_id: str) -> str:
 def validate_idempotency_key(value: str) -> None:
     if not IDEMPOTENCY_KEY_PATTERN.fullmatch(value):
         raise DelegationError("invalid idempotency key")
+
+
+def _controller_restart_count() -> int:
+    value = os.environ.get(CONTROLLER_RESTART_ENV_VAR, "0")
+    if not value.isdigit():
+        raise DelegationError(
+            f"{CONTROLLER_RESTART_ENV_VAR} must be a non-negative integer"
+        )
+    return int(value)
 
 def _execute_schema(db: sqlite3.Connection, script: str) -> None:
     for statement in script.split(";"):
@@ -1122,6 +1609,62 @@ def _reject_unknown_keys(
     unknown = sorted(set(value) - allowed)
     if unknown:
         raise DelegationError(f"unsupported {name} field(s): {', '.join(unknown)}")
+
+
+def _lifecycle_policy(value: Any) -> LifecyclePolicy:
+    if value is None:
+        return LifecyclePolicy()
+    if not isinstance(value, dict):
+        raise DelegationError("lifecycle must be a table")
+    known = {
+        "on_cancel",
+        "on_timeout",
+        "on_failure",
+        "on_normal_exit_with_active_jobs",
+        "max_requeues",
+        "warning_seconds",
+    }
+    _reject_unknown_keys(value, known, "lifecycle")
+    defaults = LifecyclePolicy()
+
+    def action(name: str, allowed: set[str], default: str) -> str:
+        selected = value.get(name, default)
+        if not isinstance(selected, str) or selected not in allowed:
+            choices = ", ".join(sorted(allowed))
+            raise DelegationError(f"lifecycle.{name} must be one of: {choices}")
+        return selected
+
+    integers: dict[str, int] = {}
+    bounds = {
+        "max_requeues": (0, 100),
+        "warning_seconds": (1, 65535),
+    }
+    for name, (minimum, maximum) in bounds.items():
+        selected = value.get(name, getattr(defaults, name))
+        if (
+            not isinstance(selected, int)
+            or isinstance(selected, bool)
+            or not minimum <= selected <= maximum
+        ):
+            raise DelegationError(
+                f"lifecycle.{name} must be an integer from {minimum} to {maximum}"
+            )
+        integers[name] = selected
+    return LifecyclePolicy(
+        on_cancel=action("on_cancel", {"cancel", "leave-running"}, defaults.on_cancel),
+        on_timeout=action(
+            "on_timeout",
+            {"cancel", "leave-running", "requeue-or-cancel"},
+            defaults.on_timeout,
+        ),
+        on_failure=action("on_failure", {"cancel", "leave-running"}, defaults.on_failure),
+        on_normal_exit_with_active_jobs=action(
+            "on_normal_exit_with_active_jobs",
+            {"cancel", "leave-running"},
+            defaults.on_normal_exit_with_active_jobs,
+        ),
+        **integers,
+    )
 
 
 def _filesystem_policy(value: Any) -> FilesystemPolicy | None:

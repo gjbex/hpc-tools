@@ -45,7 +45,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
         manifest_path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 1
+                format_version = 2
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "cluster"
@@ -119,6 +119,19 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn("[mcp_servers.hpc-tools]", config)
         self.assertIn('command = "hpc-mcp-relay"', config)
         self.assertIn("required = true", config)
+        self.assertNotIn("hpc-agent-reap", definition)
+
+    def test_parent_template_requests_requeue_and_forwards_lifecycle_signals(self) -> None:
+        template = (
+            resources.files("hpc_tools.data")
+            .joinpath("containers", "agent", "restricted-agent.slurm")
+            .read_text(encoding="utf-8")
+        )
+        self.assertIn("#SBATCH --requeue", template)
+        self.assertIn("#SBATCH --signal=B:USR1@600", template)
+        self.assertIn("trap forward_requeue USR1", template)
+        self.assertIn("trap forward_termination TERM INT", template)
+        self.assertIn('if ! kill -0 "$launcher_pid"', template)
 
     def test_packaged_codex_agent_exposes_only_the_delegated_slurm_skill(self) -> None:
         assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
@@ -186,13 +199,40 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertIn(f"{prepared.output_directory}:{prepared.output_directory}:rw", wrapper)
             self.assertNotIn("HPC_TOOLS_MCP_SOCKET", wrapper)
             self.assertEqual("NONE", prepared.overrides["export"])
-            self.assertTrue(str(prepared.overrides["output"]).startswith(prepared.output_directory))
+            self.assertTrue(
+                str(prepared.overrides["output"]).startswith(prepared.output_directory)
+            )
             self.assertTrue(str(prepared.overrides["error"]).startswith(prepared.output_directory))
             self.assertEqual(0o500, stat.S_IMODE((state_directory / "payload.sh").stat().st_mode))
             self.assertEqual(0o700, stat.S_IMODE(Path(prepared.output_directory).stat().st_mode))
             self.assertIsNone(prepared.discard())
             self.assertFalse(state_directory.exists())
             self.assertFalse(Path(prepared.output_directory).exists())
+
+    def test_requeue_generation_invalidates_prepared_job_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, paths = self._fixture(Path(directory))
+            arguments = {
+                "runtime": runtime,
+                "profile": self._profile(),
+                "jobscript": "job.sh",
+                "directory": str(paths["run"]),
+                "container": str(paths["container"]),
+                "idempotency_key": "request-1",
+                "overrides": {"account": "project", "cluster": "alpha"},
+                "stage": False,
+            }
+            before = restricted_jobs.prepare_job(**arguments)
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
+            ledger.request_requeue(runtime.manifest)
+            ledger.record_requeue_result(runtime.manifest, accepted=True)
+            ledger.begin_controller(runtime.manifest, restart_count=1)
+            after = restricted_jobs.prepare_job(**arguments)
+
+            self.assertEqual(1, before.shape["controller_generation"])
+            self.assertEqual(2, after.shape["controller_generation"])
+            self.assertNotEqual(before.shape["shape_token"], after.shape["shape_token"])
 
     def test_restricted_job_rejects_agent_log_paths_and_symlink_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -387,6 +427,101 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertIn("--containall", rendered)
             self.assertNotIn(str(paths["state"]), rendered)
             self.assertNotIn(str(runtime.ledger_path), rendered)
+
+    def test_launcher_registers_one_host_cleanup_job(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, paths = self._fixture(root)
+            reaper = root / "hpc-agent-reap"
+            reaper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            reaper.chmod(0o700)
+            submitted = mock.Mock(returncode=0, stdout="7001;alpha\n", stderr="")
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            with (
+                mock.patch("hpc_tools.restricted_launch.shutil.which", return_value=str(reaper)),
+                mock.patch(
+                    "hpc_tools.restricted_launch.subprocess.run",
+                    return_value=submitted,
+                ) as run,
+                mock.patch.dict(
+                    os.environ,
+                    {"SLURM_JOB_ACCOUNT": "project", "SLURM_JOB_PARTITION": "batch"},
+                    clear=True,
+                ),
+            ):
+                first = restricted_launch._ensure_cleanup_job(
+                    manifest=runtime.manifest,
+                    ledger=ledger,
+                    ledger_path=runtime.ledger_path,
+                    profile="cluster",
+                    parent_job_id="9001",
+                )
+                second = restricted_launch._ensure_cleanup_job(
+                    manifest=runtime.manifest,
+                    ledger=ledger,
+                    ledger_path=runtime.ledger_path,
+                    profile="cluster",
+                    parent_job_id="9001",
+                )
+
+            self.assertEqual("7001", first)
+            self.assertEqual(first, second)
+            run.assert_called_once()
+            command = run.call_args.args[0]
+            self.assertIn("--dependency=afterany:9001", command)
+            self.assertIn("--account=project", command)
+            self.assertIn("--partition=batch", command)
+            cleanup_script = paths["state"] / "parent-cleanup.sh"
+            self.assertEqual(0o500, stat.S_IMODE(cleanup_script.stat().st_mode))
+            self.assertIn("--parent-job-id 9001", cleanup_script.read_text(encoding="utf-8"))
+            self.assertEqual("7001", ledger.cleanup_job_id(runtime.manifest))
+
+    def test_launcher_requeues_only_the_bound_parent_and_records_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, _ = self._fixture(Path(directory))
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
+            completed = mock.Mock(returncode=0, stdout="", stderr="")
+            with mock.patch(
+                "hpc_tools.restricted_launch.subprocess.run", return_value=completed
+            ) as run:
+                result = restricted_launch._request_parent_requeue(
+                    ledger=ledger,
+                    manifest=runtime.manifest,
+                    parent_job_id="9001",
+                )
+
+            self.assertEqual(0, result)
+            run.assert_called_once_with(
+                ["scontrol", "requeue", "9001"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(
+                "continuation-pending",
+                ledger.controller_summary(runtime.manifest)["state"],
+            )
+
+    def test_launcher_records_failed_requeue_as_terminal_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, _ = self._fixture(Path(directory))
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
+            completed = mock.Mock(returncode=1, stdout="", stderr="requeue denied")
+            with mock.patch(
+                "hpc_tools.restricted_launch.subprocess.run", return_value=completed
+            ):
+                result = restricted_launch._request_parent_requeue(
+                    ledger=ledger,
+                    manifest=runtime.manifest,
+                    parent_job_id="9001",
+                )
+
+            controller = ledger.controller_summary(runtime.manifest)
+            self.assertEqual(2, result)
+            self.assertEqual("final", controller["state"])
+            self.assertIn("timeout-requeue-failed", controller["reason"])
 
     def test_environment_filter_removes_credentials_and_apptainer_injection(self) -> None:
         with mock.patch.dict(

@@ -18,6 +18,8 @@ unattended agent invocation:
 - idempotency for submission retries;
 - delegation expiry and operator revocation;
 - per-job ceilings and optional delegation-scoped aggregate budgets;
+- bounded parent-controller requeue and startup reconciliation;
+- terminal cleanup scoped to exact delegation ownership;
 - an append-only authorization audit trail.
 
 These controls protect the MCP-mediated path. They do not constrain other
@@ -34,10 +36,10 @@ also requires `HPC_TOOLS_PARENT_JOB_ID`; it must match `parent_job_id`.
 The ledger path is selected by `--ledger`, `HPC_TOOLS_MCP_LEDGER`, or the
 default `~/.config/hpc-tools/delegations.sqlite3`.
 
-Example format version 1:
+Example format version 2:
 
 ```toml
-format_version = 1
+format_version = 2
 id = "agent-20260826-001"
 issuer = "operator@example.org"
 profile = "genius"
@@ -78,11 +80,19 @@ input_roots = ["/project/project123/common-inputs"]
 apptainer_path = "/usr/bin/apptainer"
 max_file_blocks = 2097152
 max_open_files = 1024
+
+[lifecycle]
+on_cancel = "cancel"
+on_timeout = "requeue-or-cancel"
+on_failure = "cancel"
+on_normal_exit_with_active_jobs = "cancel"
+max_requeues = 3
+warning_seconds = 600
 ```
 
 Accounts and clusters are mandatory non-empty allowlists. A delegation that
 submits restricted container jobs also needs at least one approved container.
-Unknown manifest, allowlist, per-job-limit, budget, and filesystem keys are
+Unknown manifest, allowlist, per-job-limit, budget, filesystem, and lifecycle keys are
 rejected. This is intentional: a misspelled ceiling must not silently become
 an unenforced operator policy.
 Optional scheduler-field allowlists may be empty; if a request supplies that
@@ -113,6 +123,14 @@ starting the server. If manifests must cross an untrusted distribution
 boundary, signature verification must be added before treating `issuer` as an
 authenticated identity.
 
+The lifecycle table is optional and defaults to the values in the example.
+Only the issuer can select `leave-running`, independently for cancellation,
+failure, or normal exit with active jobs. A wall-time warning normally requests
+a bounded same-job-ID requeue; if it fails or the limit is exhausted, cleanup
+cancels active jobs. `warning_seconds` must match the advance signal in the
+deployed Slurm template. It is descriptive policy input rather than permission
+for the agent to signal or requeue anything.
+
 ## Reservation and budget semantics
 
 A real restricted submission requires an `idempotency_key`. In one
@@ -120,9 +138,10 @@ A real restricted submission requires an `idempotency_key`. In one
 
 1. verifies that the registered manifest is unchanged, unexpired, and not
    revoked;
-2. rejects reuse of a key for a different shape;
-3. checks per-job policy and remaining aggregate budget;
-4. creates a `reserved` operation.
+2. requires the controller to be running with startup reconciliation complete;
+3. rejects reuse of a key for a different shape;
+4. checks per-job policy and remaining aggregate budget;
+5. creates a `reserved` operation.
 
 The scheduler is called only after that transaction commits. A successful
 submission changes the operation to `submitted` and records its Slurm job ID
@@ -161,7 +180,7 @@ Slurm account balances.
 
 The authorization ledger is separate from `submissions.sqlite3`. The latter
 is agent-readable lifecycle history and must not be used as authorization
-state. Ledger schema version 2 uses `PRAGMA user_version = 2` and these tables:
+state. Ledger schema version 3 uses `PRAGMA user_version = 3` and these tables:
 
 | Table | Purpose |
 | --- | --- |
@@ -170,6 +189,8 @@ state. Ledger schema version 2 uses `PRAGMA user_version = 2` and these tables:
 | `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization; a job/cluster pair is globally unique in one ledger. |
 | `lifecycle_operations` | Idempotent cancellation reservations and scheduler results. |
 | `delegation_audit` | Append-only accepted and rejected mutation decisions. |
+| `controller_attempts` | Same-parent-job generations, restart counts, drain/reconciliation state, and terminal reasons. |
+| `controller_cleanup` | The separately accounted dependent cleanup job and its last result. |
 
 The database uses a rollback journal, `synchronous=FULL`, foreign keys, a
 five-second busy timeout, and mode `0600`. As with the submission database,
@@ -177,13 +198,36 @@ this does not make arbitrary network filesystems safe for SQLite. Use
 node-local or otherwise verified storage, and do not use one file as a
 distributed multi-node database.
 
-There is no schema migration from version 1 because this authorization format
-has not entered production and existing delegation data was explicitly out of
-scope. A non-version-2 ledger is rejected rather than modified implicitly.
+There is no schema migration because this authorization format has not entered
+production and existing delegation data was explicitly out of scope. A
+non-version-3 ledger is rejected rather than modified implicitly.
 
 The Python API exposes `DelegationLedger.revoke` for an operator control
 plane and `DelegationLedger.reconcile_job` for scheduler reconciliation.
 Neither operation is exposed to the restricted agent MCP surface.
+
+## Parent lifecycle enforcement
+
+`hpc-agent-launch` registers a small host-side cleanup job with an
+`afterany:<parent-job-id>` dependency before starting the agent. The cleanup
+job and its `hpc-agent-reap` process are not mounted into the container and do
+not consume the delegation's compute-job budget. On `SIGUSR1`, the launcher
+atomically enters `draining`, stops the agent, waits within the warning window
+for any earlier reserved scheduler submission to settle, and requests
+`scontrol requeue` for the exact manifest-bound parent job. Slurm's restart
+counter selects a new controller generation under the same parent ID.
+
+The restarted MCP server exposes the new generation but blocks submissions
+until `hpc_jobs` has reconciled every active ledger-owned job. Prepared quote
+and validation evidence includes the controller generation, so evidence from a
+previous attempt is stale. When the parent finally terminates, the cleanup job
+uses `squeue` and `sacct` to classify the terminal event and applies only the
+issuer's policy to exact `job_ownership` rows. It never selects jobs by Unix
+user, Slurm account, partition, name, or wildcard.
+
+This dependent-job implementation is user-deployable but may wait in the
+queue; it cannot guarantee immediate cleanup. A persistent broker remains the
+stronger future option for sites requiring a tighter cleanup latency bound.
 
 ## Operator audit and recovery
 
@@ -204,6 +248,16 @@ For an `uncertain` cancellation, inspect `squeue`/`sacct` from the host and then
 call `DelegationLedger.record_lifecycle_result` through an operator-controlled
 recovery procedure. That method can finalize an `uncertain` operation once the
 scheduler outcome is known. Do not give this recovery capability to the agent.
+
+If `controller_cleanup.status` is `failed`, inspect the registered cleanup
+job's output and error files, then compare every row returned by
+`DelegationLedger.owned_jobs_for_cleanup` with `squeue`/`sacct`. A recorded
+`failed` cancellation is retried only after the reaper observes that the job is
+still active, using a new audited operation key, and stops after three attempts.
+An `uncertain` cancellation is not replayed. Resolve its scheduler outcome
+through the operator API before requeuing the exact registered cleanup job or
+starting a replacement control-plane procedure. Never repair cleanup by
+cancelling a user, account, partition, or name pattern.
 
 If `ledger_status` is `unrecorded`, retain the response containing the Slurm job
 ID or cancellation target, stop further mutations for that delegation, and

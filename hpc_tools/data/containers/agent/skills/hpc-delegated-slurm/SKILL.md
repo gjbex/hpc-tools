@@ -50,8 +50,9 @@ are omitted:
 
 - corrective resubmission is forbidden;
 - a Slurm `COMPLETED` state alone is not proof of application success;
-- valid jobs still running at the stopping point are left running and reported,
-  not cancelled merely because observation time ended;
+- do not voluntarily end the parent while valid delegated jobs remain: a normal
+  parent exit cancels them by default unless the issuer selected
+  `leave-running`;
 - the delegation expiry is the latest possible deadline.
 
 If a material choice remains ambiguous, finish with `outcome: blocked` instead
@@ -61,7 +62,10 @@ of guessing. There is no human available to answer a question during this run.
 
 1. Read `hpc://runtime`. Require `preset: slurm-job`, a configured unexpired
    delegation, and a filesystem policy. Record allowlists, per-job limits, work
-   and output roots, aggregate budget, active-job capacity, usage, and expiry.
+   and output roots, aggregate budget, active-job capacity, usage, expiry, and
+   the lifecycle/controller state.
+   If startup reconciliation is required, call `hpc_jobs` and do not prepare a
+   submission until it reports that reconciliation completed.
    If active-job capacity is exhausted, reconcile and observe the owned active
    jobs instead of creating another submission.
 2. Read the hardware, Slurm, and storage resources before choosing resources or
@@ -102,6 +106,10 @@ For a job array, read [arrays.md](references/arrays.md) before quoting it.
   changes or the stopping condition is reached.
 - Never cancel a job merely to make active-job budget available for unrelated
   work.
+- Requeue, terminal cleanup, and the decision to preserve active jobs belong to
+  the host controller. Do not try to invoke Slurm directly or override the
+  issuer's lifecycle policy. A restarted controller must reconstruct progress
+  from the reviewed task, runtime state, owned job IDs, and durable artifacts.
 
 ## Finish Deterministically
 
@@ -119,4 +127,5 @@ limitations: <anything incomplete or not verified>
 
 Do not claim `success` unless all stated success criteria were verified. Report
 queued or running jobs honestly and use `deadline-reached` when observation must
-end before they become terminal.
+end before they become terminal. If jobs are still active, also report the
+effective host lifecycle action; reporting a job does not itself preserve it.

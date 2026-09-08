@@ -452,7 +452,10 @@ def parse_sacct_observation(output: str, job_id: str) -> tuple[str, str | None, 
             or raw_job_id.startswith(f"{job_id}_")
             or raw_job_id.startswith(f"{job_id}+")
         ):
-            candidates.append((state, exit_code, elapsed))
+            normalized = state.split("+", 1)[0].strip().split(maxsplit=1)
+            candidates.append(
+                (normalized[0].upper() if normalized else "UNKNOWN", exit_code, elapsed)
+            )
 
     if not candidates:
         return "UNKNOWN", None, None

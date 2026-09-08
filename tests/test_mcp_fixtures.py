@@ -53,7 +53,7 @@ class McpFixtures:
         path.write_text(
             textwrap.dedent(
                 """
-                format_version = 1
+                format_version = 2
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "genius"

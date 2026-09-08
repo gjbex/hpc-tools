@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -20,6 +22,8 @@ FORBIDDEN_COMMANDS = (
     "sbatch", "scancel", "squeue", "sacct", "scontrol", "srun", "salloc",
     "munge", "unmunge",
 )
+REQUEUE_SIGNAL = signal.SIGUSR1
+TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
 
 def build_apptainer_command(
@@ -143,6 +147,18 @@ def launch(
             ),
             (policy.work_root, policy.output_root, *policy.input_roots),
         )
+        ledger = delegation.DelegationLedger(ledger_path)
+        ledger.register(manifest)
+        ledger.begin_controller(
+            manifest, restart_count=_controller_restart_count()
+        )
+        _ensure_cleanup_job(
+            manifest=manifest,
+            ledger=ledger,
+            ledger_path=ledger_path,
+            profile=profile,
+            parent_job_id=parent_job_id,
+        )
         bridge_command = [
             sys.executable,
             "-m",
@@ -165,22 +181,227 @@ def launch(
         ]
         server_environment = _sanitized_server_environment(parent_job_id)
         bridge = subprocess.Popen(bridge_command, env=server_environment)
+        pending_signal: list[int] = []
+        previous_handlers: dict[int, signal.Handlers] = {}
+
+        def request_shutdown(signum: int, _frame: object) -> None:
+            pending_signal.append(signum)
+
+        for signum in (REQUEUE_SIGNAL, *TERMINATION_SIGNALS):
+            previous_handlers[signum] = signal.signal(signum, request_shutdown)
         try:
             _wait_for_socket(socket_path, bridge)
-            completed = subprocess.run(
+            agent = subprocess.Popen(
                 container_command,
-                check=False,
                 env=_sanitized_apptainer_environment(),
             )
-            return completed.returncode
+            while agent.poll() is None and not pending_signal:
+                time.sleep(0.1)
+            if pending_signal:
+                signum = pending_signal[0]
+                reason = signal.Signals(signum).name
+                ledger.begin_draining(manifest, reason=reason)
+                _terminate_process(agent, timeout=5)
+                if not _wait_for_inflight_submissions(
+                    ledger,
+                    manifest,
+                    timeout=_drain_settle_timeout(manifest.lifecycle),
+                ):
+                    failure_reason = (
+                        "timeout-requeue-failed: in-flight submission did not "
+                        "settle during drain"
+                        if signum == REQUEUE_SIGNAL
+                        else "in-flight submission did not settle during drain"
+                    )
+                    ledger.finalize_controller(
+                        manifest,
+                        reason=failure_reason,
+                    )
+                    return 2
+                if signum == REQUEUE_SIGNAL:
+                    if manifest.lifecycle.on_timeout != "requeue-or-cancel":
+                        ledger.finalize_controller(manifest, reason="timeout")
+                        return 124
+                    return _request_parent_requeue(
+                        ledger=ledger,
+                        manifest=manifest,
+                        parent_job_id=parent_job_id,
+                    )
+                ledger.finalize_controller(manifest, reason=reason)
+                return 128 + signum
+
+            returncode = agent.returncode if agent.returncode is not None else 1
+            active = len(ledger.owned_jobs_for_cleanup(manifest))
+            reason = (
+                "normal exit with active delegated jobs"
+                if returncode == 0 and active
+                else "normal exit" if returncode == 0 else f"agent exited {returncode}"
+            )
+            ledger.finalize_controller(manifest, reason=reason)
+            return returncode
         finally:
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
             if bridge.poll() is None:
-                bridge.terminate()
-                try:
-                    bridge.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    bridge.kill()
-                    bridge.wait()
+                _terminate_process(bridge, timeout=5)
+
+
+def _controller_restart_count() -> int:
+    value = os.environ.get(delegation.CONTROLLER_RESTART_ENV_VAR, "0")
+    if not value.isdigit():
+        raise ConfigError(
+            f"{delegation.CONTROLLER_RESTART_ENV_VAR} must be a non-negative integer"
+        )
+    return int(value)
+
+
+def _drain_settle_timeout(policy: delegation.LifecyclePolicy) -> float:
+    available = max(1.0, float(policy.warning_seconds) - 30.0)
+    return min(300.0, available)
+
+
+def _wait_for_inflight_submissions(
+    ledger: delegation.DelegationLedger,
+    manifest: delegation.DelegationManifest,
+    *,
+    timeout: float,
+) -> bool:
+    deadline = time.monotonic() + timeout
+    while ledger.inflight_submission_count(manifest):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.1)
+    return True
+
+
+def _request_parent_requeue(
+    *,
+    ledger: delegation.DelegationLedger,
+    manifest: delegation.DelegationManifest,
+    parent_job_id: str,
+) -> int:
+    try:
+        ledger.request_requeue(manifest)
+    except delegation.DelegationError as error:
+        ledger.finalize_controller(
+            manifest, reason=f"timeout-requeue-failed: {error}"
+        )
+        return 2
+    completed = subprocess.run(
+        ["scontrol", "requeue", parent_job_id],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    scheduler_detail = completed.stderr.strip() or completed.stdout.strip()
+    detail = (
+        scheduler_detail
+        if completed.returncode == 0
+        else f"timeout-requeue-failed: {scheduler_detail or 'scontrol failed'}"
+    )
+    ledger.record_requeue_result(
+        manifest,
+        accepted=completed.returncode == 0,
+        detail=detail,
+    )
+    return 0 if completed.returncode == 0 else 2
+
+
+def _ensure_cleanup_job(
+    *,
+    manifest: delegation.DelegationManifest,
+    ledger: delegation.DelegationLedger,
+    ledger_path: Path,
+    profile: str,
+    parent_job_id: str,
+) -> str:
+    existing = ledger.cleanup_job_id(manifest)
+    if existing is not None:
+        return existing
+    reaper = shutil.which("hpc-agent-reap")
+    if not reaper:
+        raise ConfigError("hpc-agent-reap is not available in the host PATH")
+    reaper_path = _secure_file(Path(reaper).resolve(), "host cleanup executable", executable=True)
+    policy = _require_policy(manifest)
+    script_path = policy.state_root / "parent-cleanup.sh"
+    command = [
+        str(reaper_path),
+        "--manifest",
+        str(manifest.source_path),
+        "--ledger",
+        str(ledger_path),
+        "--profile",
+        profile,
+        "--parent-job-id",
+        parent_job_id,
+    ]
+    script = "#!/bin/sh\nset -eu\numask 077\nexec " + shlex.join(command) + "\n"
+    _write_private_script(script_path, script)
+    submit = [
+        "sbatch",
+        "--parsable",
+        f"--dependency=afterany:{parent_job_id}",
+        "--job-name=hpc-agent-cleanup",
+        "--nodes=1",
+        "--ntasks=1",
+        "--cpus-per-task=1",
+        "--time=00:15:00",
+        "--export=NONE",
+        f"--output={policy.state_root / 'cleanup-%j.out'}",
+        f"--error={policy.state_root / 'cleanup-%j.err'}",
+    ]
+    account = os.environ.get("SLURM_JOB_ACCOUNT")
+    partition = os.environ.get("SLURM_JOB_PARTITION")
+    if account:
+        submit.append(f"--account={account}")
+    if partition:
+        submit.append(f"--partition={partition}")
+    submit.append(str(script_path))
+    completed = subprocess.run(submit, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise ConfigError(
+            "unable to submit parent cleanup job: "
+            + (completed.stderr.strip() or f"sbatch exited {completed.returncode}")
+        )
+    token = completed.stdout.strip().split(";", 1)[0]
+    try:
+        job_id = delegation.normalize_job_id(token)
+    except delegation.DelegationError as error:
+        raise ConfigError(
+            "cleanup sbatch succeeded but its job ID could not be parsed"
+        ) from error
+    try:
+        ledger.record_cleanup_job(manifest, job_id=job_id)
+    except delegation.DelegationError:
+        subprocess.run(["scancel", job_id], check=False, capture_output=True, text=True)
+        raise
+    return job_id
+
+
+def _write_private_script(path: Path, content: str) -> None:
+    _reject_existing_symlinks(path, "cleanup script", require_leaf=False)
+    if path.exists():
+        if path.is_symlink() or not path.is_file():
+            raise ConfigError(f"cleanup script must be a regular file: {path}")
+        if path.read_text(encoding="utf-8") != content:
+            raise ConfigError(f"existing cleanup script has unexpected contents: {path}")
+        os.chmod(path, 0o500)
+        return
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o500)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(content)
+
+
+def _terminate_process(process: subprocess.Popen[object], *, timeout: float) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 def _preflight_image(

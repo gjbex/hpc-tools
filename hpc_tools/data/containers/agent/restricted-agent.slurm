@@ -4,6 +4,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --time=04:00:00
+#SBATCH --requeue
+#SBATCH --signal=B:USR1@600
 #SBATCH --output=restricted-agent-%j.out
 #SBATCH --error=restricted-agent-%j.err
 
@@ -28,4 +30,25 @@ hpc-agent-launch \
     --profile example \
     --agent-env-file "$agent_env_file" \
     --agent-image "$agent_image" \
-    -- codex-agent - < "$prompt_file"
+    -- codex-agent - < "$prompt_file" &
+launcher_pid=$!
+
+forward_requeue() {
+    kill -USR1 "$launcher_pid" 2>/dev/null || true
+}
+forward_termination() {
+    kill -TERM "$launcher_pid" 2>/dev/null || true
+}
+trap forward_requeue USR1
+trap forward_termination TERM INT
+
+set +e
+while true; do
+    wait "$launcher_pid"
+    status=$?
+    if ! kill -0 "$launcher_pid" 2>/dev/null; then
+        break
+    fi
+done
+set -e
+exit "$status"

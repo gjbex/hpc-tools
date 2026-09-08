@@ -121,6 +121,9 @@ def prepare_job(
         "script_sha256": script_digest,
         "idempotency_key": idempotency_key,
     }
+    logical_shape["controller_generation"] = delegation.DelegationLedger(
+        runtime.ledger_path
+    ).controller_summary(manifest)["generation"]
     logical_shape["shape_token"] = slurm_contracts.shape_token(logical_shape)
     delegation.authorize_shape(manifest, logical_shape)
 

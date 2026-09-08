@@ -164,7 +164,8 @@ def hpc_jobs(
         return _remote_read_result(resolved, command, dry_run=dry_run)
 
     ledger = delegation.DelegationLedger(runtime.ledger_path)
-    owned = ledger.owned_jobs(runtime.manifest)
+    all_owned = ledger.owned_jobs(runtime.manifest)
+    owned = all_owned
     if cluster != "all":
         if cluster not in runtime.manifest.allowed["clusters"]:
             raise delegation.DelegationError(
@@ -175,9 +176,58 @@ def hpc_jobs(
     for job in owned:
         grouped.setdefault(job["cluster"], []).append(job["job_id"])
     queries = []
+    queued: set[tuple[str, str]] = set()
     for selected_cluster, job_ids in sorted(grouped.items()):
         command = slurm.squeue_jobs_command(job_ids, selected_cluster or None)
-        queries.append(_remote_read_result(resolved, command, dry_run=dry_run))
+        query = _remote_read_result(resolved, command, dry_run=dry_run)
+        queries.append(query)
+        if not dry_run and query["returncode"] == 0:
+            for line in query["stdout"].splitlines():
+                token = line.split(maxsplit=1)[0] if line.split() else ""
+                try:
+                    base_job_id = delegation.normalize_job_id(token)
+                except delegation.DelegationError:
+                    continue
+                queued.add((selected_cluster, base_job_id))
+
+    reconciliation_queries: list[dict[str, Any]] = []
+    reconciliation_complete = False
+    controller = ledger.controller_summary(runtime.manifest)
+    if not dry_run and controller["reconciliation_required"]:
+        unresolved: list[dict[str, str]] = []
+        for job in owned:
+            identity = (job["cluster"], job["job_id"])
+            if identity in queued:
+                continue
+            result = _remote_read_result(
+                resolved,
+                slurm.sacct_command(job["job_id"], job["cluster"] or None),
+                dry_run=False,
+            )
+            reconciliation_queries.append(result)
+            if result["returncode"] != 0:
+                unresolved.append(job)
+                continue
+            state, _, _ = submissions.parse_sacct_observation(
+                result["stdout"], job["job_id"]
+            )
+            if state == "UNKNOWN":
+                unresolved.append(job)
+                continue
+            ledger.reconcile_job(
+                runtime.manifest,
+                job_id=job["job_id"],
+                cluster=job["cluster"] or None,
+                state=state,
+            )
+        complete_scope = len(owned) == len(all_owned)
+        if (
+            complete_scope
+            and not unresolved
+            and all(query["returncode"] == 0 for query in queries)
+        ):
+            ledger.complete_reconciliation(runtime.manifest)
+            reconciliation_complete = True
     return {
         "profile": resolved.name,
         "delegation_id": runtime.manifest.identifier,
@@ -187,6 +237,8 @@ def hpc_jobs(
             for job in owned
         ],
         "queries": queries,
+        "reconciliation_queries": reconciliation_queries,
+        "reconciliation_complete": reconciliation_complete,
         "dry_run": dry_run,
     }
 

@@ -17,7 +17,7 @@ class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
         manifest_path.write_text(
             textwrap.dedent(
                 """
-                format_version = 1
+                format_version = 2
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "genius"
@@ -97,6 +97,78 @@ class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
         self.assertIn("squeue -M wice -j 123,456", result["queries"][0]["command"])
         self.assertNotIn("-u", result["queries"][0]["command"])
         remote.assert_called_once()
+
+    def test_restarted_controller_reconciles_before_new_submissions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._write_config(root)
+            runtime = self._runtime(root)
+            self._own(runtime, job_id="123")
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
+            ledger.request_requeue(runtime.manifest)
+            ledger.record_requeue_result(runtime.manifest, accepted=True)
+            ledger.begin_controller(runtime.manifest, restart_count=1)
+            with self.assertRaisesRegex(delegation.DelegationError, "reconciling"):
+                ledger.reserve_submission(
+                    runtime.manifest,
+                    idempotency_key="blocked",
+                    shape={
+                        "profile": "genius",
+                        "jobscript": "job.slurm",
+                        "directory": "/work/delegate-1/run",
+                        "overrides": {"account": "proj", "cluster": "wice"},
+                    },
+                )
+
+            queue = mock.Mock(returncode=0, stdout="JOBID PARTITION NAME STATE\n", stderr="")
+            accounting = mock.Mock(
+                returncode=0,
+                stdout="123|job|batch|proj|COMPLETED|0:0|00:01:00\n",
+                stderr="",
+            )
+            with delegation.delegation_scope(runtime), mock.patch(
+                "hpc_tools.mcp.common.run_command_capture",
+                side_effect=[queue, accounting],
+            ):
+                result = mcp_server.hpc_jobs(config=str(config), cluster="wice")
+
+            self.assertTrue(result["reconciliation_complete"])
+            self.assertEqual(1, len(result["reconciliation_queries"]))
+            controller = ledger.controller_summary(runtime.manifest)
+            self.assertEqual("running", controller["state"])
+            self.assertFalse(controller["reconciliation_required"])
+            self.assertEqual(0, ledger.summary(runtime.manifest)["active_jobs"])
+
+    def test_partial_cluster_listing_cannot_clear_restart_reconciliation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._write_config(root)
+            runtime = self._runtime(root)
+            self._own(runtime, job_id="123", cluster="wice")
+            self._own(runtime, job_id="456", cluster="other")
+            ledger = delegation.DelegationLedger(runtime.ledger_path)
+            ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
+            ledger.request_requeue(runtime.manifest)
+            ledger.record_requeue_result(runtime.manifest, accepted=True)
+            ledger.begin_controller(runtime.manifest, restart_count=1)
+            queue = mock.Mock(returncode=0, stdout="JOBID\n", stderr="")
+            accounting = mock.Mock(
+                returncode=0,
+                stdout="123|job|batch|proj|COMPLETED|0:0|00:01:00\n",
+                stderr="",
+            )
+
+            with delegation.delegation_scope(runtime), mock.patch(
+                "hpc_tools.mcp.common.run_command_capture",
+                side_effect=[queue, accounting],
+            ):
+                result = mcp_server.hpc_jobs(config=str(config), cluster="wice")
+
+            self.assertFalse(result["reconciliation_complete"])
+            self.assertTrue(
+                ledger.controller_summary(runtime.manifest)["reconciliation_required"]
+            )
 
     def test_inspection_requires_ownership_and_accepts_job_descendants(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -253,7 +253,11 @@ For an unattended Slurm allocation, `hpc-agent-launch` keeps `hpc-mcp`, the
 manifest, ledger, Slurm clients, and credentials outside the Apptainer agent
 image. The in-container `hpc-mcp-relay` reaches that restricted server over a
 private Unix socket. Delegated jobs are wrapped in approved SIF images with
-server-generated output paths and per-job writable directories. See the
+server-generated output paths and per-job writable directories. The host
+launcher requests bounded same-ID requeue at the wall-time warning and
+registers a dependent cleanup job that cancels only ledger-owned jobs after a
+final parent termination; the restricted agent cannot invoke either control
+path. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
 The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
 mode, installs only the image-specific `hpc-delegated-slurm` skill, and treats

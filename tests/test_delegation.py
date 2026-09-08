@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import textwrap
+import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
@@ -24,7 +25,7 @@ class DelegationTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 1
+                format_version = 2
                 id = "{values['id']}"
                 issuer = "operator@example.org"
                 profile = "{values['profile']}"
@@ -96,6 +97,173 @@ class DelegationTests(unittest.TestCase):
             path.chmod(0o666)
             with self.assertRaisesRegex(delegation.DelegationError, "writable"):
                 delegation.load_manifest(path, expected_profile="genius")
+
+    def test_lifecycle_policy_has_strict_defaults_and_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            self.assertEqual(
+                {
+                    "on_cancel": "cancel",
+                    "on_timeout": "requeue-or-cancel",
+                    "on_failure": "cancel",
+                    "on_normal_exit_with_active_jobs": "cancel",
+                    "max_requeues": 3,
+                    "warning_seconds": 600,
+                },
+                manifest.lifecycle.public_summary(),
+            )
+
+            path.write_text(
+                path.read_text(encoding="utf-8")
+                + '\n[lifecycle]\non_cancel = "leave-running"\nmax_requeues = 0\n',
+                encoding="utf-8",
+            )
+            explicit = delegation.load_manifest(path, expected_profile="genius")
+            self.assertEqual("leave-running", explicit.lifecycle.on_cancel)
+            self.assertEqual(0, explicit.lifecycle.max_requeues)
+
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    'on_cancel = "leave-running"', 'on_cancel = "ignore"'
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(delegation.DelegationError, "on_cancel"):
+                delegation.load_manifest(path, expected_profile="genius")
+
+    def test_controller_requeue_blocks_submission_until_reconciliation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            self.assertEqual(1, ledger.controller_summary(manifest)["generation"])
+
+            ledger.begin_draining(manifest, reason="SIGUSR1")
+            self.assertEqual(0, ledger.inflight_submission_count(manifest))
+            with self.assertRaisesRegex(delegation.DelegationError, "draining"):
+                ledger.reserve_submission(
+                    manifest, idempotency_key="blocked-1", shape=self._shape()
+                )
+            ledger.request_requeue(manifest)
+            ledger.record_requeue_result(manifest, accepted=True, detail="accepted")
+            restarted = ledger.begin_controller(manifest, restart_count=1)
+            self.assertEqual("reconciling", restarted["state"])
+            self.assertEqual(2, restarted["generation"])
+            with self.assertRaisesRegex(delegation.DelegationError, "reconciling"):
+                ledger.reserve_submission(
+                    manifest, idempotency_key="blocked-2", shape=self._shape()
+                )
+            ledger.complete_reconciliation(manifest)
+            accepted = ledger.reserve_submission(
+                manifest, idempotency_key="request-1", shape=self._shape()
+            )
+            self.assertEqual("reserved", accepted["status"])
+
+    def test_drain_exposes_submission_reserved_before_it_started(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            ledger.reserve_submission(
+                manifest, idempotency_key="request-1", shape=self._shape()
+            )
+            ledger.begin_draining(manifest, reason="SIGUSR1")
+            self.assertEqual(1, ledger.inflight_submission_count(manifest))
+            ledger.release_reservation(
+                manifest, idempotency_key="request-1", reason="submission stopped"
+            )
+            self.assertEqual(0, ledger.inflight_submission_count(manifest))
+
+    def test_concurrent_drain_and_submission_have_one_serialized_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            barrier = threading.Barrier(2)
+
+            def reserve() -> str:
+                barrier.wait()
+                try:
+                    ledger.reserve_submission(
+                        manifest, idempotency_key="request-1", shape=self._shape()
+                    )
+                except delegation.DelegationError:
+                    return "rejected"
+                return "reserved"
+
+            def drain() -> str:
+                barrier.wait()
+                ledger.begin_draining(manifest, reason="SIGUSR1")
+                return "draining"
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                reserve_future = pool.submit(reserve)
+                drain_future = pool.submit(drain)
+                reserve_result = reserve_future.result()
+                self.assertEqual("draining", drain_future.result())
+
+            self.assertIn(reserve_result, {"reserved", "rejected"})
+            self.assertEqual(
+                1 if reserve_result == "reserved" else 0,
+                ledger.inflight_submission_count(manifest),
+            )
+            self.assertEqual("draining", ledger.controller_summary(manifest)["state"])
+
+    def test_controller_requeue_limit_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            path.write_text(
+                path.read_text(encoding="utf-8")
+                + "\n[lifecycle]\nmax_requeues = 0\n",
+                encoding="utf-8",
+            )
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            ledger.begin_draining(manifest, reason="SIGUSR1")
+            with self.assertRaisesRegex(delegation.DelegationError, "limit"):
+                ledger.request_requeue(manifest)
+
+    def test_restart_recovers_when_requeue_acceptance_was_not_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            ledger.begin_draining(manifest, reason="SIGUSR1")
+            ledger.request_requeue(manifest)
+
+            restarted = ledger.begin_controller(manifest, restart_count=1)
+
+            self.assertEqual("reconciling", restarted["state"])
+            self.assertTrue(restarted["reconciliation_required"])
+
+    def test_old_ledger_schema_is_rejected_without_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ledger_path = root / "ledger.sqlite3"
+            with closing(sqlite3.connect(ledger_path)) as connection:
+                connection.execute("PRAGMA user_version=2")
+            ledger_path.chmod(0o600)
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            with self.assertRaisesRegex(delegation.DelegationError, "schema version 2"):
+                delegation.DelegationLedger(ledger_path).register(manifest)
 
     def test_expired_malformed_and_misspelled_manifests_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
