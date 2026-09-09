@@ -502,6 +502,39 @@ class DelegationLedger:
             raise DelegationError("delegation has no controller state")
         return self._controller_dict(row)
 
+    def record_controller_artifacts(
+        self,
+        manifest: DelegationManifest,
+        *,
+        generation: int,
+        artifact_directory: str,
+        provenance_path: str,
+        event_log: str,
+        diagnostic_log: str,
+    ) -> None:
+        """Record protected provenance and log paths for one controller attempt."""
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            row = self._latest_controller(db, manifest.identifier)
+            if row is None or row[0] != generation:
+                current = None if row is None else row[0]
+                raise DelegationError(
+                    f"controller artifact generation {generation} does not match {current}"
+                )
+            self._audit(
+                db,
+                manifest.identifier,
+                "controller_artifacts",
+                "accepted",
+                {
+                    "generation": generation,
+                    "artifact_directory": artifact_directory,
+                    "provenance_path": provenance_path,
+                    "event_log": event_log,
+                    "diagnostic_log": diagnostic_log,
+                },
+            )
+
     def begin_draining(self, manifest: DelegationManifest, *, reason: str) -> dict[str, Any]:
         with self._transaction() as db:
             self._active(db, manifest)
@@ -873,6 +906,7 @@ class DelegationLedger:
         idempotency_key: str,
         job_id: str,
         cluster: str | None,
+        output_directory: str | None = None,
     ) -> None:
         job_id = normalize_job_id(job_id)
         with self._transaction() as db:
@@ -902,7 +936,12 @@ class DelegationLedger:
             )
             self._audit(
                 db, manifest.identifier, "record_submission", "accepted",
-                {"idempotency_key": idempotency_key, "job_id": job_id, "cluster": cluster},
+                {
+                    "idempotency_key": idempotency_key,
+                    "job_id": job_id,
+                    "cluster": cluster,
+                    "output_directory": output_directory,
+                },
             )
 
     def record_accepted_submission_uncertain(

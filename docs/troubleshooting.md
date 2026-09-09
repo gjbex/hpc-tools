@@ -352,6 +352,26 @@ Do not edit or reorder `submissions.sqlite3` as a routine fix. Preserve it, chec
 the event stream and active config path, and close or supersede records
 deliberately.
 
+## A restricted unattended agent failed
+
+Start with the parent job's scheduler state and append-preserved outer logs,
+then build the supported joined audit view:
+
+```console
+sacct -j <parent-job-id> -o JobID,State,ExitCode,Elapsed,NodeList
+less restricted-agent-<parent-job-id>.err
+less restricted-agent-<parent-job-id>.out
+hpc agent audit --ledger /protected/delegations.sqlite3 \
+    --delegation-id <delegation-id>
+```
+
+The audit report points to each generation's `provenance.json`, structured
+`codex-events.jsonl`, diagnostic log, owned delegated job IDs, server-generated
+output directories, wrapper status, and cleanup record. Use `hpc agent export`
+to preserve a private mode-`0600` incident artifact. Check live `squeue` and
+terminal `sacct` state separately; the audit command deliberately performs no
+remote calls or mutations.
+
 ## The Codex plugin is installed but workflows are absent
 
 Check:

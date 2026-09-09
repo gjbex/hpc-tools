@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import shlex
 import shutil
@@ -9,21 +11,44 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import IO
 
-from hpc_tools import delegation
+from hpc_tools import __version__, delegation
 from hpc_tools.config import ConfigError
 from hpc_tools.mcp_bridge import SOCKET_ENV_VAR
 
 CONTAINER_SOCKET_DIRECTORY = "/run/hpc-tools-mcp"
 FORBIDDEN_COMMANDS = (
-    "ssh", "scp", "sftp",
-    "sbatch", "scancel", "squeue", "sacct", "scontrol", "srun", "salloc",
-    "munge", "unmunge",
+    "ssh",
+    "scp",
+    "sftp",
+    "sbatch",
+    "scancel",
+    "squeue",
+    "sacct",
+    "scontrol",
+    "srun",
+    "salloc",
+    "munge",
+    "unmunge",
 )
 REQUEUE_SIGNAL = signal.SIGUSR1
 TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGINT)
+MAX_PROMPT_BYTES = 1024 * 1024
+
+
+@dataclass(frozen=True)
+class AgentArtifacts:
+    directory: Path
+    provenance_path: Path
+    prompt_path: Path | None
+    event_log: Path
+    diagnostic_log: Path
 
 
 def build_apptainer_command(
@@ -72,6 +97,7 @@ def launch(
     agent_command: list[str],
     runtime_base: Path | None = None,
     agent_env_file: Path | None = None,
+    prompt_file: Path | None = None,
     dry_run: bool = False,
 ) -> int:
     parent_job_id = os.environ.get("SLURM_JOB_ID")
@@ -98,6 +124,18 @@ def launch(
             (selected_env_file,),
             (policy.work_root, policy.output_root, *policy.input_roots),
         )
+    selected_prompt_file = None
+    if prompt_file is not None:
+        selected_prompt_file = _absolute_literal(prompt_file, "agent prompt file")
+        _ensure_private_file(selected_prompt_file, "agent prompt file")
+        if selected_prompt_file.stat().st_size > MAX_PROMPT_BYTES:
+            raise ConfigError(
+                f"agent prompt file exceeds the {MAX_PROMPT_BYTES}-byte limit"
+            )
+        _ensure_not_exposed(
+            (selected_prompt_file,),
+            (policy.work_root, policy.output_root, *policy.input_roots),
+        )
     image = _secure_file(agent_image, "agent image")
     if stat.S_IMODE(image.stat().st_mode) & 0o022:
         raise ConfigError("agent image must not be group- or world-writable")
@@ -122,7 +160,10 @@ def launch(
             agent_env_file=selected_env_file,
         )
         if dry_run:
-            print(subprocess.list2cmdline(container_command))
+            rendered = subprocess.list2cmdline(container_command)
+            if selected_prompt_file is not None:
+                rendered += f" < {shlex.quote(str(selected_prompt_file))}"
+            print(rendered)
             return 0
 
         _preflight_image(policy, image, label="parent agent image")
@@ -149,38 +190,60 @@ def launch(
         )
         ledger = delegation.DelegationLedger(ledger_path)
         ledger.register(manifest)
-        ledger.begin_controller(
+        controller = ledger.begin_controller(
             manifest, restart_count=_controller_restart_count()
         )
-        _ensure_cleanup_job(
-            manifest=manifest,
-            ledger=ledger,
-            ledger_path=ledger_path,
-            profile=profile,
-            parent_job_id=parent_job_id,
-        )
-        bridge_command = [
-            sys.executable,
-            "-m",
-            "hpc_tools.mcp_bridge",
-            "serve",
-            "--socket",
-            str(socket_path),
-            "--",
-            str(hpc_mcp_path),
-            "--executor",
-            "local",
-            "--preset",
-            "slurm-job",
-            "--profile",
-            profile,
-            "--delegation",
-            str(manifest.source_path),
-            "--ledger",
-            str(ledger_path),
-        ]
-        server_environment = _sanitized_server_environment(parent_job_id)
-        bridge = subprocess.Popen(bridge_command, env=server_environment)
+        try:
+            artifacts = _prepare_agent_artifacts(
+                manifest=manifest,
+                policy=policy,
+                generation=int(controller["generation"]),
+                prompt_file=selected_prompt_file,
+                agent_image=image,
+                agent_command=agent_command,
+            )
+            ledger.record_controller_artifacts(
+                manifest,
+                generation=int(controller["generation"]),
+                artifact_directory=str(artifacts.directory),
+                provenance_path=str(artifacts.provenance_path),
+                event_log=str(artifacts.event_log),
+                diagnostic_log=str(artifacts.diagnostic_log),
+            )
+            _ensure_cleanup_job(
+                manifest=manifest,
+                ledger=ledger,
+                ledger_path=ledger_path,
+                profile=profile,
+                parent_job_id=parent_job_id,
+            )
+            bridge_command = [
+                sys.executable,
+                "-m",
+                "hpc_tools.mcp_bridge",
+                "serve",
+                "--socket",
+                str(socket_path),
+                "--",
+                str(hpc_mcp_path),
+                "--executor",
+                "local",
+                "--preset",
+                "slurm-job",
+                "--profile",
+                profile,
+                "--delegation",
+                str(manifest.source_path),
+                "--ledger",
+                str(ledger_path),
+            ]
+            server_environment = _sanitized_server_environment(parent_job_id)
+            bridge = subprocess.Popen(bridge_command, env=server_environment)
+        except (OSError, ConfigError, delegation.DelegationError) as error:
+            ledger.finalize_controller(
+                manifest, reason=f"launcher setup failed: {error}"
+            )
+            raise
         pending_signal: list[int] = []
         previous_handlers: dict[int, signal.Handlers] = {}
 
@@ -190,18 +253,76 @@ def launch(
         for signum in (REQUEUE_SIGNAL, *TERMINATION_SIGNALS):
             previous_handlers[signum] = signal.signal(signum, request_shutdown)
         try:
-            _wait_for_socket(socket_path, bridge)
-            agent = subprocess.Popen(
-                container_command,
-                env=_sanitized_apptainer_environment(),
-            )
-            while agent.poll() is None and not pending_signal:
+            prompt_handle: IO[bytes] | None = None
+            event_handle: IO[bytes] | None = None
+            diagnostic_handle: IO[bytes] | None = None
+            try:
+                _wait_for_socket(socket_path, bridge)
+                prompt_handle = (
+                    artifacts.prompt_path.open("rb")
+                    if artifacts.prompt_path is not None
+                    else None
+                )
+                event_handle = artifacts.event_log.open("wb")
+                diagnostic_handle = artifacts.diagnostic_log.open("wb")
+                agent = subprocess.Popen(
+                    container_command,
+                    env=_sanitized_apptainer_environment(),
+                    stdin=prompt_handle,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            except (OSError, ConfigError) as error:
+                for handle in (event_handle, diagnostic_handle, prompt_handle):
+                    if handle is not None:
+                        handle.close()
+                ledger.finalize_controller(
+                    manifest, reason=f"agent startup failed: {error}"
+                )
+                raise
+            assert event_handle is not None
+            assert diagnostic_handle is not None
+            assert agent.stdout is not None
+            assert agent.stderr is not None
+            pump_errors: list[Exception] = []
+            pumps = [
+                threading.Thread(
+                    target=_tee_stream,
+                    args=(agent.stdout, event_handle, sys.stdout, pump_errors),
+                    daemon=True,
+                ),
+                threading.Thread(
+                    target=_tee_stream,
+                    args=(agent.stderr, diagnostic_handle, sys.stderr, pump_errors),
+                    daemon=True,
+                ),
+            ]
+            for pump in pumps:
+                pump.start()
+            while agent.poll() is None and not pending_signal and not pump_errors:
                 time.sleep(0.1)
+            if pump_errors and not pending_signal:
+                _terminate_process(agent, timeout=5)
+                _finish_logged_process(
+                    pumps,
+                    event_handle,
+                    diagnostic_handle,
+                    prompt_handle,
+                )
+                reason = f"agent log capture failed: {pump_errors[0]}"
+                ledger.finalize_controller(manifest, reason=reason)
+                raise ConfigError(reason)
             if pending_signal:
                 signum = pending_signal[0]
                 reason = signal.Signals(signum).name
                 ledger.begin_draining(manifest, reason=reason)
                 _terminate_process(agent, timeout=5)
+                _finish_logged_process(
+                    pumps,
+                    event_handle,
+                    diagnostic_handle,
+                    prompt_handle,
+                )
                 if not _wait_for_inflight_submissions(
                     ledger,
                     manifest,
@@ -231,11 +352,23 @@ def launch(
                 return 128 + signum
 
             returncode = agent.returncode if agent.returncode is not None else 1
+            _finish_logged_process(
+                pumps,
+                event_handle,
+                diagnostic_handle,
+                prompt_handle,
+            )
+            if pump_errors:
+                reason = f"agent log capture failed: {pump_errors[0]}"
+                ledger.finalize_controller(manifest, reason=reason)
+                raise ConfigError(reason)
             active = len(ledger.owned_jobs_for_cleanup(manifest))
             reason = (
                 "normal exit with active delegated jobs"
                 if returncode == 0 and active
-                else "normal exit" if returncode == 0 else f"agent exited {returncode}"
+                else "normal exit"
+                if returncode == 0
+                else f"agent exited {returncode}"
             )
             ledger.finalize_controller(manifest, reason=reason)
             return returncode
@@ -283,9 +416,7 @@ def _request_parent_requeue(
     try:
         ledger.request_requeue(manifest)
     except delegation.DelegationError as error:
-        ledger.finalize_controller(
-            manifest, reason=f"timeout-requeue-failed: {error}"
-        )
+        ledger.finalize_controller(manifest, reason=f"timeout-requeue-failed: {error}")
         return 2
     completed = subprocess.run(
         ["scontrol", "requeue", parent_job_id],
@@ -321,7 +452,9 @@ def _ensure_cleanup_job(
     reaper = shutil.which("hpc-agent-reap")
     if not reaper:
         raise ConfigError("hpc-agent-reap is not available in the host PATH")
-    reaper_path = _secure_file(Path(reaper).resolve(), "host cleanup executable", executable=True)
+    reaper_path = _secure_file(
+        Path(reaper).resolve(), "host cleanup executable", executable=True
+    )
     policy = _require_policy(manifest)
     script_path = policy.state_root / "parent-cleanup.sh"
     command = [
@@ -384,13 +517,222 @@ def _write_private_script(path: Path, content: str) -> None:
         if path.is_symlink() or not path.is_file():
             raise ConfigError(f"cleanup script must be a regular file: {path}")
         if path.read_text(encoding="utf-8") != content:
-            raise ConfigError(f"existing cleanup script has unexpected contents: {path}")
+            raise ConfigError(
+                f"existing cleanup script has unexpected contents: {path}"
+            )
         os.chmod(path, 0o500)
         return
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags, 0o500)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(content)
+
+
+def _prepare_agent_artifacts(
+    *,
+    manifest: delegation.DelegationManifest,
+    policy: delegation.FilesystemPolicy,
+    generation: int,
+    prompt_file: Path | None,
+    agent_image: Path,
+    agent_command: list[str],
+) -> AgentArtifacts:
+    attempts_root = policy.state_root / "agent-attempts"
+    _mkdir_private(attempts_root, "agent attempt root")
+    attempt_directory = attempts_root / f"generation-{generation}"
+    _reject_existing_symlinks(
+        attempt_directory, "agent attempt directory", require_leaf=False
+    )
+    try:
+        attempt_directory.mkdir(mode=0o700)
+    except FileExistsError as error:
+        raise ConfigError(
+            f"agent attempt artifacts already exist: {attempt_directory}"
+        ) from error
+    _secure_directory(attempt_directory, "agent attempt directory", private=True)
+
+    manifest_contents = manifest.source_path.read_bytes()
+    manifest_snapshot = attempt_directory / "delegation.toml"
+    _write_private_bytes(manifest_snapshot, manifest_contents)
+
+    prompt_snapshot = None
+    prompt_sha256 = None
+    if prompt_file is not None:
+        prompt_contents = prompt_file.read_bytes()
+        prompt_snapshot = attempt_directory / "task.md"
+        _write_private_bytes(prompt_snapshot, prompt_contents)
+        prompt_sha256 = hashlib.sha256(prompt_contents).hexdigest()
+
+    codex_version_output = _read_image_text(policy, agent_image, ["codex", "--version"])
+    codex_version = codex_version_output.strip() if codex_version_output else None
+    codex_config = _read_image_text(
+        policy, agent_image, ["cat", "/opt/hpc-tools/config.toml"]
+    )
+    codex_config_snapshot = None
+    codex_config_sha256 = None
+    if codex_config is not None:
+        encoded_config = codex_config.encode("utf-8")
+        codex_config_snapshot = attempt_directory / "codex-config.toml"
+        _write_private_bytes(codex_config_snapshot, encoded_config)
+        codex_config_sha256 = hashlib.sha256(encoded_config).hexdigest()
+
+    event_log = attempt_directory / "codex-events.jsonl"
+    diagnostic_log = attempt_directory / "codex-stderr.log"
+    _write_private_bytes(event_log, b"")
+    _write_private_bytes(diagnostic_log, b"")
+    provenance_path = attempt_directory / "provenance.json"
+    provenance = {
+        "format_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "delegation_id": manifest.identifier,
+        "controller_generation": generation,
+        "parent_job_id": manifest.parent_job_id,
+        "agent_command": agent_command,
+        "prompt": (
+            {
+                "source_path": str(prompt_file),
+                "snapshot_path": str(prompt_snapshot),
+                "sha256": prompt_sha256,
+            }
+            if prompt_file is not None
+            else None
+        ),
+        "manifest": {
+            "source_path": str(manifest.source_path),
+            "snapshot_path": str(manifest_snapshot),
+            "sha256": hashlib.sha256(manifest_contents).hexdigest(),
+        },
+        "agent_image": {
+            "path": str(agent_image),
+            "sha256": _sha256_file(agent_image),
+        },
+        "codex": {
+            "version": codex_version,
+            "config_snapshot_path": (
+                str(codex_config_snapshot) if codex_config_snapshot else None
+            ),
+            "config_sha256": codex_config_sha256,
+        },
+        "hpc_tools": {
+            "version": __version__,
+            "source_revision": _git_revision(Path(__file__).resolve().parents[1]),
+        },
+        "work_source": _git_revision(policy.work_root),
+        "logs": {
+            "events": str(event_log),
+            "diagnostics": str(diagnostic_log),
+        },
+    }
+    _write_private_bytes(
+        provenance_path,
+        (json.dumps(provenance, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+    )
+    return AgentArtifacts(
+        directory=attempt_directory,
+        provenance_path=provenance_path,
+        prompt_path=prompt_snapshot,
+        event_log=event_log,
+        diagnostic_log=diagnostic_log,
+    )
+
+
+def _write_private_bytes(path: Path, contents: bytes) -> None:
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(contents)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(4 * 1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _read_image_text(
+    policy: delegation.FilesystemPolicy,
+    image: Path,
+    command: list[str],
+) -> str | None:
+    invocation = _base_apptainer_command(policy.apptainer_path)
+    invocation.extend([str(image), *command])
+    try:
+        completed = subprocess.run(
+            invocation,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=_sanitized_apptainer_environment(),
+        )
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def _git_revision(path: Path) -> dict[str, object] | None:
+    git = shutil.which("git")
+    if git is None:
+        return None
+    try:
+        revision = subprocess.run(
+            [git, "-C", str(path), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        status = subprocess.run(
+            [git, "-C", str(path), "status", "--porcelain"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    if revision.returncode != 0:
+        return None
+    return {
+        "commit": revision.stdout.strip(),
+        "dirty": status.returncode != 0 or bool(status.stdout),
+    }
+
+
+def _tee_stream(
+    source: IO[bytes],
+    artifact: IO[bytes],
+    target: IO[str],
+    errors: list[Exception],
+) -> None:
+    try:
+        target_buffer = getattr(target, "buffer", None)
+        while chunk := source.read(64 * 1024):
+            artifact.write(chunk)
+            artifact.flush()
+            if target_buffer is not None:
+                target_buffer.write(chunk)
+                target_buffer.flush()
+            else:
+                target.write(chunk.decode("utf-8", errors="replace"))
+                target.flush()
+    except (OSError, ValueError) as error:
+        errors.append(error)
+
+
+def _finish_logged_process(
+    pumps: list[threading.Thread],
+    event_handle: IO[bytes],
+    diagnostic_handle: IO[bytes],
+    prompt_handle: IO[bytes] | None,
+) -> None:
+    for pump in pumps:
+        pump.join()
+    event_handle.close()
+    diagnostic_handle.close()
+    if prompt_handle is not None:
+        prompt_handle.close()
 
 
 def _terminate_process(process: subprocess.Popen[object], *, timeout: float) -> None:
@@ -411,11 +753,11 @@ def _preflight_image(
     script = (
         "set -eu; "
         f"for command in {checks}; do "
-        "if command -v \"$command\" >/dev/null 2>&1; then "
-        "echo \"forbidden command in agent image: $command\" >&2; exit 42; fi; done; "
+        'if command -v "$command" >/dev/null 2>&1; then '
+        'echo "forbidden command in agent image: $command" >&2; exit 42; fi; done; '
         "for path in /run/munge /var/run/munge /etc/slurm /etc/ssh /root/.ssh; do "
-        "if [ -e \"$path\" ]; then "
-        "echo \"forbidden credential or configuration path visible: $path\" >&2; "
+        'if [ -e "$path" ]; then '
+        'echo "forbidden credential or configuration path visible: $path" >&2; '
         "exit 43; fi; done"
     )
     command = _base_apptainer_command(policy.apptainer_path)
@@ -488,11 +830,27 @@ def _wait_for_socket(path: Path, bridge: subprocess.Popen[bytes]) -> None:
 
 def _sanitized_apptainer_environment() -> dict[str, str]:
     allowed_names = {
-        "HOME", "USER", "LOGNAME", "PATH", "LANG", "LANGUAGE", "TERM", "TZ",
-        "TMPDIR", "XDG_RUNTIME_DIR", "LD_LIBRARY_PATH",
-        "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
-        "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
-        "http_proxy", "https_proxy", "no_proxy",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "PATH",
+        "LANG",
+        "LANGUAGE",
+        "TERM",
+        "TZ",
+        "TMPDIR",
+        "XDG_RUNTIME_DIR",
+        "LD_LIBRARY_PATH",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
     }
     environment: dict[str, str] = {}
     for key, value in os.environ.items():
@@ -505,13 +863,20 @@ def _sanitized_apptainer_environment() -> dict[str, str]:
 def _sanitized_server_environment(parent_job_id: str) -> dict[str, str]:
     blocked_names = {"SSH_AUTH_SOCK", "SSH_AGENT_PID", "LD_PRELOAD"}
     blocked_fragments = (
-        "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "API_KEY",
-        "ACCESS_KEY", "COOKIE",
+        "TOKEN",
+        "SECRET",
+        "PASSWORD",
+        "CREDENTIAL",
+        "API_KEY",
+        "ACCESS_KEY",
+        "COOKIE",
     )
     environment: dict[str, str] = {}
     for key, value in os.environ.items():
         upper = key.upper()
-        if key in blocked_names or any(fragment in upper for fragment in blocked_fragments):
+        if key in blocked_names or any(
+            fragment in upper for fragment in blocked_fragments
+        ):
             continue
         environment[key] = value
     environment[delegation.PARENT_JOB_ENV_VAR] = parent_job_id
@@ -606,6 +971,11 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="private mode-0600 env file injected only into the parent agent",
     )
+    parser.add_argument(
+        "--prompt-file",
+        type=Path,
+        help=("private mode-0600 prompt file to snapshot and pass to the parent agent"),
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("agent_command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
@@ -623,6 +993,7 @@ def main(argv: list[str] | None = None) -> int:
             agent_command=command,
             runtime_base=args.runtime_directory,
             agent_env_file=args.agent_env_file,
+            prompt_file=args.prompt_file,
             dry_run=args.dry_run,
         )
     except (ConfigError, OSError) as error:

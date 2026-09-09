@@ -80,11 +80,14 @@ tool_timeout_sec = 300
 The wrapper copies that file into a new mode-`0700` `CODEX_HOME` in the
 container's private temporary filesystem and copies only the bundled
 `hpc-delegated-slurm` skill into that home. It runs `codex exec` with
-`--strict-config`, `--ephemeral`, `--sandbox workspace-write`, and
-`--skip-git-repo-check`. Consequently no conversation rollout is retained and
-shell writes are limited to the work root already selected by the outer
-Apptainer boundary. The required MCP setting makes a missing host relay a hard
-startup failure rather than silently giving the agent a different tool surface.
+`--strict-config`, `--ephemeral`, `--json`, `--sandbox workspace-write`, and
+`--skip-git-repo-check`. No Codex conversation rollout is retained inside the
+container. Instead, the launcher tees the JSONL event stream and diagnostic
+stderr to protected, attempt-specific files under `state_root` while preserving
+the parent Slurm stdout and stderr streams. Shell writes remain limited to the
+work root selected by the outer Apptainer boundary. The required MCP setting
+makes a missing host relay a hard startup failure rather than silently giving
+the agent a different tool surface.
 
 These choices follow the supported [Codex non-interactive
 mode](https://learn.chatgpt.com/docs/non-interactive-mode) and [Codex MCP
@@ -158,8 +161,10 @@ selection, corrective-resubmission policy, and stopping condition. If these
 leave a material choice ambiguous, the skill reports `blocked` rather than
 guessing or trying to ask an absent operator.
 
-Place the reviewed task at the path selected by `prompt_file` and submit the
-script normally. The essential invocation is:
+Place the reviewed task at the path selected by `prompt_file`, make it private
+mode `0600`, and submit the script normally. Pass it with `--prompt-file`; the
+launcher snapshots that content before using the snapshot as agent stdin. The
+essential invocation is:
 
 ```bash
 hpc-agent-launch \
@@ -168,7 +173,8 @@ hpc-agent-launch \
     --profile example \
     --agent-env-file /protected/codex.env \
     --agent-image /project/images/restricted-codex.sif \
-    -- codex-agent - < /protected/reviewed-task.md
+    --prompt-file /protected/reviewed-task.md \
+    -- codex-agent -
 ```
 
 Keep the template's lifecycle directives aligned with the manifest:
@@ -176,7 +182,38 @@ Keep the template's lifecycle directives aligned with the manifest:
 ```bash
 #SBATCH --requeue
 #SBATCH --signal=B:USR1@600
+#SBATCH --open-mode=append
 ```
+
+The append mode matters because a requeue retains the parent Slurm job ID. A
+site default that truncates `restricted-agent-%j.out` or `.err` on restart would
+otherwise destroy the preceding controller attempt's outer log.
+
+### Attempt provenance and event logs
+
+Every launched controller generation creates this protected directory:
+
+```text
+<state_root>/agent-attempts/generation-<N>/
+├── provenance.json
+├── delegation.toml
+├── task.md                 # when --prompt-file was supplied
+├── codex-config.toml       # when readable from the image
+├── codex-events.jsonl
+└── codex-stderr.log
+```
+
+Files are mode `0600` and directories are mode `0700`. `provenance.json`
+records hashes for the prompt, manifest, agent image, and Codex configuration;
+the Codex and hpc-tools versions; the exact agent argv; and the Git commit and
+dirty flag for both hpc-tools and `work_root` when those directories are Git
+checkouts. Hashing the complete SIF is intentional evidence but can add startup
+I/O for a large image. A missing Git checkout or unavailable in-image metadata
+is recorded as `null`; it is not guessed.
+
+The ledger receives a `controller_artifacts` audit event pointing to these
+files. `codex-events.jsonl` contains every event emitted by `codex exec --json`;
+it is an execution trace, not a transcript of private model reasoning.
 
 The batch shell runs the launcher in the background and forwards `USR1`,
 `TERM`, and `INT`; replacing that pattern with a foreground invocation can
@@ -249,6 +286,29 @@ cancellation operations, and reconciles jobs that already ended naturally. A
 parent still seen as pending, running, or requeued is not treated as terminal.
 Cleanup failures are written to `cleanup-%j.err` and the ledger's
 `controller_cleanup` row for operator recovery.
+
+Inspect or export the joined operator view without opening SQLite manually:
+
+```console
+hpc agent audit \
+    --ledger /protected/delegations.sqlite3 \
+    --database ~/.config/hpc-tools/submissions.sqlite3 \
+    --delegation-id agent-001
+
+hpc agent export \
+    --ledger /protected/delegations.sqlite3 \
+    --database ~/.config/hpc-tools/submissions.sqlite3 \
+    --delegation-id agent-001 \
+    --output /protected/agent-001-audit.json
+```
+
+Both commands read the databases in SQLite read-only mode. The report joins
+controller attempts and their provenance/log artifacts, authorization audit
+events, lifecycle operations, owned Slurm IDs, submission-history events,
+delegated output directories, wrapper status, and cleanup state. Export refuses
+to overwrite by default and creates a mode-`0600` JSON file. The report may
+contain sensitive paths, commands, stderr, or application metadata; sanitize it
+before moving it outside the protected operator environment.
 
 This is eventual cleanup, not immediate cleanup: the control job can wait for
 resources. Sites that prohibit nested `sbatch`, cannot reliably retain a

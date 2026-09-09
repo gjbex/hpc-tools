@@ -272,6 +272,21 @@ The authorization audit is append-only through the server API, but SQLite does
 not provide tamper-evident logging. Copy or stream audit records to protected,
 independently retained storage if forensic non-repudiation is required.
 
+For normal diagnosis, use the supported read-only joined view rather than
+querying tables directly:
+
+```console
+hpc agent audit --ledger /protected/delegations.sqlite3 \
+    --delegation-id delegate-1
+hpc agent export --ledger /protected/delegations.sqlite3 \
+    --delegation-id delegate-1 --output /protected/delegate-1-audit.json
+```
+
+The report combines the authorization ledger with the local submission event
+database and the protected controller/output artifact paths. It does not make
+the SQLite audit tamper-evident and it does not query live Slurm state; compare
+the resulting job IDs with `squeue` or `sacct` during incident response.
+
 ## Restricted lifecycle authorization
 
 In a configured `slurm-job` server, `hpc_jobs` obtains active base job IDs

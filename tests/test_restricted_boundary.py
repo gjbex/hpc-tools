@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -113,6 +114,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn("mktemp -d /tmp/codex-home.XXXXXX", wrapper)
         self.assertIn("--strict-config", wrapper)
         self.assertIn("--ephemeral", wrapper)
+        self.assertIn("--json", wrapper)
         self.assertIn("--sandbox workspace-write", wrapper)
         self.assertIn("--skip-git-repo-check", wrapper)
         self.assertNotIn("set -x", wrapper)
@@ -129,6 +131,9 @@ class RestrictedBoundaryTests(unittest.TestCase):
         )
         self.assertIn("#SBATCH --requeue", template)
         self.assertIn("#SBATCH --signal=B:USR1@600", template)
+        self.assertIn("#SBATCH --open-mode=append", template)
+        self.assertIn('--prompt-file "$prompt_file"', template)
+        self.assertNotIn('< "$prompt_file"', template)
         self.assertIn("trap forward_requeue USR1", template)
         self.assertIn("trap forward_termination TERM INT", template)
         self.assertIn('if ! kill -0 "$launcher_pid"', template)
@@ -307,6 +312,47 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertIn(f"{paths['input']}:{paths['input']}:ro", command)
             self.assertNotIn(str(paths["state"]), rendered)
             self.assertNotIn(str(runtime.ledger_path), rendered)
+
+    def test_parent_attempt_artifacts_snapshot_prompt_and_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, paths = self._fixture(Path(directory))
+            prompt = Path(directory) / "task.md"
+            prompt.write_text("bounded objective\n", encoding="utf-8")
+            prompt.chmod(0o600)
+            with (
+                mock.patch(
+                    "hpc_tools.restricted_launch._read_image_text",
+                    side_effect=["codex-cli 0.150.1\n", "model = 'test'\n"],
+                ),
+                mock.patch(
+                    "hpc_tools.restricted_launch._git_revision",
+                    return_value={"commit": "abc", "dirty": False},
+                ),
+            ):
+                artifacts = restricted_launch._prepare_agent_artifacts(
+                    manifest=runtime.manifest,
+                    policy=runtime.manifest.filesystem,
+                    generation=1,
+                    prompt_file=prompt,
+                    agent_image=paths["container"],
+                    agent_command=["codex-agent", "-"],
+                )
+
+            self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
+            provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
+            self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
+            self.assertEqual("abc", provenance["work_source"]["commit"])
+            self.assertEqual(
+                hashlib.sha256(paths["container"].read_bytes()).hexdigest(),
+                provenance["agent_image"]["sha256"],
+            )
+            for path in (
+                artifacts.provenance_path,
+                artifacts.prompt_path,
+                artifacts.event_log,
+                artifacts.diagnostic_log,
+            ):
+                self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
 
     def test_apptainer_like_clean_environment_exposes_no_scheduler_commands(self) -> None:
         """Exercise the generated argv through a clean-environment runtime shim.

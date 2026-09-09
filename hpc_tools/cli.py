@@ -9,6 +9,7 @@ import sys
 import textwrap
 
 from hpc_tools.commands import register_builtin_commands
+from hpc_tools.commands.agent import cmd_agent_audit, cmd_agent_export
 from hpc_tools.commands.common import (
     _quote_remote_path_expression,
     _section_command,
@@ -112,6 +113,7 @@ LOCAL_COMMANDS = {
     "submissions",
     "references",
     "plugins",
+    "agent",
 }
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
 CONTAINER_KINDS = {"agent", "agent-boundary", "generic", "r", "conda"}
@@ -126,6 +128,8 @@ JSON_NATIVE_HANDLERS = {
     "cmd_r_scan",
     "cmd_r_check",
     "cmd_r_verify_install",
+    "cmd_agent_audit",
+    "cmd_agent_export",
 }
 
 
@@ -293,6 +297,8 @@ def _command_handlers() -> SimpleNamespace:
         cmd_submissions_mark_collected=cmd_submissions_mark_collected,
         cmd_submissions_mark_analysed=cmd_submissions_mark_analysed,
         cmd_submissions_close=cmd_submissions_close,
+        cmd_agent_audit=cmd_agent_audit,
+        cmd_agent_export=cmd_agent_export,
     )
 
 

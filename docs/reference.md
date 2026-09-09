@@ -48,6 +48,8 @@ one. Repeated options are explicitly marked.
 | `hpc paths` | Print the active configuration, reference, copied-skill, packaged-template, and uninstall locations. |
 | `hpc plugins list` | List core and external CLI plugins. Columns are `NAME`, `VERSION`, `SOURCE`, and `DESCRIPTION`. |
 | `hpc plugins info NAME` | Show the name, version, source, and description of one plugin. |
+| `hpc agent audit --ledger PATH [--database PATH] [--delegation-id ID]` | Read a protected delegation ledger and show a joined controller, mutation, submission, output, and cleanup summary. |
+| `hpc agent export --ledger PATH [--database PATH] [--delegation-id ID] --output PATH [--force]` | Export the complete joined audit report as private mode-`0600` JSON. Existing output is preserved unless `--force` is explicit. |
 
 ### Shared cluster references
 
@@ -343,6 +345,7 @@ Configuration failure before dispatch instead produces an object containing
 JSON rather than the envelope:
 
 - `benchmark summarize` and `benchmark compare`;
+- `agent audit` and `agent export`;
 - `cxx scan`;
 - `python scan`, `python inspect-deps`, `python check`, and
   `python verify-install`;
@@ -458,6 +461,7 @@ set, otherwise `~/.config/hpc-tools`.
 | `~/.config/hpc-tools/profiles/PROFILE/` | Durable profile-specific reference files and reports. |
 | `~/.config/hpc-tools/reference-sets/NAME/` | Installed shared reference sets. |
 | `~/.config/hpc-tools/submissions.sqlite3` | Default local submission event database. |
+| `<state_root>/agent-attempts/generation-N/` | Protected unattended-agent prompt/manifest snapshots, provenance, JSONL events, and diagnostics. |
 | `~/.codex/skills/` | Optional copied standalone skills. This is separate from both the Python package and a Codex plugin installation. |
 
 These are defaults, not literal paths under every environment. Run `hpc paths`

@@ -24,6 +24,8 @@ from hpc_tools.cli import (
     _statement_command,
     _storage_inspect_command,
     build_parser,
+    cmd_agent_audit,
+    cmd_agent_export,
     cmd_cancel,
     cmd_clone,
     cmd_doctor,

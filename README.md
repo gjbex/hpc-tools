@@ -260,8 +260,14 @@ final parent termination; the restricted agent cannot invoke either control
 path. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
 The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
-mode, installs only the image-specific `hpc-delegated-slurm` skill, and treats
-the restricted relay as a required MCP server. The generated `task.md` makes
+mode with a protected JSONL event stream, installs only the image-specific
+`hpc-delegated-slurm` skill, and treats the restricted relay as a required MCP
+server. Each controller attempt snapshots its prompt and manifest and records
+image, configuration, version, and source-revision provenance below the
+manifest's protected `state_root`. Use `hpc agent audit` for a joined read-only
+view of the ledger, submission history, attempt artifacts, and delegated output
+paths, or `hpc agent export` to write that report as a mode-`0600` JSON file.
+The generated `task.md` makes
 the objective, success checks, retry authority, and stopping condition
 explicit. Generate the reviewed build bundle with
 `hpc write-container --kind agent restricted-codex-build`.

@@ -29,6 +29,7 @@ class CliCoreTests(unittest.TestCase):
             "    paths",
             "    plugins",
             "    references",
+            "    agent",
             "  Cluster inspection:",
             "    doctor",
             "    status",
@@ -151,6 +152,25 @@ class CliCoreTests(unittest.TestCase):
 
         self.assertEqual(args.command, "plugins")
         self.assertEqual(args.plugins_command, "list")
+
+    def test_agent_audit_and_export_parsers(self) -> None:
+        parser = build_parser()
+        audit = parser.parse_args(
+            ["agent", "audit", "--ledger", "/protected/delegations.sqlite3"]
+        )
+        export = parser.parse_args(
+            [
+                "agent",
+                "export",
+                "--ledger",
+                "/protected/delegations.sqlite3",
+                "--output",
+                "audit.json",
+            ]
+        )
+
+        self.assertIs(audit.handler, cmd_agent_audit)
+        self.assertIs(export.handler, cmd_agent_export)
 
     def test_mcp_console_script_entry_point_is_available(self) -> None:
         self.assertTrue(callable(mcp_server.main))

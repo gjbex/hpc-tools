@@ -3,13 +3,14 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from hpc_tools.commands import core, probes, references, remote, slurm, submissions
+from hpc_tools.commands import agent, core, probes, references, remote, slurm, submissions
 
 
 def register_builtin_commands(subparsers: Any, profile: Any, handlers: Any) -> None:
     with _command_group(subparsers, "Local setup and metadata"):
         core.register_local(subparsers, handlers)
         references.register(subparsers, handlers)
+        agent.register(subparsers, handlers)
 
     with _command_group(subparsers, "Cluster inspection"):
         core.register_doctor(subparsers, handlers)

@@ -403,6 +403,7 @@ def hpc_submit_job(
                     idempotency_key=idempotency_key,
                     job_id=job_id,
                     cluster=selected_cluster,
+                    output_directory=prepared.output_directory,
                 )
                 ledger_recorded = True
                 ledger_status = "submitted"
