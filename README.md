@@ -99,6 +99,15 @@ python3 ~/plugins/hpc-tools/tools/register_personal_marketplace.py \
 codex plugin add hpc-tools@personal
 ```
 
+Codex requires a `./`-prefixed source path relative to the marketplace root.
+For `~/.agents/plugins/marketplace.json`, that root is your home directory,
+so this checkout is registered as `./plugins/hpc-tools`. Rerun the registration
+command to repair an entry generated with an absolute path. The checkout must
+stay inside the marketplace root. With
+`--marketplace-path <root>/.agents/plugins/marketplace.json` (or the legacy
+`<root>/.claude-plugin/marketplace.json`), the script uses `<root>` instead.
+See the [OpenAI marketplace path rules](https://developers.openai.com/plugins/build/plugins#marketplace-metadata).
+
 Verify the installed source contains the bundled skills:
 
 ```bash
