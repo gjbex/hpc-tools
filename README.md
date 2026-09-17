@@ -8,23 +8,6 @@ This repository is also structured as a Codex plugin. The Codex plugin ships
 skills for safe, profile-driven HPC work; it does not install the `hpc` CLI,
 configure SSH, or authorize Slurm submissions.
 
-## Documentation
-
-The user documentation is maintained as Markdown under [docs](docs) and built
-with MkDocs. The published site is available at
-[gjbex.github.io/hpc-tools](https://gjbex.github.io/hpc-tools/).
-
-To preview or validate it locally, install the pinned documentation dependency
-and run a strict build:
-
-```bash
-python3 -m pip install -r docs/requirements.txt
-mkdocs build --strict
-```
-
-See [Build the documentation](docs/contributing/documentation.md) for the
-isolated local environment and deployment workflow.
-
 ## Install
 
 For normal released use, install the CLI with `pipx`:
@@ -35,18 +18,12 @@ pipx ensurepath
 hpc --help
 ```
 
-From the repository root, use `pipx` only when testing a local release-style
-install:
+## Documentation
 
-```bash
-pipx install .
-```
-
-Use an editable install only when developing `hpc-tools` itself:
-
-```bash
-python3 -m pip install --user -e .
-```
+Read the [public documentation](https://gjbex.github.io/hpc-tools/) for setup,
+cluster operations, Slurm workflows, and agent integrations. Start with the
+[quick start](https://gjbex.github.io/hpc-tools/getting-started/) or the
+[installation guide](https://gjbex.github.io/hpc-tools/installation/).
 
 ## Codex Plugin
 
@@ -860,7 +837,22 @@ Each skill assumes the `hpc` CLI is installed and the relevant profile is
 configured. Optional commands such as `hpc quota` and `hpc queue` are used only
 when the selected profile exposes them.
 
-## Validation
+## Development
+
+From the repository root, use `pipx` only when testing a local release-style
+install:
+
+```bash
+pipx install .
+```
+
+Use an editable install only when developing `hpc-tools` itself:
+
+```bash
+python3 -m pip install --user -e .
+```
+
+### Validation
 
 Before publishing plugin or skill changes, run the repo-local checks:
 
@@ -870,3 +862,10 @@ python3 tools/validate_skills.py .
 python3 tools/check_repo_hygiene.py .
 python3 -m unittest discover -s tests
 ```
+
+### Build the documentation
+
+The documentation source is maintained as Markdown under [docs](docs) and built
+with MkDocs. See [Build the documentation](docs/contributing/documentation.md)
+for the isolated local environment, preview, strict build, and deployment
+workflow.
