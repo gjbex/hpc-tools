@@ -240,8 +240,9 @@ local command such as `paths`, `plugins list`, reference-set inspection, or a
 local scanner can run without a cluster configuration.
 
 This current site-feature filtering is separate from the mandatory capability
-policy parsed from each profile. Policy-based CLI denial/hiding and MCP
-discovery filtering are not implemented until later work packages.
+policy parsed from each profile. A shared registry and evaluator classify the
+surface, but policy-based CLI denial/hiding and MCP discovery filtering are not
+implemented until later work packages.
 
 ## Configuration schema
 

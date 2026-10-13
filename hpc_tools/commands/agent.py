@@ -45,7 +45,7 @@ def register(subparsers: Any, handlers: Any) -> None:
         if name == "export":
             command.add_argument("--output", type=Path, required=True)
             command.add_argument("--force", action="store_true")
-        command.set_defaults(handler=handler)
+        command.set_defaults(handler=handler, operation_id=f"agent.{name}")
 
 
 def cmd_agent_audit(args: argparse.Namespace, profile: Profile | None) -> int:

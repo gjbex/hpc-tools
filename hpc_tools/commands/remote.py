@@ -40,7 +40,10 @@ def register_storage(subparsers: Any, handlers: Any) -> None:
         default=".",
         help="Remote path to inspect; defaults to the remote current directory",
     )
-    storage_inspect_parser.set_defaults(handler=handlers.cmd_storage_inspect)
+    storage_inspect_parser.set_defaults(
+        handler=handlers.cmd_storage_inspect,
+        operation_id="filesystem.inspect",
+    )
 
 
 def register_repo(subparsers: Any, handlers: Any) -> None:
@@ -63,13 +66,16 @@ def register_repo(subparsers: Any, handlers: Any) -> None:
         required=True,
         help="Remote repository directory to inspect",
     )
-    repo_status_parser.set_defaults(handler=handlers.cmd_repo_status)
+    repo_status_parser.set_defaults(
+        handler=handlers.cmd_repo_status,
+        operation_id="repository.status",
+    )
 
 
 def register_quota(subparsers: Any, profile: Any, handlers: Any) -> None:
     if profile is None or profile.quota_command:
         quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
-        quota_parser.set_defaults(handler=handlers.cmd_quota)
+        quota_parser.set_defaults(handler=handlers.cmd_quota, operation_id="cluster.quota")
 
 
 def register_workspace(subparsers: Any, handlers: Any) -> None:
@@ -79,7 +85,10 @@ def register_workspace(subparsers: Any, handlers: Any) -> None:
 
 def register_projects(subparsers: Any, handlers: Any) -> None:
     projects_parser = subparsers.add_parser("projects", help="List the remote project directory")
-    projects_parser.set_defaults(handler=handlers.cmd_projects)
+    projects_parser.set_defaults(
+        handler=handlers.cmd_projects,
+        operation_id="filesystem.projects",
+    )
 
 
 def register_clone(subparsers: Any, handlers: Any) -> None:
@@ -95,13 +104,13 @@ def register_clone(subparsers: Any, handlers: Any) -> None:
         "--name",
         help="Optional destination directory name passed to git clone",
     )
-    clone_parser.set_defaults(handler=handlers.cmd_clone)
+    clone_parser.set_defaults(handler=handlers.cmd_clone, operation_id="repository.clone")
 
 
 def register_module_spider(subparsers: Any, handlers: Any) -> None:
     spider_parser = subparsers.add_parser("module-spider", help="Search Lmod modules")
     spider_parser.add_argument("name", help="Module name or search term")
-    spider_parser.set_defaults(handler=handlers.cmd_module_spider)
+    spider_parser.set_defaults(handler=handlers.cmd_module_spider, operation_id="cluster.modules")
 
 
 def register_hardware(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -120,7 +129,10 @@ def register_hardware(subparsers: Any, profile: Any, handlers: Any) -> None:
             action="store_true",
             help="Print configured local reference paths only",
         )
-        hardware_parser.set_defaults(handler=handlers.cmd_hardware)
+        hardware_parser.set_defaults(
+            handler=handlers.cmd_hardware,
+            operation_id="references.context",
+        )
 
 def cmd_storage_inspect(args: argparse.Namespace, profile: Profile) -> int:
     return run_command(profile, _storage_inspect_command(args.path), dry_run=args.dry_run)

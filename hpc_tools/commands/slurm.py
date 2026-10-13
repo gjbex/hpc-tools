@@ -32,7 +32,7 @@ def register_status(subparsers: Any, profile: Any, handlers: Any) -> None:
             "status",
             help="Show site status, quota, balance, and local submissions",
         )
-        status_parser.set_defaults(handler=handlers.cmd_status)
+        status_parser.set_defaults(handler=handlers.cmd_status, operation_id="cluster.status")
 
 
 def register_accounting(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -43,18 +43,21 @@ def register_accounting(subparsers: Any, profile: Any, handlers: Any) -> None:
             nargs=argparse.REMAINDER,
             help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
         )
-        quote_parser.set_defaults(handler=handlers.cmd_quote)
+        quote_parser.set_defaults(handler=handlers.cmd_quote, operation_id="job.quote")
 
     if profile is None or profile.sam_balance_command:
         balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
-        balance_parser.set_defaults(handler=handlers.cmd_balance)
+        balance_parser.set_defaults(handler=handlers.cmd_balance, operation_id="account.balance")
 
     if profile is None or profile.sam_statement_command:
         statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
         statement_parser.add_argument("--account", required=True, help="Slurm account name")
         statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
         statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
-        statement_parser.set_defaults(handler=handlers.cmd_statement)
+        statement_parser.set_defaults(
+            handler=handlers.cmd_statement,
+            operation_id="account.statement",
+        )
 
 
 def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -77,7 +80,7 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         help="Run sbatch --test-only with the same options before submitting",
     )
     handlers.add_submit_override_arguments(submit_parser)
-    submit_parser.set_defaults(handler=handlers.cmd_submit)
+    submit_parser.set_defaults(handler=handlers.cmd_submit, operation_id="job.submit")
 
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
     jobs_parser.add_argument(
@@ -86,7 +89,7 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         default="all",
         help="Slurm cluster name; defaults to all visible clusters",
     )
-    jobs_parser.set_defaults(handler=handlers.cmd_jobs)
+    jobs_parser.set_defaults(handler=handlers.cmd_jobs, operation_id="job.list")
 
     job_parser = subparsers.add_parser("job", help="Show status for one Slurm job")
     job_parser.add_argument("jobid", help="Slurm job ID")
@@ -96,7 +99,7 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         default="all",
         help="Slurm cluster name; defaults to all visible clusters",
     )
-    job_parser.set_defaults(handler=handlers.cmd_job)
+    job_parser.set_defaults(handler=handlers.cmd_job, operation_id="job.show")
 
     cancel_parser = subparsers.add_parser(
         "cancel",
@@ -113,16 +116,16 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         type=Path,
         help="Submission SQLite database path; defaults to the hpc-tools config directory",
     )
-    cancel_parser.set_defaults(handler=handlers.cmd_cancel)
+    cancel_parser.set_defaults(handler=handlers.cmd_cancel, operation_id="job.cancel")
 
     if profile is None or profile.queue_command:
         queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
-        queue_parser.set_defaults(handler=handlers.cmd_queue)
+        queue_parser.set_defaults(handler=handlers.cmd_queue, operation_id="job.queue")
 
     sacct_parser = subparsers.add_parser("sacct", help="Show Slurm accounting for a job")
     sacct_parser.add_argument("jobid", help="Slurm job ID")
     sacct_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
-    sacct_parser.set_defaults(handler=handlers.cmd_sacct)
+    sacct_parser.set_defaults(handler=handlers.cmd_sacct, operation_id="job.accounting")
 
 
 def register_limits(subparsers: Any, handlers: Any) -> None:
@@ -133,7 +136,7 @@ def register_limits(subparsers: Any, handlers: Any) -> None:
     limits_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
     limits_parser.add_argument("--partition", "-p", help="Slurm partition name")
     limits_parser.add_argument("--qos", help="Limit QoS output to one QoS name")
-    limits_parser.set_defaults(handler=handlers.cmd_slurm_limits)
+    limits_parser.set_defaults(handler=handlers.cmd_slurm_limits, operation_id="cluster.limits")
 
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
     if not profile.queue_command:

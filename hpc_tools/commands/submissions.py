@@ -35,7 +35,10 @@ def register(subparsers: Any, handlers: Any) -> None:
         action="store_true",
         help="Include closed submissions",
     )
-    submissions_list_parser.set_defaults(handler=handlers.cmd_submissions_list)
+    submissions_list_parser.set_defaults(
+        handler=handlers.cmd_submissions_list,
+        operation_id="submissions.list",
+    )
 
     submissions_observe_parser = submissions_subparsers.add_parser(
         "observe",
@@ -46,7 +49,10 @@ def register(subparsers: Any, handlers: Any) -> None:
         nargs="?",
         help="Run ID to observe; defaults to all active runs",
     )
-    submissions_observe_parser.set_defaults(handler=handlers.cmd_submissions_observe)
+    submissions_observe_parser.set_defaults(
+        handler=handlers.cmd_submissions_observe,
+        operation_id="submissions.observe",
+    )
 
     submissions_collect_parser = submissions_subparsers.add_parser(
         "mark-collected",
@@ -58,7 +64,10 @@ def register(subparsers: Any, handlers: Any) -> None:
         required=True,
         help="Local or remote result path",
     )
-    submissions_collect_parser.set_defaults(handler=handlers.cmd_submissions_mark_collected)
+    submissions_collect_parser.set_defaults(
+        handler=handlers.cmd_submissions_mark_collected,
+        operation_id="submissions.mark-collected",
+    )
 
     submissions_analyse_parser = submissions_subparsers.add_parser(
         "mark-analysed",
@@ -66,7 +75,10 @@ def register(subparsers: Any, handlers: Any) -> None:
     )
     submissions_analyse_parser.add_argument("run_id", help="Run ID")
     submissions_analyse_parser.add_argument("--path", required=True, help="Report or notebook path")
-    submissions_analyse_parser.set_defaults(handler=handlers.cmd_submissions_mark_analysed)
+    submissions_analyse_parser.set_defaults(
+        handler=handlers.cmd_submissions_mark_analysed,
+        operation_id="submissions.mark-analysed",
+    )
 
     submissions_close_parser = submissions_subparsers.add_parser(
         "close",
@@ -74,7 +86,10 @@ def register(subparsers: Any, handlers: Any) -> None:
     )
     submissions_close_parser.add_argument("run_id", help="Run ID")
     submissions_close_parser.add_argument("--reason", help="Reason for closing this run")
-    submissions_close_parser.set_defaults(handler=handlers.cmd_submissions_close)
+    submissions_close_parser.set_defaults(
+        handler=handlers.cmd_submissions_close,
+        operation_id="submissions.close",
+    )
 
 def cmd_submissions_list(args: argparse.Namespace, profile: Profile | None) -> int:
     del profile

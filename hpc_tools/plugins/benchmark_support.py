@@ -102,7 +102,10 @@ class BenchmarkSupportPlugin:
             help="Benchmark file or directory to summarize",
         )
         summarize_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        summarize_parser.set_defaults(handler=cmd_benchmark_summarize)
+        summarize_parser.set_defaults(
+            handler=cmd_benchmark_summarize,
+            operation_id="benchmark.summarize",
+        )
 
         compare_parser = benchmark_subparsers.add_parser(
             "compare",
@@ -116,7 +119,10 @@ class BenchmarkSupportPlugin:
             help="Active thread count for the candidate run; used for efficiency",
         )
         compare_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        compare_parser.set_defaults(handler=cmd_benchmark_compare)
+        compare_parser.set_defaults(
+            handler=cmd_benchmark_compare,
+            operation_id="benchmark.compare",
+        )
 
     def requires_profile(self, argv: list[str]) -> bool:
         del argv

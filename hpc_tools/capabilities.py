@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import re
-from typing import Any
+from typing import Any, Iterable
 
 
 POLICY_VERSION = 1
@@ -122,6 +122,138 @@ class CapabilityPolicy:
         }
 
 
+class DenialCode(str, Enum):
+    UNKNOWN_OPERATION = "capability.unknown-operation"
+    MISSING_LEVEL = "capability.missing-level"
+    MISSING_SCOPE = "capability.missing-scope"
+    MISSING_PATH_GRANT = "capability.missing-path-grant"
+    SITE_FUNCTION_UNAVAILABLE = "capability.site-function-unavailable"
+
+
+@dataclass(frozen=True)
+class PathRequirement:
+    grant: str
+    selector: str
+    path: str | None
+
+    def __post_init__(self) -> None:
+        if self.grant not in REMOTE_ROOT_KINDS:
+            raise ValueError(f"unknown remote root grant kind: {self.grant}")
+        if not self.selector:
+            raise ValueError("path requirement selector must not be empty")
+
+
+@dataclass(frozen=True)
+class CapabilityRequirement:
+    operation_id: str
+    minimum_level: CapabilityLevel
+    scopes: tuple[str, ...] = ()
+    paths: tuple[PathRequirement, ...] = ()
+    site_features: tuple[str, ...] = ()
+    operator_only: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.operation_id:
+            raise ValueError("capability requirement operation_id must not be empty")
+        if not isinstance(self.minimum_level, CapabilityLevel):
+            raise ValueError("capability requirement minimum_level is invalid")
+        unknown_scopes = sorted(set(self.scopes) - _CAPABILITY_SCOPE_SET)
+        if unknown_scopes:
+            raise ValueError(
+                "capability requirement contains unknown scope(s): "
+                + ", ".join(unknown_scopes)
+            )
+        if len(self.scopes) != len(set(self.scopes)):
+            raise ValueError("capability requirement scopes must not contain duplicates")
+        if len(self.site_features) != len(set(self.site_features)):
+            raise ValueError("site feature requirements must not contain duplicates")
+
+
+@dataclass(frozen=True)
+class AuthorizationContext:
+    profile_name: str
+    policy: CapabilityPolicy
+    site_features: frozenset[str] = frozenset()
+
+    @classmethod
+    def from_profile(
+        cls,
+        profile: Any,
+        *,
+        requested_level: CapabilityLevel | str | None = None,
+        restrictions: Iterable[CapabilityPolicy] = (),
+    ) -> AuthorizationContext:
+        policies = (profile.capabilities, *tuple(restrictions))
+        policy = intersect_policies(*policies) if len(policies) > 1 else policies[0]
+        policy = narrow_policy(policy, requested_level)
+        return cls(
+            profile_name=profile.name,
+            policy=policy,
+            site_features=site_features_from_profile(profile),
+        )
+
+
+@dataclass(frozen=True)
+class CapabilityDenial:
+    code: DenialCode
+    operation_id: str
+    profile_name: str | None
+    reason: str
+    required_level: CapabilityLevel | None = None
+    granted_level: CapabilityLevel | None = None
+    missing_scopes: tuple[str, ...] = ()
+    path_grant: str | None = None
+    path_selector: str | None = None
+    site_feature: str | None = None
+
+    def public_summary(self) -> dict[str, object]:
+        result: dict[str, object] = {
+            "code": self.code.value,
+            "operation": self.operation_id,
+            "profile": self.profile_name,
+            "reason": self.reason,
+        }
+        if self.required_level is not None:
+            result["required_level"] = self.required_level.value
+        if self.granted_level is not None:
+            result["granted_level"] = self.granted_level.value
+        if self.missing_scopes:
+            result["missing_scopes"] = list(self.missing_scopes)
+        if self.path_grant is not None:
+            result["path_grant"] = self.path_grant
+        if self.path_selector is not None:
+            result["path_selector"] = self.path_selector
+        if self.site_feature is not None:
+            result["site_feature"] = self.site_feature
+        return result
+
+
+@dataclass(frozen=True)
+class AuthorizationDecision:
+    operation_id: str
+    profile_name: str | None
+    denials: tuple[CapabilityDenial, ...] = ()
+
+    @property
+    def allowed(self) -> bool:
+        return not self.denials
+
+    def public_summary(self) -> dict[str, object]:
+        if self.allowed:
+            return {
+                "allowed": True,
+                "operation": self.operation_id,
+                "profile": self.profile_name,
+            }
+        return {
+            "allowed": False,
+            "code": "capability.denied",
+            "operation": self.operation_id,
+            "profile": self.profile_name,
+            "denials": [denial.public_summary() for denial in self.denials],
+        }
+
+
 def parse_capability_level(
     value: object,
     *,
@@ -225,6 +357,130 @@ def intersect_policies(*policies: CapabilityPolicy) -> CapabilityPolicy:
         scopes=scopes,
         remote_roots=roots,
     )
+
+
+def capability_level_allows(
+    granted: CapabilityLevel,
+    required: CapabilityLevel,
+) -> bool:
+    return _LEVEL_RANK[granted] >= _LEVEL_RANK[required]
+
+
+def site_features_from_profile(profile: Any) -> frozenset[str]:
+    """Return safe feature identifiers without exposing configured values."""
+    fields = {
+        "status-page": "status_url",
+        "quota": "quota_command",
+        "queue": "queue_command",
+        "account-balance": "sam_balance_command",
+        "account-statement": "sam_statement_command",
+        "job-quote": "sam_quote_command",
+        "projects-directory": "projects_dir",
+        "profile-email": "email",
+    }
+    return frozenset(
+        feature
+        for feature, field in fields.items()
+        if getattr(profile, field, None)
+    )
+
+
+def evaluate_capability(
+    requirement: CapabilityRequirement,
+    context: AuthorizationContext,
+) -> AuthorizationDecision:
+    """Evaluate typed requirements without executing commands or reading state."""
+    denials: list[CapabilityDenial] = []
+    policy = context.policy
+
+    if not capability_level_allows(policy.max_level, requirement.minimum_level):
+        denials.append(CapabilityDenial(
+            code=DenialCode.MISSING_LEVEL,
+            operation_id=requirement.operation_id,
+            profile_name=context.profile_name,
+            reason=(
+                f"requires {requirement.minimum_level.value}; profile grants "
+                f"{policy.max_level.value}"
+            ),
+            required_level=requirement.minimum_level,
+            granted_level=policy.max_level,
+        ))
+
+    missing_scopes = tuple(sorted(set(requirement.scopes) - set(policy.scopes)))
+    if missing_scopes:
+        denials.append(CapabilityDenial(
+            code=DenialCode.MISSING_SCOPE,
+            operation_id=requirement.operation_id,
+            profile_name=context.profile_name,
+            reason="missing required scope grant(s)",
+            missing_scopes=missing_scopes,
+        ))
+
+    for path in requirement.paths:
+        grants = getattr(policy.remote_roots, path.grant)
+        if not _declared_roots_cover(grants, path.path):
+            denials.append(CapabilityDenial(
+                code=DenialCode.MISSING_PATH_GRANT,
+                operation_id=requirement.operation_id,
+                profile_name=context.profile_name,
+                reason=f"no declared {path.grant} root covers the selected path",
+                path_grant=path.grant,
+                path_selector=path.selector,
+            ))
+
+    for feature in sorted(set(requirement.site_features) - context.site_features):
+        denials.append(CapabilityDenial(
+            code=DenialCode.SITE_FUNCTION_UNAVAILABLE,
+            operation_id=requirement.operation_id,
+            profile_name=context.profile_name,
+            reason=f"profile does not provide site functionality: {feature}",
+            site_feature=feature,
+        ))
+
+    return AuthorizationDecision(
+        operation_id=requirement.operation_id,
+        profile_name=context.profile_name,
+        denials=tuple(denials),
+    )
+
+
+def unknown_operation_decision(
+    operation_id: str,
+    *,
+    profile_name: str | None,
+) -> AuthorizationDecision:
+    return AuthorizationDecision(
+        operation_id=operation_id,
+        profile_name=profile_name,
+        denials=(CapabilityDenial(
+            code=DenialCode.UNKNOWN_OPERATION,
+            operation_id=operation_id,
+            profile_name=profile_name,
+            reason="operation is not registered for capability authorization",
+        ),),
+    )
+
+
+def _declared_roots_cover(roots: tuple[str, ...], path: str | None) -> bool:
+    """Perform declaration-level matching only; WP4 revalidates remote paths."""
+    if not roots or path is None:
+        return False
+    if any(character in path for character in ("\0", "\n", "\r")):
+        return False
+    if any(character in _FORBIDDEN_ROOT_CHARACTERS for character in path):
+        return False
+    for root in roots:
+        if path == root:
+            return True
+        prefix = f"{root}/"
+        if not path.startswith(prefix):
+            continue
+        suffix = path[len(prefix):]
+        if "$" in suffix or "~" in suffix:
+            continue
+        if suffix and not any(part in {"", ".", ".."} for part in suffix.split("/")):
+            return True
+    return False
 
 
 def _parse_scopes(value: Any, *, profile: str) -> tuple[str, ...]:

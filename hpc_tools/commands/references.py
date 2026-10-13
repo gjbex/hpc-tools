@@ -22,21 +22,30 @@ def register(subparsers: Any, handlers: Any) -> None:
         "list",
         help="List installed shared reference sets",
     )
-    references_list_parser.set_defaults(handler=handlers.cmd_references_list)
+    references_list_parser.set_defaults(
+        handler=handlers.cmd_references_list,
+        operation_id="references.list",
+    )
 
     references_show_parser = references_subparsers.add_parser(
         "show",
         help="Show one shared reference set",
     )
     references_show_parser.add_argument("name", help="Reference set name")
-    references_show_parser.set_defaults(handler=handlers.cmd_references_show)
+    references_show_parser.set_defaults(
+        handler=handlers.cmd_references_show,
+        operation_id="references.show",
+    )
 
     references_validate_parser = references_subparsers.add_parser(
         "validate",
         help="Validate one shared reference set",
     )
     references_validate_parser.add_argument("name", help="Reference set name")
-    references_validate_parser.set_defaults(handler=handlers.cmd_references_validate)
+    references_validate_parser.set_defaults(
+        handler=handlers.cmd_references_validate,
+        operation_id="references.validate",
+    )
 
     references_create_parser = references_subparsers.add_parser(
         "create",
@@ -48,7 +57,10 @@ def register(subparsers: Any, handlers: Any) -> None:
         action="store_true",
         help="Overwrite the destination reference set if it already exists",
     )
-    references_create_parser.set_defaults(handler=handlers.cmd_references_create)
+    references_create_parser.set_defaults(
+        handler=handlers.cmd_references_create,
+        operation_id="references.create",
+    )
 
     references_export_parser = references_subparsers.add_parser(
         "export",
@@ -65,7 +77,10 @@ def register(subparsers: Any, handlers: Any) -> None:
         action="store_true",
         help="Overwrite the archive if it already exists",
     )
-    references_export_parser.set_defaults(handler=handlers.cmd_references_export)
+    references_export_parser.set_defaults(
+        handler=handlers.cmd_references_export,
+        operation_id="references.export",
+    )
 
     references_import_parser = references_subparsers.add_parser(
         "import",
@@ -77,20 +92,29 @@ def register(subparsers: Any, handlers: Any) -> None:
         action="store_true",
         help="Overwrite an existing installed reference set",
     )
-    references_import_parser.set_defaults(handler=handlers.cmd_references_import)
+    references_import_parser.set_defaults(
+        handler=handlers.cmd_references_import,
+        operation_id="references.import",
+    )
 
     references_attach_parser = references_subparsers.add_parser(
         "attach",
         help="Attach a shared reference set to the selected profile",
     )
     references_attach_parser.add_argument("name", help="Reference set name")
-    references_attach_parser.set_defaults(handler=handlers.cmd_references_attach)
+    references_attach_parser.set_defaults(
+        handler=handlers.cmd_references_attach,
+        operation_id="references.attach",
+    )
 
     references_detach_parser = references_subparsers.add_parser(
         "detach",
         help="Detach any shared reference set from the selected profile",
     )
-    references_detach_parser.set_defaults(handler=handlers.cmd_references_detach)
+    references_detach_parser.set_defaults(
+        handler=handlers.cmd_references_detach,
+        operation_id="references.detach",
+    )
 
 def cmd_references_list(args: argparse.Namespace, profile: Profile | None) -> int:
     del args, profile

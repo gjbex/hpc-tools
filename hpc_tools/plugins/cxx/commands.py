@@ -36,7 +36,7 @@ class CxxSupportPlugin:
         )
         scan_parser.add_argument("target", type=Path, help="C/C++ project directory or build/source file")
         scan_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        scan_parser.set_defaults(handler=cmd_cxx_scan)
+        scan_parser.set_defaults(handler=cmd_cxx_scan, operation_id="cxx.scan")
 
         fetch_parser = cxx_subparsers.add_parser(
             "fetchcontent",
@@ -56,7 +56,10 @@ class CxxSupportPlugin:
             action="store_true",
             help="Generate the fetch option with default OFF instead of ON",
         )
-        fetch_parser.set_defaults(handler=cmd_cxx_fetchcontent)
+        fetch_parser.set_defaults(
+            handler=cmd_cxx_fetchcontent,
+            operation_id="cxx.fetchcontent",
+        )
 
     def requires_profile(self, argv: list[str]) -> bool:
         del argv

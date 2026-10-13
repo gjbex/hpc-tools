@@ -151,10 +151,10 @@ omitting them grants nothing.
 
 !!! warning
 
-    The typed policy and strict configuration loading are implemented. CLI
-    command hiding/denial and MCP discovery filtering are delivered by later
-    capability work packages; do not treat the current runtime as an
-    enforcement boundary yet.
+    The typed policy, strict configuration loading, shared operation registry,
+    and pure evaluator are implemented. CLI command hiding/denial and MCP
+    discovery filtering are delivered by later capability work packages; do
+    not treat the current runtime as an enforcement boundary yet.
 
 The recognized independent scopes are `accounting.read`, `config.read.raw`,
 `delegation-ledger.read`, `job.validate`, `local-state.write`,

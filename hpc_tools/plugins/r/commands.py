@@ -42,7 +42,7 @@ class RSupportPlugin:
         )
         scan_parser.add_argument("target", type=Path, help="R script path or project directory")
         scan_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        scan_parser.set_defaults(handler=cmd_r_scan)
+        scan_parser.set_defaults(handler=cmd_r_scan, operation_id="r.scan")
 
         check_parser = r_subparsers.add_parser(
             "check",
@@ -51,7 +51,7 @@ class RSupportPlugin:
         _add_target_and_package_args(check_parser)
         _add_module_args(check_parser)
         check_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        check_parser.set_defaults(handler=cmd_r_check)
+        check_parser.set_defaults(handler=cmd_r_check, operation_id="r.check")
 
         plan_parser = r_subparsers.add_parser(
             "plan-install",
@@ -93,7 +93,10 @@ class RSupportPlugin:
             help="Additional repository entry added to the repos vector, for example INLA=https://...",
         )
         plan_parser.add_argument("--force", action="store_true", help="Overwrite the output script if it exists")
-        plan_parser.set_defaults(handler=cmd_r_plan_install)
+        plan_parser.set_defaults(
+            handler=cmd_r_plan_install,
+            operation_id="r.plan-install",
+        )
 
         submit_parser = r_subparsers.add_parser(
             "submit-install",
@@ -122,7 +125,10 @@ class RSupportPlugin:
             action="store_true",
             help="Skip sbatch --test-only before submitting",
         )
-        submit_parser.set_defaults(handler=cmd_r_submit_install)
+        submit_parser.set_defaults(
+            handler=cmd_r_submit_install,
+            operation_id="r.submit-install",
+        )
 
         verify_parser = r_subparsers.add_parser(
             "verify-install",
@@ -141,7 +147,10 @@ class RSupportPlugin:
             help="Optional substring that must appear in the recorded .libPaths() block",
         )
         verify_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        verify_parser.set_defaults(handler=cmd_r_verify_install)
+        verify_parser.set_defaults(
+            handler=cmd_r_verify_install,
+            operation_id="r.verify-install",
+        )
 
     def requires_profile(self, argv: list[str]) -> bool:
         if not argv:

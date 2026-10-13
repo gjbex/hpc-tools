@@ -40,7 +40,10 @@ def register_probes(subparsers: Any, handlers: Any) -> None:
         help="Overwrite output path if it already exists",
     )
     handlers.add_probe_directive_options(generic_probe_parser)
-    generic_probe_parser.set_defaults(handler=handlers.cmd_write_probe)
+    generic_probe_parser.set_defaults(
+        handler=handlers.cmd_write_probe,
+        operation_id="probe.write",
+    )
 
     probe_parser = subparsers.add_parser(
         "write-hardware-probe",
@@ -58,7 +61,10 @@ def register_probes(subparsers: Any, handlers: Any) -> None:
         help="Overwrite output path if it already exists",
     )
     handlers.add_probe_directive_options(probe_parser)
-    probe_parser.set_defaults(handler=handlers.cmd_write_hardware_probe)
+    probe_parser.set_defaults(
+        handler=handlers.cmd_write_hardware_probe,
+        operation_id="probe.write",
+    )
 
     generic_install_probe_parser = subparsers.add_parser(
         "install-probe",
@@ -86,7 +92,10 @@ def register_probes(subparsers: Any, handlers: Any) -> None:
         help="Overwrite remote files if they already exist",
     )
     handlers.add_probe_directive_options(generic_install_probe_parser)
-    generic_install_probe_parser.set_defaults(handler=handlers.cmd_install_probe)
+    generic_install_probe_parser.set_defaults(
+        handler=handlers.cmd_install_probe,
+        operation_id="probe.install",
+    )
 
     install_probe_parser = subparsers.add_parser(
         "install-hardware-probe",
@@ -109,7 +118,10 @@ def register_probes(subparsers: Any, handlers: Any) -> None:
         help="Overwrite remote script if it already exists",
     )
     handlers.add_probe_directive_options(install_probe_parser)
-    install_probe_parser.set_defaults(handler=handlers.cmd_install_hardware_probe)
+    install_probe_parser.set_defaults(
+        handler=handlers.cmd_install_hardware_probe,
+        operation_id="probe.install",
+    )
 
 
 def register_containers(subparsers: Any, handlers: Any) -> None:
@@ -136,7 +148,10 @@ def register_containers(subparsers: Any, handlers: Any) -> None:
         action="store_true",
         help="Overwrite output path if it already exists",
     )
-    container_parser.set_defaults(handler=handlers.cmd_write_container)
+    container_parser.set_defaults(
+        handler=handlers.cmd_write_container,
+        operation_id="container.write",
+    )
 
     install_container_parser = subparsers.add_parser(
         "install-container",
@@ -163,7 +178,10 @@ def register_containers(subparsers: Any, handlers: Any) -> None:
         action="store_true",
         help="Overwrite remote files if they already exist",
     )
-    install_container_parser.set_defaults(handler=handlers.cmd_install_container)
+    install_container_parser.set_defaults(
+        handler=handlers.cmd_install_container,
+        operation_id="container.install",
+    )
 
 def _add_probe_directive_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--account", help="Add #SBATCH --account=<account>")

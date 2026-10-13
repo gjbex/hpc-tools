@@ -51,7 +51,7 @@ class PythonSupportPlugin:
         )
         scan_parser.add_argument("target", type=Path, help="Python script path or project directory")
         scan_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        scan_parser.set_defaults(handler=cmd_python_scan)
+        scan_parser.set_defaults(handler=cmd_python_scan, operation_id="python.scan")
 
         inspect_parser = py_subparsers.add_parser(
             "inspect-deps",
@@ -59,7 +59,10 @@ class PythonSupportPlugin:
         )
         inspect_parser.add_argument("target", type=Path, help="Python project directory or file")
         inspect_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        inspect_parser.set_defaults(handler=cmd_python_inspect_deps)
+        inspect_parser.set_defaults(
+            handler=cmd_python_inspect_deps,
+            operation_id="python.inspect-deps",
+        )
 
         check_parser = py_subparsers.add_parser(
             "check",
@@ -68,7 +71,7 @@ class PythonSupportPlugin:
         _add_target_and_package_args(check_parser)
         _add_module_args(check_parser)
         check_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        check_parser.set_defaults(handler=cmd_python_check)
+        check_parser.set_defaults(handler=cmd_python_check, operation_id="python.check")
 
         plan_parser = py_subparsers.add_parser(
             "plan-install",
@@ -102,7 +105,10 @@ class PythonSupportPlugin:
             help="Upgrade pip in the venv before installing missing packages",
         )
         plan_parser.add_argument("--force", action="store_true", help="Overwrite the output script if it exists")
-        plan_parser.set_defaults(handler=cmd_python_plan_install)
+        plan_parser.set_defaults(
+            handler=cmd_python_plan_install,
+            operation_id="python.plan-install",
+        )
 
         submit_parser = py_subparsers.add_parser(
             "submit-install",
@@ -124,7 +130,10 @@ class PythonSupportPlugin:
             action="store_true",
             help="Skip sbatch --test-only before submitting",
         )
-        submit_parser.set_defaults(handler=cmd_python_submit_install)
+        submit_parser.set_defaults(
+            handler=cmd_python_submit_install,
+            operation_id="python.submit-install",
+        )
 
         verify_parser = py_subparsers.add_parser(
             "verify-install",
@@ -143,7 +152,10 @@ class PythonSupportPlugin:
             help="Optional substring that must appear in the recorded Python executable path",
         )
         verify_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        verify_parser.set_defaults(handler=cmd_python_verify_install)
+        verify_parser.set_defaults(
+            handler=cmd_python_verify_install,
+            operation_id="python.verify-install",
+        )
 
     def requires_profile(self, argv: list[str]) -> bool:
         if not argv:
