@@ -1,0 +1,1782 @@
+{
+  "format_version": 1,
+  "purpose": "WP1 characterization and proposed registry input; not runtime authorization.",
+  "effects_are": "Union of possible current effects, including conditional initialization, preview, and delegated branches; modes and notes qualify them.",
+  "operations": [
+    {
+      "id": "paths.show",
+      "cli": [
+        "paths"
+      ],
+      "mcp": [
+        "hpc_paths"
+      ],
+      "resources": [
+        "hpc://paths"
+      ],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "plugins.list",
+      "cli": [
+        "plugins list"
+      ],
+      "mcp": [
+        "hpc_plugins_list"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "local-execute"
+      ],
+      "selectors": [],
+      "notes": "Loads bundled and external Python entry points; metadata is not a sandbox for installed plugin code.",
+      "modes": []
+    },
+    {
+      "id": "plugins.info",
+      "cli": [
+        "plugins info"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "local-execute"
+      ],
+      "selectors": [
+        "name"
+      ],
+      "notes": "Plugin loading has the same trust boundary as plugins.list.",
+      "modes": []
+    },
+    {
+      "id": "profiles.list",
+      "cli": [],
+      "mcp": [
+        "hpc_profiles_list"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "config"
+      ],
+      "notes": "Currently enumerates all profiles and connection metadata; proposed bound-context projection is future work.",
+      "modes": []
+    },
+    {
+      "id": "profiles.show",
+      "cli": [],
+      "mcp": [
+        "hpc_profile_show"
+      ],
+      "resources": [
+        "hpc://profiles/{profile}"
+      ],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "config.read.raw"
+      ],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "profile",
+        "config"
+      ],
+      "notes": "Current asdict serialization exposes the whole resolved profile, including configured command strings; a safe C0 projection does not yet exist.",
+      "modes": []
+    },
+    {
+      "id": "config.read",
+      "cli": [],
+      "mcp": [],
+      "resources": [
+        "hpc://config"
+      ],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "config.read.raw"
+      ],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "active config"
+      ],
+      "notes": "Returns the entire TOML file, not a selected-profile projection.",
+      "modes": []
+    },
+    {
+      "id": "references.list",
+      "cli": [
+        "references list"
+      ],
+      "mcp": [
+        "hpc_references_list"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "references.show",
+      "cli": [
+        "references show"
+      ],
+      "mcp": [
+        "hpc_references_show"
+      ],
+      "resources": [
+        "hpc://reference-sets/{name}"
+      ],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "name"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "references.validate",
+      "cli": [
+        "references validate"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "name"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "references.create",
+      "cli": [
+        "references create"
+      ],
+      "mcp": [
+        "hpc_references_create"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "name",
+        "reference files"
+      ],
+      "notes": "Copies installed notes and optional probe report, not live discovery; force replaces a destination set.",
+      "modes": []
+    },
+    {
+      "id": "references.export",
+      "cli": [
+        "references export"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "name",
+        "output"
+      ],
+      "notes": "Writes a tar.gz archive; force permits replacement.",
+      "modes": []
+    },
+    {
+      "id": "references.import",
+      "cli": [
+        "references import"
+      ],
+      "mcp": [
+        "hpc_references_import"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "archive",
+        "reference-set destination"
+      ],
+      "notes": "Archive extraction and optional replacement are mutations; no profile is required by the current CLI.",
+      "modes": []
+    },
+    {
+      "id": "references.attach",
+      "cli": [
+        "references attach"
+      ],
+      "mcp": [
+        "hpc_references_attach"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "name"
+      ],
+      "notes": "Edits the selected profile's reference_set field.",
+      "modes": []
+    },
+    {
+      "id": "references.detach",
+      "cli": [
+        "references detach"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "agent.audit",
+      "cli": [
+        "agent audit"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "delegation-ledger.read"
+      ],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "ledger",
+        "database",
+        "delegation-id"
+      ],
+      "notes": "Protected local audit state; separate from an agent's intrinsic ledger bookkeeping.",
+      "modes": []
+    },
+    {
+      "id": "agent.export",
+      "cli": [
+        "agent export"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "delegation-ledger.read",
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "ledger",
+        "database",
+        "delegation-id",
+        "output"
+      ],
+      "notes": "Writes mode-0600 report; force permits replacement.",
+      "modes": []
+    },
+    {
+      "id": "cluster.doctor",
+      "cli": [
+        "doctor"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config"
+      ],
+      "notes": "Identity and availability checks, not job queries.",
+      "modes": []
+    },
+    {
+      "id": "cluster.status",
+      "cli": [
+        "status"
+      ],
+      "mcp": [
+        "hpc_status"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "accounting.read"
+      ],
+      "current_effects": [
+        "web-read",
+        "remote-read",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "status_url",
+        "submission database"
+      ],
+      "notes": "Compound status/quota/balance/submission report; dry_run still fetches HTTP and reads SQLite, whose initialization may write. Split before enforcement.",
+      "modes": []
+    },
+    {
+      "id": "cluster.site-env",
+      "cli": [
+        "site-env"
+      ],
+      "mcp": [
+        "hpc_site_env"
+      ],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config"
+      ],
+      "notes": "Configured login shell and module system remain trusted executable site configuration.",
+      "modes": []
+    },
+    {
+      "id": "references.context",
+      "cli": [
+        "hardware"
+      ],
+      "mcp": [
+        "hpc_hardware_context"
+      ],
+      "resources": [
+        "hpc://profiles/{profile}/hardware",
+        "hpc://profiles/{profile}/slurm",
+        "hpc://profiles/{profile}/storage",
+        "hpc://cluster/hardware",
+        "hpc://cluster/slurm",
+        "hpc://cluster/storage"
+      ],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "reference files"
+      ],
+      "notes": "CLI --source and --path return metadata; default renders installed references. Restricted URIs are bound to one profile.",
+      "modes": []
+    },
+    {
+      "id": "references.sources",
+      "cli": [],
+      "mcp": [
+        "hpc_hardware_sources"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "reference_set"
+      ],
+      "notes": "Returns paths/URLs without downloading them.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.inspect",
+      "cli": [
+        "storage inspect"
+      ],
+      "mcp": [
+        "hpc_storage_inspect"
+      ],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-filesystem.list"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "path"
+      ],
+      "notes": "Existing shell-based storage checks are not yet confined to roots.",
+      "modes": []
+    },
+    {
+      "id": "cluster.quota",
+      "cli": [
+        "quota"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "quota_command"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "cluster.modules",
+      "cli": [
+        "module-spider"
+      ],
+      "mcp": [
+        "hpc_module_spider"
+      ],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "name"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "cluster.limits",
+      "cli": [
+        "slurm-limits"
+      ],
+      "mcp": [
+        "hpc_slurm_limits"
+      ],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "cluster",
+        "partition",
+        "qos"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "filesystem.projects",
+      "cli": [
+        "projects"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-filesystem.list"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "projects_dir"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "repository.status",
+      "cli": [
+        "repo status"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-filesystem.list",
+        "remote-filesystem.read"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "directory"
+      ],
+      "notes": "Git reads repo metadata; audit optional Git/index writes before enforcing a passive contract.",
+      "modes": []
+    },
+    {
+      "id": "repository.clone",
+      "cli": [
+        "clone"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-workspace.write"
+      ],
+      "current_effects": [
+        "remote-read",
+        "remote-write",
+        "network-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "url",
+        "directory",
+        "name",
+        "branch"
+      ],
+      "notes": "Local/file source additionally requires source-read authority; no root enforcement exists yet.",
+      "modes": []
+    },
+    {
+      "id": "remote.shell",
+      "cli": [
+        "run"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "operator",
+      "proposed_scopes": [
+        "remote-shell.execute"
+      ],
+      "current_effects": [
+        "remote-execute"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "remote_command"
+      ],
+      "notes": "Arbitrary shell outside cumulative levels; must remain absent from MCP.",
+      "modes": []
+    },
+    {
+      "id": "probe.write",
+      "cli": [
+        "write-probe",
+        "write-hardware-probe"
+      ],
+      "mcp": [
+        "hpc_write_probe"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "kind",
+        "output",
+        "force"
+      ],
+      "notes": "The current hardware-specific alias and generic kinds share effects; WP3 may remove the alias rather than preserve it. Optional notification/profile fields can force config loading.",
+      "modes": [
+        {
+          "name": "stdout",
+          "when": "kind=hardware and output='-'",
+          "level": "C0",
+          "scopes": [],
+          "effects": [
+            "local-read"
+          ]
+        },
+        {
+          "name": "file-or-bundle",
+          "when": "output is a path",
+          "level": "C0",
+          "scopes": [
+            "local-state.write"
+          ],
+          "effects": [
+            "local-read",
+            "local-write"
+          ]
+        },
+        {
+          "name": "mcp-preview",
+          "when": "confirm=false",
+          "level": "C0",
+          "scopes": [],
+          "effects": [
+            "local-read"
+          ],
+          "note": "Preview contains rendered script/bundle; confirm=true requires a path."
+        }
+      ]
+    },
+    {
+      "id": "probe.install",
+      "cli": [
+        "install-probe",
+        "install-hardware-probe"
+      ],
+      "mcp": [
+        "hpc_install_probe"
+      ],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-install.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "kind",
+        "directory",
+        "name",
+        "force"
+      ],
+      "notes": "Hardware/CUDA assets only; installation never submits their scripts. MCP execution needs confirm=true and dry_run=false.",
+      "modes": []
+    },
+    {
+      "id": "container.write",
+      "cli": [
+        "write-container"
+      ],
+      "mcp": [
+        "hpc_write_container"
+      ],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "kind",
+        "output",
+        "force"
+      ],
+      "notes": "Five packaged kinds; MCP confirm=false previews without writing.",
+      "modes": []
+    },
+    {
+      "id": "container.install",
+      "cli": [
+        "install-container"
+      ],
+      "mcp": [
+        "hpc_install_container"
+      ],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-install.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "kind",
+        "directory",
+        "force"
+      ],
+      "notes": "Installs build bundles, not executed builds.",
+      "modes": []
+    },
+    {
+      "id": "job.quote",
+      "cli": [
+        "quote"
+      ],
+      "mcp": [
+        "hpc_quote_job"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "job.validate",
+        "accounting.read"
+      ],
+      "current_effects": [
+        "remote-read",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "account",
+        "jobscript",
+        "directory",
+        "resource shape",
+        "container",
+        "idempotency_key"
+      ],
+      "notes": "CLI forwards sam-quote arguments; MCP fixes a resource shape. Delegated non-dry-run preparation stages temporary private artifacts and cleans up; general write scope is not implied.",
+      "modes": []
+    },
+    {
+      "id": "account.balance",
+      "cli": [
+        "balance"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "accounting.read"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "sam_balance_command"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "account.statement",
+      "cli": [
+        "statement"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "accounting.read"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "account",
+        "start",
+        "end"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "job.submit",
+      "cli": [
+        "submit"
+      ],
+      "mcp": [
+        "hpc_submit_job"
+      ],
+      "resources": [],
+      "proposed_level": "C3",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-execute",
+        "scheduler-write",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobscript",
+        "directory",
+        "resource shape",
+        "database",
+        "quote_evidence",
+        "validation_evidence"
+      ],
+      "notes": "The current CLI actual-submit path does not mandate quote/account/validation, while MCP requires matching evidence. Later packages may unify these interface contracts; intrinsic submission logging cannot be disabled by independent record-write grants.",
+      "modes": [
+        {
+          "name": "test-only",
+          "when": "CLI --test-only",
+          "level": "C2",
+          "scopes": [
+            "job.validate"
+          ],
+          "effects": [
+            "remote-read"
+          ],
+          "note": "--test-only wins over --validate-first."
+        },
+        {
+          "name": "validate-first",
+          "when": "CLI --validate-first without --test-only",
+          "level": "C3",
+          "scopes": [
+            "job.validate"
+          ],
+          "effects": [
+            "remote-read",
+            "scheduler-write",
+            "local-write"
+          ]
+        },
+        {
+          "name": "actual",
+          "when": "CLI without --test-only",
+          "level": "C3",
+          "scopes": [],
+          "effects": [
+            "scheduler-write",
+            "local-write"
+          ]
+        },
+        {
+          "name": "mcp-submit",
+          "when": "MCP confirm=true and dry_run=false, or delegated authorization",
+          "level": "C3",
+          "scopes": [
+            "job.validate",
+            "accounting.read"
+          ],
+          "effects": [
+            "scheduler-write",
+            "local-write"
+          ],
+          "note": "Evidence/confirmation/manifest checks are additional requirements, not capability grants."
+        }
+      ]
+    },
+    {
+      "id": "job.validate",
+      "cli": [],
+      "mcp": [
+        "hpc_validate_job"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "job.validate"
+      ],
+      "current_effects": [
+        "remote-read",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobscript",
+        "directory",
+        "resource shape",
+        "container",
+        "idempotency_key"
+      ],
+      "notes": "Delegated non-dry-run validation stages temporary private artifacts; scheduler test-only does not submit.",
+      "modes": []
+    },
+    {
+      "id": "job.list",
+      "cli": [
+        "jobs"
+      ],
+      "mcp": [
+        "hpc_jobs"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "cluster",
+        "delegation ledger"
+      ],
+      "notes": "Full mode queries current user's queue; delegation uses only owned jobs and may reconcile ledger state.",
+      "modes": []
+    },
+    {
+      "id": "job.show",
+      "cli": [
+        "job"
+      ],
+      "mcp": [
+        "hpc_job"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read",
+        "local-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobid",
+        "cluster",
+        "delegation ledger"
+      ],
+      "notes": "Delegated ownership check applies.",
+      "modes": []
+    },
+    {
+      "id": "job.cancel",
+      "cli": [
+        "cancel"
+      ],
+      "mcp": [
+        "hpc_cancel_job"
+      ],
+      "resources": [],
+      "proposed_level": "C3",
+      "proposed_scopes": [],
+      "current_effects": [
+        "scheduler-write",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobid",
+        "cluster",
+        "database",
+        "reason",
+        "idempotency_key"
+      ],
+      "notes": "CLI cancellation logs matching records; MCP full requires confirmation, delegated mode ownership/idempotency.",
+      "modes": []
+    },
+    {
+      "id": "job.queue",
+      "cli": [
+        "queue"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "queue_command"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "job.accounting",
+      "cli": [
+        "sacct"
+      ],
+      "mcp": [
+        "hpc_job_accounting"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [],
+      "current_effects": [
+        "remote-read",
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobid",
+        "cluster",
+        "delegation ledger"
+      ],
+      "notes": "Delegated terminal-state reconciliation writes ledger state.",
+      "modes": []
+    },
+    {
+      "id": "submissions.list",
+      "cli": [
+        "submissions list"
+      ],
+      "mcp": [
+        "hpc_submissions_list"
+      ],
+      "resources": [
+        "hpc://submissions/active",
+        "hpc://submissions/all"
+      ],
+      "proposed_level": "C2",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "database",
+        "all"
+      ],
+      "notes": "Currently cross-profile; existing SQLite reads may initialize schema or change journal mode. Missing database reads do not create it.",
+      "modes": []
+    },
+    {
+      "id": "submissions.observe",
+      "cli": [
+        "submissions observe"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "submission-record.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-read",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "database",
+        "run_id"
+      ],
+      "notes": "Already filters observed records by selected profile; appends accounting events.",
+      "modes": []
+    },
+    {
+      "id": "submissions.mark-collected",
+      "cli": [
+        "submissions mark-collected"
+      ],
+      "mcp": [
+        "hpc_submissions_mark_collected"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "submission-record.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "database",
+        "run_id",
+        "path"
+      ],
+      "notes": "Path is recorded as metadata, not traversed/read.",
+      "modes": []
+    },
+    {
+      "id": "submissions.mark-analysed",
+      "cli": [
+        "submissions mark-analysed"
+      ],
+      "mcp": [
+        "hpc_submissions_mark_analysed"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "submission-record.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "database",
+        "run_id",
+        "path"
+      ],
+      "notes": "Path is recorded as metadata, not traversed/read.",
+      "modes": []
+    },
+    {
+      "id": "submissions.close",
+      "cli": [
+        "submissions close"
+      ],
+      "mcp": [
+        "hpc_submissions_close"
+      ],
+      "resources": [],
+      "proposed_level": "C2",
+      "proposed_scopes": [
+        "submission-record.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "database",
+        "run_id",
+        "reason"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "benchmark.summarize",
+      "cli": [
+        "benchmark summarize"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "targets"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "benchmark.compare",
+      "cli": [
+        "benchmark compare"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "baseline",
+        "candidate",
+        "candidate_threads"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "cxx.scan",
+      "cli": [
+        "cxx scan"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "target"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "cxx.fetchcontent",
+      "cli": [
+        "cxx fetchcontent"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "package"
+      ],
+      "notes": "Prints a CMake snippet to stdout; does not fetch a dependency.",
+      "modes": []
+    },
+    {
+      "id": "python.scan",
+      "cli": [
+        "python scan"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "target"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "python.inspect-deps",
+      "cli": [
+        "python inspect-deps"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "target"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "python.check",
+      "cli": [
+        "python check"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "remote-execute"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "target",
+        "packages",
+        "modules"
+      ],
+      "notes": "Classification requires effect audit: site module initialization and Python dotted find_spec/R requireNamespace can execute code. Do not expose as a guaranteed passive read.",
+      "modes": []
+    },
+    {
+      "id": "python.plan-install",
+      "cli": [
+        "python plan-install"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-execute",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "target",
+        "packages",
+        "modules",
+        "output",
+        "venv/library root"
+      ],
+      "notes": "Checks packages remotely before generating a local script. dry_run suppresses remote execution but may still write a local script; no job is submitted.",
+      "modes": []
+    },
+    {
+      "id": "python.submit-install",
+      "cli": [
+        "python submit-install"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C3",
+      "proposed_scopes": [
+        "remote-workspace.write",
+        "job.validate",
+        "accounting.read"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-write",
+        "remote-read",
+        "scheduler-write",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobscript",
+        "directory",
+        "remote_name",
+        "account",
+        "resource shape"
+      ],
+      "notes": "Composite staging -> optional quote -> optional validation -> submit -> log; skip flags do not make this a lower-level operation.",
+      "modes": [
+        {
+          "name": "skip-quote",
+          "when": "--skip-quote or quote helper unconfigured",
+          "level": "C3",
+          "scopes": [
+            "remote-workspace.write",
+            "job.validate"
+          ],
+          "effects": [
+            "remote-write",
+            "remote-read",
+            "scheduler-write",
+            "local-write"
+          ]
+        },
+        {
+          "name": "skip-validation",
+          "when": "--no-validate-first",
+          "level": "C3",
+          "scopes": [
+            "remote-workspace.write",
+            "accounting.read"
+          ],
+          "effects": [
+            "remote-write",
+            "remote-read",
+            "scheduler-write",
+            "local-write"
+          ]
+        },
+        {
+          "name": "skip-both",
+          "when": "--skip-quote and --no-validate-first",
+          "level": "C3",
+          "scopes": [
+            "remote-workspace.write"
+          ],
+          "effects": [
+            "remote-write",
+            "scheduler-write",
+            "local-write"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "python.verify-install",
+      "cli": [
+        "python verify-install"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-filesystem.read"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "job_output",
+        "packages"
+      ],
+      "notes": "Reads a log file via cat; no Slurm query, job-status observation, or package execution.",
+      "modes": []
+    },
+    {
+      "id": "r.scan",
+      "cli": [
+        "r scan"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "target"
+      ],
+      "notes": "",
+      "modes": []
+    },
+    {
+      "id": "r.check",
+      "cli": [
+        "r check"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "remote-execute"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "target",
+        "packages",
+        "modules"
+      ],
+      "notes": "Classification requires effect audit: site module initialization and Python dotted find_spec/R requireNamespace can execute code. Do not expose as a guaranteed passive read.",
+      "modes": []
+    },
+    {
+      "id": "r.plan-install",
+      "cli": [
+        "r plan-install"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "local-state.write"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-execute",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "target",
+        "packages",
+        "modules",
+        "output",
+        "venv/library root"
+      ],
+      "notes": "Checks packages remotely before generating a local script. dry_run suppresses remote execution but may still write a local script; no job is submitted.",
+      "modes": []
+    },
+    {
+      "id": "r.submit-install",
+      "cli": [
+        "r submit-install"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C3",
+      "proposed_scopes": [
+        "remote-workspace.write",
+        "job.validate",
+        "accounting.read"
+      ],
+      "current_effects": [
+        "local-read",
+        "remote-write",
+        "remote-read",
+        "scheduler-write",
+        "local-write"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "jobscript",
+        "directory",
+        "remote_name",
+        "account",
+        "resource shape"
+      ],
+      "notes": "Composite staging -> optional quote -> optional validation -> submit -> log; skip flags do not make this a lower-level operation.",
+      "modes": [
+        {
+          "name": "skip-quote",
+          "when": "--skip-quote or quote helper unconfigured",
+          "level": "C3",
+          "scopes": [
+            "remote-workspace.write",
+            "job.validate"
+          ],
+          "effects": [
+            "remote-write",
+            "remote-read",
+            "scheduler-write",
+            "local-write"
+          ]
+        },
+        {
+          "name": "skip-validation",
+          "when": "--no-validate-first",
+          "level": "C3",
+          "scopes": [
+            "remote-workspace.write",
+            "accounting.read"
+          ],
+          "effects": [
+            "remote-write",
+            "remote-read",
+            "scheduler-write",
+            "local-write"
+          ]
+        },
+        {
+          "name": "skip-both",
+          "when": "--skip-quote and --no-validate-first",
+          "level": "C3",
+          "scopes": [
+            "remote-workspace.write"
+          ],
+          "effects": [
+            "remote-write",
+            "scheduler-write",
+            "local-write"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "r.verify-install",
+      "cli": [
+        "r verify-install"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": [
+        "remote-filesystem.read"
+      ],
+      "current_effects": [
+        "remote-read"
+      ],
+      "selectors": [
+        "profile",
+        "config",
+        "job_output",
+        "packages"
+      ],
+      "notes": "Reads a log file via cat; no Slurm query, job-status observation, or package execution.",
+      "modes": []
+    },
+    {
+      "id": "delegation.runtime",
+      "cli": [],
+      "mcp": [],
+      "resources": [
+        "hpc://runtime"
+      ],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read",
+        "local-write"
+      ],
+      "selectors": [
+        "bound profile",
+        "delegation manifest",
+        "ledger"
+      ],
+      "notes": "Public restricted runtime summary only; intrinsic ledger access is not a general protected-ledger grant. Audit SQLite initialization effects.",
+      "modes": []
+    }
+  ],
+  "consoles": [
+    {
+      "id": "console.hpc",
+      "name": "hpc",
+      "entry": "hpc_tools.cli:main",
+      "proposed_level": "dispatch",
+      "current_effects": [
+        "dispatch"
+      ],
+      "selectors": [
+        "argv"
+      ],
+      "notes": "CLI operations above classify its leaves."
+    },
+    {
+      "id": "console.mcp",
+      "name": "hpc-mcp",
+      "entry": "hpc_tools.mcp_server:main",
+      "proposed_level": "dispatch",
+      "current_effects": [
+        "local-read",
+        "local-write",
+        "protocol-serve"
+      ],
+      "selectors": [
+        "preset",
+        "profile",
+        "executor",
+        "delegation",
+        "ledger"
+      ],
+      "notes": "Full startup can register without config; delegated startup loads protected state. Tools/resources carry their own classification."
+    },
+    {
+      "id": "console.bridge",
+      "name": "hpc-mcp-bridge",
+      "entry": "hpc_tools.mcp_bridge:main",
+      "proposed_level": "operator",
+      "current_effects": [
+        "local-write",
+        "local-execute",
+        "protocol-relay"
+      ],
+      "selectors": [
+        "operation=serve/connect",
+        "socket",
+        "command"
+      ],
+      "notes": "Host transport; serve launches its configured arbitrary local command after a peer connects, and creates/removes a private socket."
+    },
+    {
+      "id": "console.relay",
+      "name": "hpc-mcp-relay",
+      "entry": "hpc_tools.mcp_bridge:relay_main",
+      "proposed_level": "transport",
+      "current_effects": [
+        "protocol-relay"
+      ],
+      "selectors": [
+        "socket"
+      ],
+      "notes": "Fixed connect relay; no new independent scheduler authority."
+    },
+    {
+      "id": "console.agent-launch",
+      "name": "hpc-agent-launch",
+      "entry": "hpc_tools.restricted_launch:main",
+      "proposed_level": "C3",
+      "current_effects": [
+        "local-read",
+        "local-write",
+        "local-execute",
+        "scheduler-write"
+      ],
+      "selectors": [
+        "manifest",
+        "ledger",
+        "profile",
+        "agent-image",
+        "runtime-directory",
+        "agent-env-file",
+        "prompt-file",
+        "agent_command"
+      ],
+      "notes": "Host controller starts bridge/container, registers cleanup job, and can request parent requeue. Dry-run validates/builds plans without granting authority."
+    },
+    {
+      "id": "console.agent-reap",
+      "name": "hpc-agent-reap",
+      "entry": "hpc_tools.agent_cleanup:main",
+      "proposed_level": "C3",
+      "current_effects": [
+        "local-read",
+        "local-write",
+        "remote-read",
+        "scheduler-write"
+      ],
+      "selectors": [
+        "manifest",
+        "ledger",
+        "profile",
+        "parent-job-id",
+        "SLURM_JOB_ID",
+        "retries"
+      ],
+      "notes": "Host cleanup job observes parent/owned jobs and cancels only ledger-owned jobs under captured lifecycle policy."
+    }
+  ]
+}
