@@ -97,6 +97,10 @@ class CliCoreTests(unittest.TestCase):
 
                     [profiles.local]
                     login_shell = ["bash", "-l", "-c"]
+
+                    [profiles.local.capabilities]
+                    version = 1
+                    max_level = "cluster-discovery"
                     """
                 ),
                 encoding="utf-8",

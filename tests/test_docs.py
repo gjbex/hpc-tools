@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import re
+import tempfile
+
+from hpc_tools.config import load_config
 from test_skill_fixtures import *
 
 
@@ -15,8 +19,27 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("## Submission-database format", reference)
         self.assertIn("## Reference-set manifest format", reference)
         self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", reference)
-        self.assertIn("Unknown TOML keys are currently ignored", reference)
+        self.assertIn("Unknown keys within `capabilities`", reference)
         self.assertIn("spacing or headings as a stable machine API", reference)
+
+    def test_documented_profile_toml_uses_the_accepted_capability_schema(self) -> None:
+        documents = [README, ROOT / "capabilities.md", *(ROOT / "docs").glob("*.md")]
+        checked = 0
+        for document in documents:
+            text = document.read_text(encoding="utf-8")
+            for index, block in enumerate(
+                re.findall(r"```toml\n(.*?)\n```", text, flags=re.DOTALL),
+                start=1,
+            ):
+                if not re.search(r"^\s*\[profiles\.", block, flags=re.MULTILINE):
+                    continue
+                with self.subTest(document=document.name, block=index):
+                    with tempfile.TemporaryDirectory() as directory:
+                        path = Path(directory) / "config.toml"
+                        path.write_text(block, encoding="utf-8")
+                        load_config(str(path))
+                checked += 1
+        self.assertGreaterEqual(checked, 15)
 
         project_information = (ROOT / "docs" / "project-information.md").read_text(encoding="utf-8")
         self.assertIn("## Current limitations and deliberate non-features", project_information)

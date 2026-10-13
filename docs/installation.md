@@ -269,10 +269,10 @@ can still be present even when the optional server cannot start.
 
 ### A command documented for another profile is absent
 
-Some commands are capability-driven. For example, site-specific quota, queue,
+Some commands are currently site-feature-driven. For example, site-specific quota, queue,
 balance, statement, quote, hardware, or status commands depend on corresponding
-profile fields. This is a configuration issue, not necessarily an installation
-failure.
+profile fields. This is separate from the mandatory capability policy and is a
+configuration issue, not necessarily an installation failure.
 
 For SSH, Slurm, package, probe, submission-database, Codex, and MCP failures,
 continue with the full [Troubleshooting](troubleshooting.md) guide.

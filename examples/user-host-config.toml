@@ -20,3 +20,25 @@ storage_url = "https://docs.vscentrum.be/leuven/tier2_hardware/storage.html"
 status_url = "https://status.vscentrum.be/tier2_leuven.html"
 default_cluster = "wice"
 email = "user@example.org"
+
+[profiles.some-cluster.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = [
+    "accounting.read",
+    "job.validate",
+    "local-state.write",
+    "remote-filesystem.list",
+    "remote-filesystem.read",
+    "remote-install.write",
+    "remote-workspace.delete",
+    "remote-workspace.write",
+    "submission-record.write",
+]
+
+[profiles.some-cluster.capabilities.remote_roots]
+list = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+read = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+write = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+delete = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+install = ["$VSC_DATA/Projects"]

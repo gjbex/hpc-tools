@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import unittest
 
+from hpc_tools.capabilities import CAPABILITY_SCOPES
 from capability_snapshot import current_surface_snapshot, full_mcp_input_schemas
 
 
@@ -72,9 +73,17 @@ class CapabilityInventoryTests(unittest.TestCase):
             self.assertEqual(set(item), expected_fields, item["id"])
             self.assertTrue(item["cli"] or item["mcp"] or item["resources"], item["id"])
             self.assertTrue(item["current_effects"], item["id"])
+            self.assertTrue(
+                set(item["proposed_scopes"]).issubset(CAPABILITY_SCOPES),
+                item["id"],
+            )
             for mode in item["modes"]:
                 self.assertTrue(
                     {"name", "when", "level", "scopes", "effects"}.issubset(mode),
+                    (item["id"], mode),
+                )
+                self.assertTrue(
+                    set(mode["scopes"]).issubset(CAPABILITY_SCOPES),
                     (item["id"], mode),
                 )
 

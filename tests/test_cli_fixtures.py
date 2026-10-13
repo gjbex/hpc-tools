@@ -10,6 +10,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from hpc_tools.capabilities import (
+    CAPABILITY_SCOPES,
+    POLICY_VERSION,
+    CapabilityLevel,
+    CapabilityPolicy,
+    RemoteRootGrants,
+)
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
     _doctor_command,
@@ -51,6 +58,14 @@ from hpc_tools.plugins import benchmark_support
 from hpc_tools.hardware import render_hardware_context
 from hpc_tools.ssh import build_ssh_argv
 from hpc_tools import slurm
+
+
+TEST_CAPABILITY_POLICY = CapabilityPolicy(
+    version=POLICY_VERSION,
+    max_level=CapabilityLevel.JOB_LIFECYCLE,
+    scopes=CAPABILITY_SCOPES,
+    remote_roots=RemoteRootGrants(),
+)
 
 
 
@@ -104,6 +119,7 @@ def make_profile(
         reference_set=reference_set,
         default_cluster="wice",
         email=email,
+        capabilities=TEST_CAPABILITY_POLICY,
     )
 
 

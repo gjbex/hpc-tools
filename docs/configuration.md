@@ -1,6 +1,6 @@
 # Configuring cluster profiles
 
-A profile tells `hpc` which cluster context and site-specific capabilities to
+A profile tells `hpc` which cluster context and site-specific helpers to
 use. The selected executor determines whether commands reach that context over
 SSH or run directly on the current host. A profile may also point to durable
 notes about the cluster. It does **not** store SSH credentials, Slurm
@@ -41,6 +41,10 @@ default_profile = "example"
 
 [profiles.example]
 ssh_target = "example-login"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 The corresponding SSH configuration might contain the host name, user name,
@@ -68,6 +72,10 @@ default_profile = "example"
 [profiles.example]
 host = "login.example.edu"
 user = "researcher"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Use either `ssh_target` or `host`; do not set both. Authentication remains the
@@ -102,6 +110,10 @@ default_profile = "login-node"
 [profiles.login-node]
 login_shell = ["bash", "-l", "-c"]
 default_cluster = "compute"
+
+[profiles.login-node.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Be precise about what this selection means. It changes command transport only;
@@ -128,7 +140,35 @@ With multiple profiles and no default, `hpc` refuses to guess. That is
 intentional: silently using the wrong cluster can submit work under the wrong
 policy or account.
 
-## Add profile capabilities
+## Configure profile fields and capability policy
+
+Every profile requires a `[profiles.<name>.capabilities]` table with
+`version = 1` and one of these ordered `max_level` values:
+`profile-context`, `cluster-discovery`, `job-inspection`, or `job-lifecycle`.
+Missing, empty, unsupported-version, and otherwise invalid policy is a
+configuration error. `scopes` and every remote-root list default to empty, so
+omitting them grants nothing.
+
+!!! warning
+
+    The typed policy and strict configuration loading are implemented. CLI
+    command hiding/denial and MCP discovery filtering are delivered by later
+    capability work packages; do not treat the current runtime as an
+    enforcement boundary yet.
+
+The recognized independent scopes are `accounting.read`, `config.read.raw`,
+`delegation-ledger.read`, `job.validate`, `local-state.write`,
+`remote-filesystem.list`, `remote-filesystem.read`, `remote-install.write`,
+`remote-shell.execute`, `remote-workspace.delete`, `remote-workspace.write`,
+and `submission-record.write`.
+
+Remote roots are grouped under `list`, `read`, `write`, `delete`, and
+`install`. They must be absolute paths, `~` paths, or paths beginning with a
+single environment variable such as `$VSC_DATA`; traversal, glob, command
+substitution, shell syntax, trailing separators, and the filesystem root `/`
+are rejected. WP2 intersects root declarations by exact string; remote path
+resolution and ancestor/descendant confinement are introduced by the bounded
+filesystem work package.
 
 The available fields fall into four groups.
 
@@ -138,6 +178,7 @@ The available fields fall into four groups.
 | Workspace and site helpers | `projects_dir`, `quota_command`, `queue_command`, `sam_balance_command`, `sam_statement_command`, `sam_quote_command` | These are site-specific remote paths or commands. Configure only commands you have verified. |
 | Cluster references | `hardware_reference`, `hardware_url`, `slurm_reference`, `slurm_url`, `storage_reference`, `storage_url`, `status_url`, `reference_set` | Local files hold durable notes; URLs point to authoritative site sources. A reference set can supply the three local reference files. |
 | Defaults and identity | `default_cluster`, `email` | `default_cluster` narrows cluster-aware Slurm queries. `email` can supply a notification address to generated scripts. |
+| Capability policy | `capabilities.version`, `capabilities.max_level`, `capabilities.scopes`, `capabilities.remote_roots` | Mandatory, strict per-profile policy. Scopes and roots are additive constraints independent of the maximum level. |
 
 For example:
 
@@ -153,6 +194,20 @@ default_cluster = "example-cluster"
 email = "researcher@example.edu"
 reference_set = "example-2026"
 status_url = "https://status.example.edu/"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "job-inspection"
+scopes = [
+    "accounting.read",
+    "job.validate",
+    "remote-filesystem.list",
+    "remote-filesystem.read",
+]
+
+[profiles.example.capabilities.remote_roots]
+list = ["$VSC_DATA/projects"]
+read = ["$VSC_DATA/projects"]
 ```
 
 Remote environment variables such as `$VSC_DATA` must reach the remote shell
@@ -189,7 +244,7 @@ identity selection. Profile-level options are useful when the setting belongs
 specifically to this tool configuration. Do not disable host-key checking as a
 convenience; it removes an important identity check on the remote system.
 
-## Understand capability-driven commands
+## Understand site-feature-driven commands
 
 Some commands are available only when their supporting profile field exists.
 For example, `quota` requires `quota_command`, while `balance`, `statement`,
@@ -204,7 +259,7 @@ hpc --profile example --help
 ```
 
 A missing command can therefore mean that the profile deliberately does not
-claim that capability. It is not necessarily an installation failure.
+configure that site feature. It is not necessarily an installation failure.
 
 The `projects` command is always visible, but needs `projects_dir` to produce a
 result. The `clone` command can use `projects_dir` as its default destination,

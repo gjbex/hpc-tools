@@ -73,6 +73,10 @@ default_profile = "example"
 ssh_target = "example"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Without an SSH alias, specify the host and optionally the user:
@@ -85,12 +89,20 @@ host = "login.example.edu"
 user = "myuser"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 The `login_shell` must end in `-c` so hpc-tools can pass one quoted remote
 command. The default is already `bash -l -c`; keeping it explicit makes the
 first profile easier to inspect. `ssh_options = ["-x"]` disables X11
 forwarding for these non-interactive commands.
+
+The capability table is mandatory. This onboarding profile permits bounded
+cluster discovery but not job inspection or job lifecycle actions. Scopes and
+remote roots are empty until explicitly configured.
 
 ## 4. Preview and verify access
 

@@ -335,6 +335,13 @@ When `XDG_CONFIG_HOME` is not set, it falls back to:
 Path precedence is: explicit `--config`, then `HPC_TOOLS_CONFIG`, then
 `XDG_CONFIG_HOME`, then `~/.config`.
 
+Every profile must define a versioned `[profiles.<name>.capabilities]` table.
+The current release validates and stores this typed policy; CLI command
+hiding/denial and MCP discovery filtering are still being implemented, so the
+policy is not yet a runtime authorization boundary. See
+[docs/configuration.md](docs/configuration.md) for levels, scopes, and root
+syntax.
+
 Two example configuration files are provided:
 
 - [examples/ssh-alias-config.toml](examples/ssh-alias-config.toml) uses a target
@@ -366,6 +373,28 @@ storage_url = "https://docs.vscentrum.be/leuven/tier2_hardware/storage.html"
 status_url = "https://status.vscentrum.be/tier2_leuven.html"
 default_cluster = "wice"
 email = "user@example.org"
+
+[profiles.genius.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = [
+    "accounting.read",
+    "job.validate",
+    "local-state.write",
+    "remote-filesystem.list",
+    "remote-filesystem.read",
+    "remote-install.write",
+    "remote-workspace.delete",
+    "remote-workspace.write",
+    "submission-record.write",
+]
+
+[profiles.genius.capabilities.remote_roots]
+list = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+read = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+write = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+delete = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+install = ["$VSC_DATA/Projects"]
 ```
 
 `ssh_target` is passed directly to `ssh`, so it can be a configured SSH alias
@@ -382,10 +411,14 @@ on a cluster login node:
 [profiles.login-node]
 login_shell = ["bash", "-l", "-c"]
 default_cluster = "compute"
+
+[profiles.login-node.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Use `hpc --executor local --profile login-node ...` for that profile. Omitting
-`--executor local` retains the safe compatibility default, SSH, and reports the
+`--executor local` retains the safe default, SSH, and reports the
 missing target before execution.
 
 User/host example:
@@ -395,6 +428,10 @@ User/host example:
 host = "login.somewhere"
 user = "myuser"
 ssh_options = ["-x"]
+
+[profiles.some-cluster.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 `projects_dir` is interpreted by the remote shell. Values such as
@@ -459,6 +496,10 @@ hardware_reference = "~/.config/hpc-tools/profiles/example/hardware.md"
 slurm_reference = "~/.config/hpc-tools/profiles/example/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
 status_url = "https://status.example.org/"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "profile-context"
 ```
 
 Or attach a shared reference set:
@@ -468,6 +509,10 @@ Or attach a shared reference set:
 ssh_target = "example"
 login_shell = ["bash", "-l", "-c"]
 reference_set = "kuleuven-tier2"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "profile-context"
 ```
 
 ## Commands
@@ -673,6 +718,10 @@ normally `$XDG_CONFIG_HOME/hpc-tools/config.toml` or
 ssh_target = "example"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 If there is no SSH alias, use explicit `user` and `host` fields instead:
@@ -683,6 +732,10 @@ user = "myuser"
 host = "login.example.edu"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Then collect information in this order:

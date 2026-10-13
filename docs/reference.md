@@ -213,7 +213,7 @@ imports, generated code, compiled system dependencies, and site policy still
 require review. See [Software environments and dependencies](software-environments.md)
 and [CLI plugin system](plugins.md).
 
-## Command availability by profile capability
+## Command availability by configured site feature
 
 Most cluster commands need only a selected profile and an executor that can use
 it. The SSH executor additionally requires a valid SSH target. The following
@@ -239,6 +239,10 @@ so site-specific helpers can be absent rather than merely failing later. A
 local command such as `paths`, `plugins list`, reference-set inspection, or a
 local scanner can run without a cluster configuration.
 
+This current site-feature filtering is separate from the mandatory capability
+policy parsed from each profile. Policy-based CLI denial/hiding and MCP
+discovery filtering are not implemented until later work packages.
+
 ## Configuration schema
 
 The configuration is TOML:
@@ -250,11 +254,16 @@ default_profile = "cluster-a"
 ssh_target = "cluster-a-login"
 projects_dir = "$HOME/projects"
 default_cluster = "compute"
+
+[profiles.cluster-a.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 `default_profile` is optional. A profile used with the SSH executor must define
 either `ssh_target` or `host`. Both may be omitted for a local-only profile; all
-other fields are optional.
+other connection/site fields are optional. Every profile must define a valid
+capability table.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -279,11 +288,16 @@ other fields are optional.
 | `reference_set` | string | Installed shared reference set attached to the profile. Its values take precedence over direct reference fields. |
 | `default_cluster` | string | Default Slurm cluster metadata used where supported; it is not a default account. |
 | `email` | string | Address inserted only when probe mail notifications are explicitly requested. |
+| `capabilities.version` | integer | Required policy schema version; currently `1`. |
+| `capabilities.max_level` | string | Required ceiling: `profile-context`, `cluster-discovery`, `job-inspection`, or `job-lifecycle`. |
+| `capabilities.scopes` | array of strings | Optional independent grants; omitted means none. Unknown and duplicate scopes are rejected. |
+| `capabilities.remote_roots` | table | Optional `list`, `read`, `write`, `delete`, and `install` root arrays; omitted arrays grant no roots. |
 
-Unknown TOML keys are currently ignored, not rejected. Do not use that as a
-forward-compatibility guarantee: a misspelled field can therefore appear to be
-accepted while having no effect. Validate behavior with `hpc doctor`,
-`hpc hardware --path`, and the relevant command.
+Unknown keys within `capabilities` and `capabilities.remote_roots` are rejected.
+Unknown keys elsewhere in the profile are currently ignored; do not use that
+as a forward-compatibility guarantee. Validate behavior with `hpc doctor`,
+`hpc hardware --path`, and the relevant command. Policy loading itself performs
+no cluster query and no write.
 
 See [Configure cluster profiles](configuration.md) for complete examples and
 SSH quoting guidance.

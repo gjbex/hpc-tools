@@ -37,6 +37,10 @@ default_profile = "example"
 
 [profiles.example]
 ssh_target = "example-login"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Check the SSH command before connecting, then run the diagnostic:
@@ -104,6 +108,11 @@ ssh_target = "example-login"
 sam_balance_command = "site-balance"
 sam_statement_command = "site-statement"
 sam_quote_command = "site-quote"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "job-inspection"
+scopes = ["accounting.read", "job.validate"]
 ```
 
 Then inspect the available commands:
@@ -298,6 +307,11 @@ directory and point the profile at them:
 hardware_reference = "~/.config/hpc-tools/profiles/example/hardware.md"
 slurm_reference = "~/.config/hpc-tools/profiles/example/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "profile-context"
+scopes = ["local-state.write"]
 ```
 
 Then copy those profile-local references into a named set, inspect it, and

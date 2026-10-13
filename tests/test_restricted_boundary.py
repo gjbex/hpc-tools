@@ -18,6 +18,12 @@ from importlib import resources
 from pathlib import Path
 from unittest import mock
 
+from hpc_tools.capabilities import (
+    POLICY_VERSION,
+    CapabilityLevel,
+    CapabilityPolicy,
+    RemoteRootGrants,
+)
 from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
 from hpc_tools.config import Profile
 from hpc_tools.mcp import server as mcp_registry
@@ -97,6 +103,12 @@ class RestrictedBoundaryTests(unittest.TestCase):
             hardware_reference=None, hardware_url=None, slurm_reference=None,
             slurm_url=None, storage_reference=None, storage_url=None,
             status_url=None, reference_set=None, default_cluster="alpha", email=None,
+            capabilities=CapabilityPolicy(
+                version=POLICY_VERSION,
+                max_level=CapabilityLevel.JOB_LIFECYCLE,
+                scopes=(),
+                remote_roots=RemoteRootGrants(),
+            ),
         )
 
     def test_packaged_codex_agent_is_pinned_ephemeral_and_relay_only(self) -> None:

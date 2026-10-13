@@ -28,6 +28,22 @@ explicit for each quote or submission.
     [profiles.example]
     ssh_target = "example-login"
     default_cluster = "example-cluster"
+
+    [profiles.example.capabilities]
+    version = 1
+    max_level = "job-lifecycle"
+    scopes = [
+        "accounting.read",
+        "job.validate",
+        "remote-filesystem.list",
+        "remote-filesystem.read",
+        "remote-workspace.write",
+    ]
+
+    [profiles.example.capabilities.remote_roots]
+    list = ["$VSC_DATA/projects"]
+    read = ["$VSC_DATA/projects"]
+    write = ["$VSC_DATA/projects"]
     ```
 
 2. Verify access and current associations:
