@@ -152,9 +152,10 @@ omitting them grants nothing.
 !!! warning
 
     The typed policy, strict configuration loading, shared operation registry,
-    and pure evaluator are implemented. CLI command hiding/denial and MCP
-    discovery filtering are delivered by later capability work packages; do
-    not treat the current runtime as an enforcement boundary yet.
+    pure evaluator, and bounded filesystem foundation are implemented. Existing
+    commands are not routed through that foundation yet. CLI command
+    hiding/denial and MCP discovery filtering are delivered by later capability
+    work packages; do not treat the current runtime as an enforcement boundary.
 
 The recognized independent scopes are `accounting.read`, `config.read.raw`,
 `delegation-ledger.read`, `job.validate`, `local-state.write`,
@@ -166,9 +167,10 @@ Remote roots are grouped under `list`, `read`, `write`, `delete`, and
 `install`. They must be absolute paths, `~` paths, or paths beginning with a
 single environment variable such as `$VSC_DATA`; traversal, glob, command
 substitution, shell syntax, trailing separators, and the filesystem root `/`
-are rejected. WP2 intersects root declarations by exact string; remote path
-resolution and ancestor/descendant confinement are introduced by the bounded
-filesystem work package.
+are rejected. WP2 intersects root declarations by exact string. The WP4
+filesystem foundation expands and resolves roots on the selected executor and
+uses descriptor-relative traversal below them. Existing commands start using
+that foundation in WP5 and WP6.
 
 The available fields fall into four groups.
 

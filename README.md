@@ -336,10 +336,11 @@ Path precedence is: explicit `--config`, then `HPC_TOOLS_CONFIG`, then
 `XDG_CONFIG_HOME`, then `~/.config`.
 
 Every profile must define a versioned `[profiles.<name>.capabilities]` table.
-The current release validates and stores this typed policy and has a shared
-operation registry and pure policy evaluator. CLI command hiding/denial and MCP
-discovery filtering are still being implemented, so the policy is not yet a
-runtime authorization boundary. See
+The current release validates and stores this typed policy, has a shared
+operation registry and pure evaluator, and includes the packaged bounded
+filesystem foundation. Existing commands are not yet routed through that
+foundation, and CLI command hiding/denial and MCP discovery filtering are still
+being implemented, so the policy is not yet a runtime authorization boundary. See
 [docs/configuration.md](docs/configuration.md) for levels, scopes, and root
 syntax.
 

@@ -73,6 +73,22 @@ class CommandExecutor(ABC):
             text=capture_output,
         )
 
+    def run_plan_bytes(
+        self,
+        plan: ExecutionPlan,
+        *,
+        input_data: bytes,
+        timeout: float,
+    ) -> subprocess.CompletedProcess[bytes]:
+        """Run a fixed protocol command with bounded binary transport."""
+        return subprocess.run(
+            plan.argv,
+            check=False,
+            input=input_data,
+            capture_output=True,
+            timeout=timeout,
+        )
+
 
 class SshExecutor(CommandExecutor):
     name = "ssh"
