@@ -49,6 +49,9 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "hpc_slurm_limits", "hpc_storage_inspect", "hpc_site_env",
                 "hpc_submissions_list", "hpc_references_create",
                 "hpc_install_probe", "hpc_install_container",
+                "hpc_files_list", "hpc_files_read", "hpc_files_mkdir",
+                "hpc_files_upload", "hpc_files_download", "hpc_files_copy",
+                "hpc_files_remove", "hpc_repo_clone",
             }.issubset(forbidden_tools)
         )
         self.assertTrue(restricted.isdisjoint(forbidden_tools))
@@ -531,6 +534,96 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
                     hardware = await server.read_resource("hpc://cluster/hardware")
                     self.assertEqual("# hardware\n", hardware[0].content)
+
+        asyncio.run(exercise_server())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_slurm_job_controller_start_requires_c3(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            manifest_path = self._write_delegation_manifest(root)
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'max_level = "job-lifecycle"',
+                    'max_level = "job-inspection"',
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_PARENT_JOB_ID": "9001"},
+                clear=False,
+            ), self.assertRaisesRegex(
+                mcp_server.ConfigError,
+                "agent.controller.start.*job-lifecycle",
+            ):
+                mcp_server.create_server(
+                    preset="slurm-job",
+                    profile="genius",
+                    delegation_manifest=str(manifest_path),
+                    ledger=str(root / "ledger.sqlite3"),
+                    config=str(config_path),
+                )
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_restarted_slurm_job_server_intersects_current_and_captured_policy(self) -> None:
+        async def exercise_server() -> None:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config_path = self._write_config(root)
+                manifest_path = self._write_delegation_manifest(root)
+                ledger_path = root / "ledger.sqlite3"
+                with mock.patch.dict(
+                    "os.environ",
+                    {"HPC_TOOLS_PARENT_JOB_ID": "9001"},
+                    clear=False,
+                ):
+                    initial = mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(ledger_path),
+                        config=str(config_path),
+                    )
+                    self.assertIn(
+                        "hpc_submit_job",
+                        {tool.name for tool in await initial.list_tools()},
+                    )
+                    config_path.write_text(
+                        config_path.read_text(encoding="utf-8").replace(
+                            'max_level = "job-lifecycle"',
+                            'max_level = "job-inspection"',
+                        ),
+                        encoding="utf-8",
+                    )
+                    restarted = mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(ledger_path),
+                        config=str(config_path),
+                    )
+
+                    names = {tool.name for tool in await restarted.list_tools()}
+                    self.assertIn("hpc_jobs", names)
+                    self.assertIn("hpc_validate_job", names)
+                    self.assertNotIn("hpc_cancel_job", names)
+                    self.assertNotIn("hpc_submit_job", names)
+                    self.assertTrue(names.issubset(set(mcp_server.SLURM_JOB_TOOL_NAMES)))
+                    runtime = json.loads(
+                        (await restarted.read_resource("hpc://runtime"))[0].content
+                    )
+                    self.assertEqual(
+                        "job-inspection",
+                        runtime["capabilities"]["max_level"],
+                    )
+                    self.assertEqual(
+                        "job-lifecycle",
+                        runtime["delegation"]["controller_authority"]["policy"][
+                            "max_level"
+                        ],
+                    )
 
         asyncio.run(exercise_server())
 

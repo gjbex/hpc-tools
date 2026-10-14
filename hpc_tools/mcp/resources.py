@@ -53,6 +53,7 @@ def resource_runtime(
         delegation_data = runtime.manifest.public_summary() | {
             "usage": ledger.summary(runtime.manifest),
             "controller": ledger.controller_summary(runtime.manifest),
+            "controller_authority": runtime.controller_authority.public_summary(),
         }
         limitations = [
             "Slurm remains authoritative for scheduler policy and accounting",

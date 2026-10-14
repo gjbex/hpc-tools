@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import inspect
 import os
 import sys
@@ -20,6 +21,7 @@ from hpc_tools.capabilities import (
     CapabilityRequirement,
     capability_level_allows,
     evaluate_capability,
+    intersect_policies,
     narrow_policy,
 )
 from hpc_tools.config import ConfigError, Profile, default_config_path, load_config, resolve_profile
@@ -361,6 +363,17 @@ def tool_names_for_preset(
             )
         )
     policy = _effective_policy(profile, selected)
+    return _tool_names_for_policy(selected, profile, policy)
+
+
+def _tool_names_for_policy(
+    preset: str,
+    profile: Profile,
+    policy: CapabilityPolicy,
+) -> tuple[str, ...]:
+    candidates = (
+        SLURM_JOB_TOOL_NAMES if preset == "slurm-job" else FULL_TOOL_NAMES
+    )
     return tuple(
         name
         for name in candidates
@@ -392,6 +405,17 @@ def resource_uris_for_preset(
             )
         )
     policy = _effective_policy(profile, selected)
+    return _resource_uris_for_policy(selected, profile, policy)
+
+
+def _resource_uris_for_policy(
+    preset: str,
+    profile: Profile,
+    policy: CapabilityPolicy,
+) -> tuple[str, ...]:
+    candidates = (
+        SLURM_JOB_RESOURCE_URIS if preset == "slurm-job" else FULL_RESOURCE_URIS
+    )
     return tuple(
         uri
         for uri in candidates
@@ -410,6 +434,7 @@ def create_server(
     profile: str | None = None,
     delegation_manifest: str | None = None,
     ledger: str | None = None,
+    config: str | None = None,
 ):
     """Create the FastMCP server for hpc-tools guarded agent tools."""
     try:
@@ -422,23 +447,20 @@ def create_server(
 
     selected_preset = resolve_preset(preset)
     executor = resolve_executor()
-    config_path = default_config_path().expanduser()
-    config = load_config(str(config_path))
+    config_path = (
+        Path(config).expanduser() if config else default_config_path().expanduser()
+    ).resolve()
+    loaded_config = load_config(str(config_path))
     selected = resolve_profile(
-        config,
+        loaded_config,
         profile or os.environ.get(PROFILE_ENV_VAR),
     )
     effective_policy = _effective_policy(selected, selected_preset)
-    binding = McpBinding(
-        profile=selected,
-        effective_policy=effective_policy,
-        config_path=config_path,
-        database_path=submissions.default_database_path().expanduser(),
-        preset=selected_preset,
-    )
     runtime = None
     if selected_preset == "slurm-job":
-        manifest_path = delegation_manifest or os.environ.get(delegation.DELEGATION_ENV_VAR)
+        manifest_path = delegation_manifest or os.environ.get(
+            delegation.DELEGATION_ENV_VAR
+        )
         if not manifest_path:
             raise ConfigError(
                 f"the slurm-job preset requires --delegation or "
@@ -455,7 +477,22 @@ def create_server(
                 profile=selected.name,
                 ledger_path=ledger,
                 parent_job_id=parent_job_id,
+                profile_policy=effective_policy,
+                config_path=config_path,
+                config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
             )
+            effective_policy = intersect_policies(
+                effective_policy,
+                runtime.controller_authority.policy,
+            )
+
+    binding = McpBinding(
+        profile=selected,
+        effective_policy=effective_policy,
+        config_path=config_path,
+        database_path=submissions.default_database_path().expanduser(),
+        preset=selected_preset,
+    )
 
     server = FastMCP(
         "hpc-tools",
@@ -471,16 +508,24 @@ def create_server(
             f"Cluster commands use the {executor.name} executor."
         ),
     )
-    for name in tool_names_for_preset(selected_preset, selected):
+    for name in _tool_names_for_policy(selected_preset, selected, effective_policy):
         server.tool()(_bind_profile(_TOOLS_BY_NAME[name], binding, runtime))
 
-    allowed_resources = set(resource_uris_for_preset(selected_preset, selected))
+    allowed_resources = set(
+        _resource_uris_for_policy(selected_preset, selected, effective_policy)
+    )
     for uri, function, args, mime_type in _RESOURCES:
         if uri not in allowed_resources:
             continue
         if uri == "hpc://reference-set" and not selected.reference_set:
             continue
-        bound = _bind_resource(uri, function, binding, runtime, *args(binding, runtime))
+        bound = _bind_resource(
+            uri,
+            function,
+            binding,
+            runtime,
+            *args(binding, runtime),
+        )
         server.resource(uri, mime_type=mime_type)(bound)
     return server
 
@@ -608,6 +653,10 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--config",
+        help="configuration file path; defaults to HPC_TOOLS_CONFIG or the standard path",
+    )
+    parser.add_argument(
         "--delegation",
         help=f"host-side delegation manifest; defaults to {delegation.DELEGATION_ENV_VAR}",
     )
@@ -623,6 +672,7 @@ def main(argv: list[str] | None = None) -> int:
                 profile=args.profile,
                 delegation_manifest=args.delegation,
                 ledger=args.ledger,
+                config=args.config,
             ).run()
     except ConfigError as error:
         print(f"hpc-mcp: {error}", file=sys.stderr)

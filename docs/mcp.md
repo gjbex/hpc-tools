@@ -145,6 +145,7 @@ manifest, ledger, parent allocation, and profile:
 ```console
 HPC_TOOLS_PARENT_JOB_ID=60350000 \
 hpc-mcp --executor local --preset slurm-job --profile example \
+    --config ~/.config/hpc-tools/config.toml \
     --delegation /srv/hpc-tools/delegations/agent-001.toml \
     --ledger /srv/hpc-tools/state/delegations.sqlite3
 ```

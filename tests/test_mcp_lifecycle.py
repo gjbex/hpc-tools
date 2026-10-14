@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import textwrap
 import unittest
@@ -9,10 +10,12 @@ from unittest import mock
 from test_mcp_fixtures import McpFixtures
 
 from hpc_tools import delegation, mcp_server
+from hpc_tools.config import load_config, resolve_profile
 
 
 class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
     def _runtime(self, root: Path) -> delegation.DelegationRuntime:
+        config_path = self._write_config(root)
         manifest_path = root / "delegation.toml"
         manifest_path.write_text(
             textwrap.dedent(
@@ -45,6 +48,11 @@ class DelegatedLifecycleTests(McpFixtures, unittest.TestCase):
             profile="genius",
             ledger_path=root / "delegations.sqlite3",
             parent_job_id="9001",
+            profile_policy=resolve_profile(
+                load_config(str(config_path)), "genius"
+            ).capabilities,
+            config_path=config_path,
+            config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
         )
 
     def _own(

@@ -86,11 +86,36 @@ class RestrictedBoundaryTests(unittest.TestCase):
             encoding="utf-8",
         )
         paths["manifest"] = manifest_path
+        config_path = root / "config.toml"
+        config_path.write_text(
+            textwrap.dedent(
+                """
+                default_profile = "cluster"
+
+                [profiles.cluster]
+                ssh_target = "cluster"
+                default_cluster = "alpha"
+                sam_quote_command = "quote"
+
+                [profiles.cluster.capabilities]
+                version = 1
+                max_level = "job-lifecycle"
+                scopes = []
+                """
+            ).strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        paths["config"] = config_path
+        policy = self._profile().capabilities
         runtime = delegation.load_runtime(
             manifest_path,
             profile="cluster",
             ledger_path=root / "ledger.sqlite3",
             parent_job_id="9001",
+            profile_policy=policy,
+            config_path=config_path,
+            config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
         )
         return runtime, paths
 
@@ -348,12 +373,21 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     prompt_file=prompt,
                     agent_image=paths["container"],
                     agent_command=["codex-agent", "-"],
+                    controller_authority=runtime.controller_authority,
                 )
 
             self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
             provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
             self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
             self.assertEqual("abc", provenance["work_source"]["commit"])
+            self.assertEqual(
+                runtime.controller_authority.policy_sha256,
+                provenance["controller_authority"]["policy_sha256"],
+            )
+            self.assertEqual(
+                str(paths["config"]),
+                provenance["controller_authority"]["config_path"],
+            )
             self.assertEqual(
                 hashlib.sha256(paths["container"].read_bytes()).hexdigest(),
                 provenance["agent_image"]["sha256"],
@@ -478,6 +512,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     agent_image=paths["container"],
                     agent_command=["agent", "--batch"],
                     runtime_base=runtime_base,
+                    config_path=paths["config"],
                     dry_run=True,
                 )
             rendered = stdout.getvalue()

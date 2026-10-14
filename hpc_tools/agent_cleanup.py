@@ -78,6 +78,11 @@ def run_cleanup(
         allow_expired=True,
     )
     ledger = delegation.DelegationLedger(ledger_path)
+    authority = ledger.controller_authority(manifest)
+    delegation.require_controller_authority(
+        authority.policy,
+        operation="agent.cleanup.execute",
+    )
     registered_cleanup_job = ledger.cleanup_job_id(manifest)
     if registered_cleanup_job is None:
         raise delegation.DelegationError("delegation has no registered cleanup job")

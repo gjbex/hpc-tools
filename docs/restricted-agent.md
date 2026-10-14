@@ -170,6 +170,7 @@ essential invocation is:
 hpc-agent-launch \
     --manifest /protected/agent-001.toml \
     --ledger /protected/delegations.sqlite3 \
+    --config ~/.config/hpc-tools/config.toml \
     --profile example \
     --agent-env-file /protected/codex.env \
     --agent-image /project/images/restricted-codex.sif \
@@ -189,6 +190,30 @@ The append mode matters because a requeue retains the parent Slurm job ID. A
 site default that truncates `restricted-agent-%j.out` or `.err` on restart would
 otherwise destroy the preceding controller attempt's outer log.
 
+### Profile authority across restarts
+
+Starting a restricted controller requires the selected profile to grant C3
+(`job-lifecycle`). Before the launcher submits the dependent cleanup job, it
+captures that profile policy in the protected delegation ledger together with
+the selected configuration path and SHA-256 digest. Each attempt's
+`provenance.json` records the same authority evidence.
+
+The capture is an immutable ceiling for that delegation. On every MCP server
+start, tools and resources for new work are filtered by the intersection of
+the current profile policy, the captured ceiling, and the fixed `slurm-job`
+surface. Narrowing the profile therefore takes effect after the server is
+restarted, while widening it cannot grant authority that the delegation did
+not capture initially. The server never adds general file, repository,
+installation, onboarding, or profile-management tools to this preset.
+
+Controller requeue and final cleanup are different: they are obligations for
+jobs already accepted under the captured C3 authority. They continue to use
+that captured authority even if the editable profile is later narrowed, so a
+configuration change cannot silently orphan ledger-owned jobs. A fresh
+delegation still requires C3 at its initial launch. Restart the controller/MCP
+server after editing the profile; an already running server retains its startup
+snapshot.
+
 ### Attempt provenance and event logs
 
 Every launched controller generation creates this protected directory:
@@ -204,7 +229,8 @@ Every launched controller generation creates this protected directory:
 ```
 
 Files are mode `0600` and directories are mode `0700`. `provenance.json`
-records hashes for the prompt, manifest, agent image, and Codex configuration;
+records hashes for the prompt, manifest, agent image, Codex configuration, and
+captured profile policy and configuration;
 the Codex and hpc-tools versions; the exact agent argv; and the Git commit and
 dirty flag for both hpc-tools and `work_root` when those directories are Git
 checkouts. Hashing the complete SIF is intentional evidence but can add startup

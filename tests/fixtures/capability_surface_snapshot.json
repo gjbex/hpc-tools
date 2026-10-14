@@ -4133,6 +4133,17 @@
           {
             "choices": null,
             "default": null,
+            "dest": "config",
+            "nargs": null,
+            "options": [
+              "--config"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
             "dest": "agent_image",
             "nargs": null,
             "options": [
@@ -4337,6 +4348,17 @@
             "nargs": null,
             "options": [
               "--profile"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "config",
+            "nargs": null,
+            "options": [
+              "--config"
             ],
             "required": false,
             "type": null

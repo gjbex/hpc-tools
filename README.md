@@ -270,6 +270,10 @@ registers a dependent cleanup job that cancels only ledger-owned jobs after a
 final parent termination; the restricted agent cannot invoke either control
 path. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
+Initial launch requires profile C3. The launcher records an immutable
+controller-authority ceiling; restarted servers intersect it with the current
+profile for new work, while host-only requeue and cleanup retain the captured
+authority needed to settle already owned jobs.
 The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
 mode with a protected JSONL event stream, installs only the image-specific
 `hpc-delegated-slurm` skill, and treats the restricted relay as a required MCP

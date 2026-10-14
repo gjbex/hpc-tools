@@ -19,7 +19,12 @@ from pathlib import Path
 from typing import IO
 
 from hpc_tools import __version__, delegation
-from hpc_tools.config import ConfigError
+from hpc_tools.config import (
+    ConfigError,
+    default_config_path,
+    load_config,
+    resolve_profile,
+)
 from hpc_tools.mcp_bridge import SOCKET_ENV_VAR
 
 CONTAINER_SOCKET_DIRECTORY = "/run/hpc-tools-mcp"
@@ -98,6 +103,7 @@ def launch(
     runtime_base: Path | None = None,
     agent_env_file: Path | None = None,
     prompt_file: Path | None = None,
+    config_path: Path | None = None,
     dry_run: bool = False,
 ) -> int:
     parent_job_id = os.environ.get("SLURM_JOB_ID")
@@ -108,12 +114,41 @@ def launch(
         expected_profile=profile,
         expected_parent_job_id=parent_job_id,
     )
+    selected_config_path = (
+        config_path if config_path is not None else default_config_path()
+    ).expanduser().resolve()
+    selected_profile = resolve_profile(
+        load_config(str(selected_config_path)),
+        profile,
+    )
+    config_sha256 = hashlib.sha256(selected_config_path.read_bytes()).hexdigest()
+    ledger_path = _absolute_literal(ledger_path, "ledger")
+    ledger = delegation.DelegationLedger(ledger_path)
+    authority = None
+    if dry_run:
+        delegation.require_controller_authority(
+            selected_profile.capabilities,
+            operation="agent.controller.start",
+        )
+    else:
+        ledger.register(manifest)
+        authority = ledger.controller_authority_or_none(manifest)
+        if authority is None:
+            authority = ledger.capture_controller_authority(
+                manifest,
+                policy=selected_profile.capabilities,
+                config_path=selected_config_path,
+                config_sha256=config_sha256,
+            )
+        delegation.require_controller_authority(
+            authority.policy,
+            operation="agent.controller.continue",
+        )
     policy = _require_policy(manifest)
     _prepare_policy_paths(policy)
     _ensure_private_file(manifest.source_path, "delegation manifest")
-    ledger_path = _absolute_literal(ledger_path, "ledger")
     _ensure_not_exposed(
-        (manifest.source_path, ledger_path, policy.state_root),
+        (manifest.source_path, ledger_path, selected_config_path, policy.state_root),
         (policy.work_root, policy.output_root, *policy.input_roots),
     )
     selected_env_file = None
@@ -188,8 +223,7 @@ def launch(
             ),
             (policy.work_root, policy.output_root, *policy.input_roots),
         )
-        ledger = delegation.DelegationLedger(ledger_path)
-        ledger.register(manifest)
+        assert authority is not None
         controller = ledger.begin_controller(
             manifest, restart_count=_controller_restart_count()
         )
@@ -201,6 +235,7 @@ def launch(
                 prompt_file=selected_prompt_file,
                 agent_image=image,
                 agent_command=agent_command,
+                controller_authority=authority,
             )
             ledger.record_controller_artifacts(
                 manifest,
@@ -232,6 +267,8 @@ def launch(
                 "slurm-job",
                 "--profile",
                 profile,
+                "--config",
+                str(selected_config_path),
                 "--delegation",
                 str(manifest.source_path),
                 "--ledger",
@@ -413,6 +450,11 @@ def _request_parent_requeue(
     manifest: delegation.DelegationManifest,
     parent_job_id: str,
 ) -> int:
+    authority = ledger.controller_authority(manifest)
+    delegation.require_controller_authority(
+        authority.policy,
+        operation="agent.controller.requeue",
+    )
     try:
         ledger.request_requeue(manifest)
     except delegation.DelegationError as error:
@@ -449,6 +491,11 @@ def _ensure_cleanup_job(
     existing = ledger.cleanup_job_id(manifest)
     if existing is not None:
         return existing
+    authority = ledger.controller_authority(manifest)
+    delegation.require_controller_authority(
+        authority.policy,
+        operation="agent.cleanup.register",
+    )
     reaper = shutil.which("hpc-agent-reap")
     if not reaper:
         raise ConfigError("hpc-agent-reap is not available in the host PATH")
@@ -536,6 +583,7 @@ def _prepare_agent_artifacts(
     prompt_file: Path | None,
     agent_image: Path,
     agent_command: list[str],
+    controller_authority: delegation.ControllerAuthority,
 ) -> AgentArtifacts:
     attempts_root = policy.state_root / "agent-attempts"
     _mkdir_private(attempts_root, "agent attempt root")
@@ -587,6 +635,9 @@ def _prepare_agent_artifacts(
         "delegation_id": manifest.identifier,
         "controller_generation": generation,
         "parent_job_id": manifest.parent_job_id,
+        "controller_authority": controller_authority.public_summary(
+            include_config_path=True
+        ),
         "agent_command": agent_command,
         "prompt": (
             {
@@ -964,6 +1015,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--profile", required=True)
+    parser.add_argument("--config", type=Path)
     parser.add_argument("--agent-image", type=Path, required=True)
     parser.add_argument("--runtime-directory", type=Path)
     parser.add_argument(
@@ -994,6 +1046,7 @@ def main(argv: list[str] | None = None) -> int:
             runtime_base=args.runtime_directory,
             agent_env_file=args.agent_env_file,
             prompt_file=args.prompt_file,
+            config_path=args.config,
             dry_run=args.dry_run,
         )
     except (ConfigError, OSError) as error:

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+
 from test_mcp_fixtures import *
 
 from hpc_tools import delegation
+from hpc_tools.config import load_config, resolve_profile
 
 
 class McpServerFeatureTests(McpFixtures, unittest.TestCase):
@@ -356,6 +359,11 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 profile="genius",
                 ledger_path=ledger_path,
                 parent_job_id="9001",
+                profile_policy=resolve_profile(
+                    load_config(str(config_path)), "genius"
+                ).capabilities,
+                config_path=config_path,
+                config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
             )
             quote_result = mock.Mock(returncode=0, stdout="2730\n", stderr="")
             validation_result = mock.Mock(returncode=0, stdout="sbatch: ok\n", stderr="")
