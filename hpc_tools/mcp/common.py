@@ -7,8 +7,10 @@ from types import SimpleNamespace
 from typing import Any
 
 from hpc_tools import references, submissions
+from hpc_tools.authorization import require_authorized
 from hpc_tools.config import Config, ConfigError, Profile, load_config, resolve_profile
 from hpc_tools.execution import execution_plan, run_command_capture
+from hpc_tools.operation_registry import OperationSurface
 
 def _load_config(config_path: str | None = None) -> Config:
     return load_config(config_path)
@@ -16,6 +18,21 @@ def _load_config(config_path: str | None = None) -> Config:
 def _resolve_profile(*, profile_name: str | None = None, config_path: str | None = None) -> Profile:
     config = _load_config(config_path)
     return resolve_profile(config, profile_name)
+
+
+def _authorize_mcp(
+    profile: Profile,
+    operation_id: str,
+    arguments: dict[str, Any],
+    *,
+    surface: OperationSurface = OperationSurface.MCP_TOOL,
+) -> None:
+    require_authorized(
+        operation_id,
+        profile,
+        arguments,
+        surface=surface,
+    )
 
 def _remote_read_result(profile: Profile, command: str, *, dry_run: bool = False) -> dict[str, Any]:
     plan = execution_plan(profile, command)
@@ -76,11 +93,28 @@ def _append_submission_mark_event(
     run_id: str,
     event_name: str,
     *,
+    profile: Profile,
     path: str | None,
     database: str | None,
     confirm: bool,
 ) -> dict[str, Any]:
-    event = submissions.mark_event(run_id, event_name, path=path)
+    database_path = (
+        Path(database).expanduser()
+        if database
+        else submissions.default_database_path()
+    )
+    events = submissions.read_events(database_path)
+    submissions.require_record_for_profile(
+        events,
+        run_id=run_id,
+        profile=profile.name,
+    )
+    event = submissions.mark_event(
+        run_id,
+        event_name,
+        profile=profile.name,
+        path=path,
+    )
     return _append_submission_event(event, database=database, confirm=confirm)
 
 def _append_submission_event(
@@ -126,15 +160,18 @@ def _probe_args(**kwargs: Any) -> SimpleNamespace:
 def _profile_summary(profile: Profile) -> dict[str, Any]:
     return {
         "name": profile.name,
-        "ssh_target": profile.ssh_target,
-        "host": profile.host,
-        "user": profile.user,
-        "default_cluster": profile.default_cluster,
         "reference_set": profile.reference_set,
+        "capabilities": profile.capabilities.public_summary(),
         "has_hardware_reference": bool(profile.hardware_reference),
         "has_slurm_reference": bool(profile.slurm_reference),
         "has_storage_reference": bool(profile.storage_reference),
         "has_status_url": bool(profile.status_url),
+        "has_projects_directory": bool(profile.projects_dir),
+        "has_quota_command": bool(profile.quota_command),
+        "has_queue_command": bool(profile.queue_command),
+        "has_account_balance": bool(profile.sam_balance_command),
+        "has_account_statement": bool(profile.sam_statement_command),
+        "has_job_quote": bool(profile.sam_quote_command),
     }
 
 def _profile_to_dict(profile: Profile) -> dict[str, Any]:

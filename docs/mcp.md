@@ -180,8 +180,8 @@ The read-oriented tools are:
 | `hpc_references_list` | Installed shared reference sets. |
 | `hpc_references_show` | Manifest data for one reference set. |
 | `hpc_plugins_list` | Installed Python CLI extensions. |
-| `hpc_submissions_list` | Active or complete reconstructed submission records. |
-| `hpc_status` | Combined status-page, quota, balance, and submission summary. |
+| `hpc_submissions_list` | Active or complete reconstructed records for the selected profile. |
+| `hpc_status` | The configured public site-status page; quota, balance, and submissions are separate operations. |
 | `hpc_jobs` | Full mode: current user queue. Delegated mode: only ledger-owned active jobs. |
 | `hpc_job` | Queue state for one job ID; delegated mode requires ownership. |
 | `hpc_job_accounting` | Slurm accounting for one job; delegated mode requires ownership and reconciles terminal state. |
@@ -228,14 +228,15 @@ Profile references resolve from the active configuration and installed
 reference sets, not from repository examples. Missing configured files produce
 an error rather than an invented reference.
 
-`hpc://config` returns the active TOML file as text. Even though hpc-tools does
-not expect passwords or private keys there, it can reveal hosts, usernames,
-email addresses, paths, site commands, and project context. Do not expose these
-resources to an untrusted client or model.
+`hpc://config` requires the selected profile's `config.read.raw` grant and
+returns only that profile's resolved raw configuration, not the complete
+multi-profile TOML file. It can still reveal hosts, usernames, email addresses,
+paths, site commands, and project context. Do not expose it to an untrusted
+client or model.
 
-Resources are read-only protocol endpoints. Reading a submission resource does
-not observe Slurm again, and reading a reference does not refresh it from a
-site URL.
+Resources are read-only protocol endpoints. Submission resources are filtered
+to the selected profile and reject unlabelled records; reading one does not
+observe Slurm again. Reading a reference does not refresh it from a site URL.
 
 ## Preview local writes
 

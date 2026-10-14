@@ -10,14 +10,11 @@ from hpc_tools.commands.probes import (
     _container_bundle,
     _cuda_device_properties_bundle,
     _hardware_probe_template,
-    _install_bundle_command,
-    _install_cuda_device_properties_command,
-    _install_hardware_probe_command,
     _write_bundle_assets,
     _write_cuda_device_properties_bundle,
 )
-from hpc_tools.commands.remote import _module_spider_command, _storage_inspect_command
-from hpc_tools.commands.slurm import build_status_report
+from hpc_tools.commands.remote import _module_spider_command
+from hpc_tools.commands.slurm import build_site_status_report
 from hpc_tools.config import (
     ConfigError,
     default_config_dir,
@@ -28,6 +25,7 @@ from hpc_tools.hardware import render_hardware_context
 from hpc_tools.mcp.common import (
     _append_submission_event,
     _append_submission_mark_event,
+    _authorize_mcp,
     _expanded,
     _load_config,
     _probe_args,
@@ -45,6 +43,11 @@ from hpc_tools.mcp.parsers import (
     _parse_slurm_limits_output,
 )
 from hpc_tools.references import resolve_reference_context
+from hpc_tools.remote_filesystem import (
+    install_remote_assets,
+    list_remote_directory,
+    plan_remote_assets,
+)
 
 
 def hpc_profiles_list(config: str | None = None) -> dict[str, Any]:
@@ -76,11 +79,13 @@ def hpc_paths() -> dict[str, Any]:
 def hpc_profile_show(profile: str | None = None, config: str | None = None) -> dict[str, Any]:
     """Show one resolved hpc-tools profile."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "profiles.show", {"profile": profile, "config": config})
     return _profile_to_dict(resolved)
 
 def hpc_hardware_context(profile: str | None = None, config: str | None = None) -> dict[str, Any]:
     """Render configured hardware, Slurm, and storage reference context for a profile."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "references.context", {"profile": profile, "config": config})
     return {
         "profile": resolved.name,
         "context": render_hardware_context(resolved),
@@ -89,6 +94,10 @@ def hpc_hardware_context(profile: str | None = None, config: str | None = None) 
 def hpc_hardware_sources(profile: str | None = None, config: str | None = None) -> dict[str, Any]:
     """Return structured hardware, Slurm, storage, and status source metadata."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "references.sources", {
+        "profile": profile,
+        "config": config,
+    })
     context = resolve_reference_context(resolved)
     return {
         "profile": resolved.name,
@@ -130,13 +139,30 @@ def hpc_plugins_list() -> dict[str, Any]:
         ]
     }
 
-def hpc_submissions_list(all: bool = False, database: str | None = None) -> dict[str, Any]:
+def hpc_submissions_list(
+    all: bool = False,
+    database: str | None = None,
+    profile: str | None = None,
+    config: str | None = None,
+) -> dict[str, Any]:
     """List hpc-tools submission records from the local SQLite database."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "submissions.list", {
+        "all": all,
+        "database": database,
+        "profile": profile,
+        "config": config,
+    })
     database_path = Path(database).expanduser() if database else None
     events = submissions.read_events(database_path)
-    records = submissions.records_from_events(events) if all else submissions.active_records(events)
+    records = (
+        submissions.records_from_events(events, profile=resolved.name)
+        if all
+        else submissions.active_records(events, profile=resolved.name)
+    )
     return {
         "database": str(database_path or submissions.default_database_path()),
+        "profile": resolved.name,
         "all": all,
         "submissions": [_submission_record_to_dict(record) for record in records],
     }
@@ -146,9 +172,14 @@ def hpc_status(
     config: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Show site status, quota, balance, and local submissions for a profile."""
+    """Show the public site status page for a profile."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
-    return build_status_report(resolved, dry_run=dry_run)
+    _authorize_mcp(resolved, "cluster.status", {
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    })
+    return build_site_status_report(resolved, dry_run=dry_run)
 
 def hpc_jobs(
     profile: str | None = None,
@@ -158,6 +189,12 @@ def hpc_jobs(
 ) -> dict[str, Any]:
     """Show jobs, restricted to active jobs owned by the current delegation."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.list", {
+        "profile": profile,
+        "config": config,
+        "cluster": cluster,
+        "dry_run": dry_run,
+    })
     runtime = delegation.current_runtime()
     if runtime is None:
         command = slurm.squeue_user_command(cluster)
@@ -275,6 +312,13 @@ def hpc_job(
 ) -> dict[str, Any]:
     """Show Slurm queue status for one authorized job ID."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.show", {
+        "jobid": jobid,
+        "profile": profile,
+        "config": config,
+        "cluster": cluster,
+        "dry_run": dry_run,
+    })
     runtime, selected_cluster = _delegated_job_context(
         resolved, jobid=jobid, cluster=cluster
     )
@@ -295,6 +339,13 @@ def hpc_job_accounting(
 ) -> dict[str, Any]:
     """Show Slurm accounting for one authorized job and reconcile terminal state."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.accounting", {
+        "jobid": jobid,
+        "profile": profile,
+        "config": config,
+        "cluster": cluster,
+        "dry_run": dry_run,
+    })
     runtime, selected_cluster = _delegated_job_context(
         resolved, jobid=jobid, cluster=cluster
     )
@@ -350,6 +401,17 @@ def hpc_cancel_job(
 ) -> dict[str, Any]:
     """Cancel one authorized Slurm job and record the request."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.cancel", {
+        "jobid": jobid,
+        "profile": profile,
+        "config": config,
+        "cluster": cluster,
+        "reason": reason,
+        "database": database,
+        "idempotency_key": idempotency_key,
+        "dry_run": dry_run,
+        "confirm": confirm,
+    })
     runtime, selected_cluster = _delegated_job_context(
         resolved, jobid=jobid, cluster=cluster
     )
@@ -468,6 +530,14 @@ def hpc_slurm_limits(
 ) -> dict[str, Any]:
     """Inspect Slurm controller, partition, QoS, and association limits."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "cluster.limits", {
+        "profile": profile,
+        "config": config,
+        "cluster": cluster,
+        "partition": partition,
+        "qos": qos,
+        "dry_run": dry_run,
+    })
     command = slurm.slurm_limits_command(cluster=cluster, partition=partition, qos=qos)
     result = _remote_read_result(resolved, command, dry_run=dry_run)
     parsed, warnings = _parse_slurm_limits_output(result["stdout"])
@@ -481,6 +551,12 @@ def hpc_module_spider(
 ) -> dict[str, Any]:
     """Search Lmod modules on the remote profile."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "cluster.modules", {
+        "name": name,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    })
     result = _remote_read_result(resolved, _module_spider_command(name), dry_run=dry_run)
     parsed, warnings = _parse_module_spider_output(result["stdout"])
     return result | {"parsed": parsed, "parse_warnings": warnings}
@@ -488,13 +564,50 @@ def hpc_module_spider(
 def hpc_storage_inspect(
     profile: str | None = None,
     config: str | None = None,
-    path: str = ".",
+    path: str | None = None,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Inspect one remote filesystem path with bounded read-only checks."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
-    command = _storage_inspect_command(path)
-    return _remote_read_result(resolved, command, dry_run=dry_run)
+    _authorize_mcp(resolved, "filesystem.inspect", {
+        "profile": profile,
+        "config": config,
+        "path": path,
+        "dry_run": dry_run,
+    })
+    selected_path = resolved.projects_dir if path in {None, "."} else path
+    if not selected_path:
+        raise ConfigError(
+            f"profile '{resolved.name}' does not define projects_dir; pass path"
+        )
+    if dry_run:
+        return {
+            "profile": resolved.name,
+            "path": selected_path,
+            "dry_run": True,
+            "entries": [],
+            "truncated": False,
+        }
+    selected, entries, truncated = list_remote_directory(
+        resolved,
+        selected_path,
+        roots=resolved.capabilities.remote_roots.list,
+    )
+    return {
+        "profile": resolved.name,
+        "path": selected,
+        "dry_run": False,
+        "entries": [
+            {
+                "name": entry.name,
+                "kind": entry.kind,
+                "size": entry.size,
+                "mode": entry.mode,
+            }
+            for entry in entries
+        ],
+        "truncated": truncated,
+    }
 
 def hpc_site_env(
     profile: str | None = None,
@@ -503,6 +616,11 @@ def hpc_site_env(
 ) -> dict[str, Any]:
     """Inspect remote site environment variables and common HPC helper tools."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "cluster.site-env", {
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    })
     return _remote_read_result(resolved, _site_env_command(), dry_run=dry_run)
 
 def hpc_references_create(
@@ -514,6 +632,13 @@ def hpc_references_create(
 ) -> dict[str, Any]:
     """Create a reference set from the selected profile; requires confirm=true."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "references.create", {
+        "name": name,
+        "profile": profile,
+        "config": config,
+        "force": force,
+        "confirm": confirm,
+    })
     destination = default_reference_sets_dir() / name
     preview = {
         "operation": "references_create",
@@ -536,14 +661,25 @@ def hpc_references_create(
 def hpc_references_import(
     archive: str,
     force: bool = False,
+    profile: str | None = None,
+    config: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Import a reference-set archive; requires confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "references.import", {
+        "archive": archive,
+        "force": force,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
     archive_path = Path(archive).expanduser()
     preview = {
         "operation": "references_import",
         "archive": str(archive_path),
         "reference_sets": str(default_reference_sets_dir()),
+        "profile": resolved.name,
         "force": force,
         "confirm_required": not confirm,
     }
@@ -565,6 +701,12 @@ def hpc_references_attach(
 ) -> dict[str, Any]:
     """Attach an installed reference set to a profile config; requires confirm=true."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "references.attach", {
+        "name": name,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
     reference_set = references.load_reference_set(name)
     config_path = Path(config).expanduser() if config else default_config_path()
     preview = {
@@ -582,19 +724,33 @@ def hpc_references_attach(
     return preview | {
         "confirm_required": False,
         "attached": True,
-        "profile": _profile_to_dict(_resolve_profile(profile_name=resolved.name, config_path=str(config_path))),
+        "profile": _profile_summary(
+            _resolve_profile(profile_name=resolved.name, config_path=str(config_path))
+        ),
     }
 
 def hpc_submissions_mark_collected(
     run_id: str,
     path: str | None = None,
     database: str | None = None,
+    profile: str | None = None,
+    config: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Append a results_collected event to the submission database; requires confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "submissions.mark-collected", {
+        "run_id": run_id,
+        "path": path,
+        "database": database,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
     return _append_submission_mark_event(
         run_id,
         "results_collected",
+        profile=resolved,
         path=path,
         database=database,
         confirm=confirm,
@@ -604,12 +760,24 @@ def hpc_submissions_mark_analysed(
     run_id: str,
     path: str | None = None,
     database: str | None = None,
+    profile: str | None = None,
+    config: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Append an analysed event to the submission database; requires confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "submissions.mark-analysed", {
+        "run_id": run_id,
+        "path": path,
+        "database": database,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
     return _append_submission_mark_event(
         run_id,
         "analysed",
+        profile=resolved,
         path=path,
         database=database,
         confirm=confirm,
@@ -619,10 +787,32 @@ def hpc_submissions_close(
     run_id: str,
     reason: str | None = None,
     database: str | None = None,
+    profile: str | None = None,
+    config: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Append a closed event to the submission database; requires confirm=true."""
-    event = submissions.mark_event(run_id, "closed", reason=reason)
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "submissions.close", {
+        "run_id": run_id,
+        "reason": reason,
+        "database": database,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
+    database_path = Path(database).expanduser() if database else submissions.default_database_path()
+    submissions.require_record_for_profile(
+        submissions.read_events(database_path),
+        run_id=run_id,
+        profile=resolved.name,
+    )
+    event = submissions.mark_event(
+        run_id,
+        "closed",
+        profile=resolved.name,
+        reason=reason,
+    )
     return _append_submission_event(event, database=database, confirm=confirm)
 
 def hpc_write_probe(
@@ -642,7 +832,15 @@ def hpc_write_probe(
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Generate or write a local probe script or bundle; writes require confirm=true."""
-    resolved = _resolve_profile(profile_name=profile, config_path=config) if profile or config else None
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "probe.write", {
+        "kind": kind,
+        "output": output,
+        "force": force,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
     if kind == "hardware":
         probe_args = _probe_args(
             account=account,
@@ -703,6 +901,16 @@ def hpc_install_probe(
 ) -> dict[str, Any]:
     """Install a generated probe on a remote profile; execution requires confirm=true and dry_run=false."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "probe.install", {
+        "directory": directory,
+        "kind": kind,
+        "name": name,
+        "force": force,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+        "confirm": confirm,
+    })
     if kind == "hardware":
         probe_args = _probe_args(
             account=account,
@@ -714,29 +922,66 @@ def hpc_install_probe(
             mail_user=mail_user,
             mail_notifications=mail_notifications,
         )
-        command = _install_hardware_probe_command(
-            directory,
-            name or "hardware-probe.slurm",
-            _hardware_probe_template(probe_args, resolved),
-            force=force,
-        )
+        assets = {
+            name or "hardware-probe.slurm": _hardware_probe_template(probe_args, resolved),
+        }
     elif kind == "cuda-device-properties":
-        command = _install_cuda_device_properties_command(
-            directory,
-            name or "cuda-device-properties.slurm",
-            force=force,
-        )
+        bundle = _cuda_device_properties_bundle()
+        assets = {
+            name or "cuda-device-properties.slurm": bundle["cuda-device-properties.slurm"],
+            "cuda/CMakeLists.txt": bundle["cuda/CMakeLists.txt"],
+            "cuda/device_properties.cu": bundle["cuda/device_properties.cu"],
+        }
     else:
         raise ConfigError(f"unsupported probe kind: {kind}")
-    return _remote_mutation_result(resolved, command, confirm=confirm, dry_run=dry_run)
+    planned = plan_remote_assets(
+        directory,
+        assets,
+        roots=resolved.capabilities.remote_roots.install,
+    )
+    preview = {
+        "operation": "install_probe",
+        "profile": resolved.name,
+        "directory": directory,
+        "files": [asset.relative_path for asset in planned],
+        "force": force,
+        "confirm_required": not confirm,
+        "dry_run": dry_run,
+        "executed": False,
+    }
+    if not confirm or dry_run:
+        return preview
+    installed = install_remote_assets(
+        resolved,
+        directory,
+        assets,
+        roots=resolved.capabilities.remote_roots.install,
+        overwrite=force,
+    )
+    return preview | {
+        "confirm_required": False,
+        "executed": True,
+        "installed": [asset.__dict__ for asset in installed],
+    }
 
 def hpc_write_container(
     output: str,
     kind: str = "generic",
     force: bool = False,
+    profile: str | None = None,
+    config: str | None = None,
     confirm: bool = False,
 ) -> dict[str, Any]:
     """Generate or write a local container bundle; writes require confirm=true."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "container.write", {
+        "output": output,
+        "kind": kind,
+        "force": force,
+        "profile": profile,
+        "config": config,
+        "confirm": confirm,
+    })
     bundle = _container_bundle(kind)
     preview = _write_preview("write_container", kind, output, force, confirm) | {
         "files": bundle,
@@ -758,9 +1003,42 @@ def hpc_install_container(
 ) -> dict[str, Any]:
     """Install a generated container bundle remotely; execution requires confirm=true and dry_run=false."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
-    command = _install_bundle_command(
-        directory=directory,
-        bundle=_container_bundle(kind),
-        force=force,
+    _authorize_mcp(resolved, "container.install", {
+        "directory": directory,
+        "kind": kind,
+        "force": force,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+        "confirm": confirm,
+    })
+    bundle = _container_bundle(kind)
+    planned = plan_remote_assets(
+        directory,
+        bundle,
+        roots=resolved.capabilities.remote_roots.install,
     )
-    return _remote_mutation_result(resolved, command, confirm=confirm, dry_run=dry_run)
+    preview = {
+        "operation": "install_container",
+        "profile": resolved.name,
+        "directory": directory,
+        "files": [asset.relative_path for asset in planned],
+        "force": force,
+        "confirm_required": not confirm,
+        "dry_run": dry_run,
+        "executed": False,
+    }
+    if not confirm or dry_run:
+        return preview
+    installed = install_remote_assets(
+        resolved,
+        directory,
+        bundle,
+        roots=resolved.capabilities.remote_roots.install,
+        overwrite=force,
+    )
+    return preview | {
+        "confirm_required": False,
+        "executed": True,
+        "installed": [asset.__dict__ for asset in installed],
+    }

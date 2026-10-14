@@ -7,7 +7,7 @@ from hpc_tools import delegation, restricted_jobs, slurm, slurm_contracts, submi
 from hpc_tools.commands.slurm import _quote_command as _sam_quote_command
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import execution_plan, run_command_capture
-from hpc_tools.mcp.common import _remote_read_result, _resolve_profile
+from hpc_tools.mcp.common import _authorize_mcp, _remote_read_result, _resolve_profile
 
 
 def hpc_quote_job(
@@ -43,6 +43,16 @@ def hpc_quote_job(
 ) -> dict[str, Any]:
     """Quote a Slurm job shape before validation or submission."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.quote", {
+        "jobscript": jobscript,
+        "directory": directory,
+        "account": account,
+        "container": container,
+        "idempotency_key": idempotency_key,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    })
     if not resolved.sam_quote_command:
         raise ConfigError(f"profile '{resolved.name}' does not define sam_quote_command")
     normalized = _submit_overrides(
@@ -136,6 +146,15 @@ def hpc_validate_job(
 ) -> dict[str, Any]:
     """Validate a Slurm job with sbatch --test-only before submission."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.validate", {
+        "jobscript": jobscript,
+        "directory": directory,
+        "container": container,
+        "idempotency_key": idempotency_key,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    })
     normalized = _submit_overrides(
         account=account,
         array=array,
@@ -227,6 +246,17 @@ def hpc_submit_job(
 ) -> dict[str, Any]:
     """Submit a Slurm job only when matching quote and validation evidence is supplied."""
     resolved = _resolve_profile(profile_name=profile, config_path=config)
+    _authorize_mcp(resolved, "job.submit", {
+        "jobscript": jobscript,
+        "directory": directory,
+        "database": database,
+        "quote_evidence": quote_evidence,
+        "validation_evidence": validation_evidence,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+        "confirm": confirm,
+    })
     normalized = _submit_overrides(
         account=account,
         array=array,

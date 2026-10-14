@@ -30,9 +30,6 @@ from hpc_tools.commands.probes import (
     _container_bundle,
     _cuda_device_properties_bundle,
     _hardware_probe_template,
-    _install_bundle_command,
-    _install_cuda_device_properties_command,
-    _install_hardware_probe_command,
     _resolve_mail_user,
     _write_bundle_assets,
     _write_cuda_device_properties_bundle,
@@ -56,7 +53,6 @@ from hpc_tools.commands.references import (
 from hpc_tools.commands.remote import (
     _module_spider_command,
     _repo_status_command,
-    _storage_inspect_command,
     cmd_clone,
     cmd_hardware,
     cmd_module_spider,
@@ -75,7 +71,7 @@ from hpc_tools.commands.slurm import (
     _statement_command,
     _submit_overrides,
     _validate_date,
-    build_status_report,
+    build_site_status_report,
     cmd_balance,
     cmd_cancel,
     cmd_job,
@@ -415,14 +411,16 @@ def _should_parse_without_config(argv: list[str]) -> bool:
     if remaining[0] == "paths":
         return True
     if remaining[0] in {"write-hardware-probe", "write-probe", "write-container"}:
-        return not (pre_args.profile or pre_args.config or "--mail-notifications" in remaining)
+        return _probe_stdout_without_profile(remaining)
     if remaining[0] == "submissions":
-        return not _submissions_needs_profile(remaining)
+        return False
     if remaining[0] == "references":
         return not _references_needs_profile(remaining)
     plugin_requires_profile = plugin_system.plugin_needs_profile(remaining[0], remaining[1:])
     if plugin_requires_profile is not None:
         return not plugin_requires_profile
+    if remaining[0] == "agent":
+        return False
     return remaining[0] in LOCAL_COMMANDS
 
 
@@ -442,6 +440,35 @@ def _submissions_needs_profile(remaining: list[str]) -> bool:
     return False
 
 
+def _probe_stdout_without_profile(remaining: list[str]) -> bool:
+    if remaining[0] == "write-container" or "--mail-notifications" in remaining:
+        return False
+    options_with_values = {
+        "--kind",
+        "--account",
+        "--cluster",
+        "--clusters",
+        "--partition",
+        "--qos",
+        "--time",
+        "--cpus-per-task",
+        "--mail-user",
+    }
+    positionals: list[str] = []
+    skip_next = False
+    for value in remaining[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if value in options_with_values:
+            skip_next = True
+            continue
+        if value.startswith("-") and value != "-":
+            continue
+        positionals.append(value)
+    return not positionals or positionals == ["-"]
+
+
 def _references_needs_profile(remaining: list[str]) -> bool:
     skip_next = False
     for arg in remaining[1:]:
@@ -454,7 +481,7 @@ def _references_needs_profile(remaining: list[str]) -> bool:
             skip_next = True
             continue
         if not arg.startswith("-"):
-            return arg in {"create", "attach", "detach"}
+            return arg in {"create", "export", "import", "attach", "detach"}
     return False
 
 

@@ -20,8 +20,6 @@ from hpc_tools.capabilities import (
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.cli import (
     _doctor_command,
-    _install_cuda_device_properties_command,
-    _install_hardware_probe_command,
     _log_submission,
     _module_spider_command,
     _quote_command,
@@ -29,7 +27,6 @@ from hpc_tools.cli import (
     _fetch_status_page,
     _site_env_command,
     _statement_command,
-    _storage_inspect_command,
     build_parser,
     cmd_agent_audit,
     cmd_agent_export,
@@ -64,7 +61,13 @@ TEST_CAPABILITY_POLICY = CapabilityPolicy(
     version=POLICY_VERSION,
     max_level=CapabilityLevel.JOB_LIFECYCLE,
     scopes=CAPABILITY_SCOPES,
-    remote_roots=RemoteRootGrants(),
+    remote_roots=RemoteRootGrants(
+        list=("$VSC_DATA", "$VSC_SCRATCH", "/data", "~"),
+        read=("$VSC_DATA", "$VSC_SCRATCH", "/data", "~"),
+        write=("$VSC_DATA", "$VSC_SCRATCH", "/data", "~"),
+        delete=("$VSC_DATA", "$VSC_SCRATCH", "/data", "~"),
+        install=("$VSC_DATA", "$VSC_SCRATCH", "/data", "~"),
+    ),
 )
 
 

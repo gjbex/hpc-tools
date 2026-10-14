@@ -332,8 +332,8 @@ project environment or reviewed container as appropriate.
 List active and complete views:
 
 ```console
-hpc submissions list
-hpc submissions list --all
+hpc --profile example submissions list
+hpc --profile example submissions list --all
 ```
 
 Then observe through the profile that submitted the job:

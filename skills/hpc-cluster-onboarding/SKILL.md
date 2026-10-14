@@ -324,8 +324,9 @@ After jobs finish, summarize probe output into the hardware reference. Keep
 probe-derived facts separate from documentation-derived facts. Consolidate both
 full hardware-probe and CUDA device-property findings into the profile hardware
 report under `~/.config/hpc-tools/profiles/<profile>/`. After the report is
-updated, use `hpc submissions mark-collected`, `hpc submissions mark-analysed`,
-and `hpc submissions close` for the matching runs; do not update the local SQLite
+updated, use `hpc --profile <profile> submissions mark-collected`,
+`hpc --profile <profile> submissions mark-analysed`, and
+`hpc --profile <profile> submissions close` for the matching runs; do not update the local SQLite
 submission database by hand unless the CLI is unavailable or broken. If an earlier
 probe attempt failed and a later corrected run succeeded, close the failed run
 with a superseded reason so onboarding state reflects only unresolved work.

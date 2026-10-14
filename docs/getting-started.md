@@ -280,7 +280,7 @@ Update the local submission records and view the active workflow:
 
 ```bash
 hpc --profile example submissions observe
-hpc submissions list
+hpc --profile example submissions list
 ```
 
 `observe` records scheduler state; it does not download job output. Inspect or

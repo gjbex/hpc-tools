@@ -58,6 +58,13 @@ class McpFixtures:
                     "remote-workspace.write",
                     "submission-record.write",
                 ]
+
+                [profiles.genius.capabilities.remote_roots]
+                list = ["$VSC_DATA", "~"]
+                read = ["$VSC_DATA", "~"]
+                write = ["$VSC_DATA", "~"]
+                delete = ["$VSC_DATA", "~"]
+                install = ["$VSC_DATA", "~"]
                 """
             ).strip()
             + "\n",

@@ -105,8 +105,15 @@ def read_events(path: Path | None = None) -> list[dict[str, Any]]:
     if not database_path.exists():
         return []
 
-    with _database(database_path) as connection:
-        _ensure_schema(connection)
+    with _readonly_database(database_path) as connection:
+        version = _schema_version(connection)
+        if version == 0:
+            return []
+        if version != SCHEMA_VERSION:
+            raise SubmissionDatabaseError(
+                f"unsupported submissions database schema version {version}; "
+                f"expected {SCHEMA_VERSION}"
+            )
         rows = connection.execute(
             """
             SELECT sequence, payload_json
@@ -129,6 +136,24 @@ def read_events(path: Path | None = None) -> list[dict[str, Any]]:
             )
         events.append(raw_event)
     return events
+
+
+@contextmanager
+def _readonly_database(path: Path) -> Iterator[sqlite3.Connection]:
+    connection: sqlite3.Connection | None = None
+    try:
+        uri = f"{path.resolve().as_uri()}?mode=ro"
+        connection = sqlite3.connect(uri, uri=True, timeout=5.0)
+        connection.execute("PRAGMA query_only = ON")
+        connection.execute("PRAGMA foreign_keys = ON")
+        yield connection
+    except sqlite3.Error as error:
+        raise SubmissionDatabaseError(
+            f"unable to read submissions database {path}: {error}"
+        ) from error
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 @contextmanager
@@ -217,7 +242,21 @@ def _prepare_event(event: dict[str, Any]) -> dict[str, Any]:
     return prepared
 
 
-def records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
+def records_from_events(
+    events: list[dict[str, Any]],
+    *,
+    profile: str,
+) -> list[SubmissionRecord]:
+    if not profile:
+        raise SubmissionDatabaseError("submission reads require a non-empty profile")
+    return [
+        record
+        for record in _records_from_events(events)
+        if record.profile == profile
+    ]
+
+
+def _records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
     by_run: dict[str, list[dict[str, Any]]] = {}
     for event in events:
         run_id = event.get("run_id")
@@ -228,8 +267,17 @@ def records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
     for run_id, run_events in by_run.items():
         submitted = next(
             (event for event in run_events if event.get("event") == "submitted"),
-            run_events[0],
+            None,
         )
+        if submitted is None:
+            raise SubmissionDatabaseError(
+                f"submission run '{run_id}' has no attributed submitted event"
+            )
+        submitted_profile = submitted.get("profile")
+        if not isinstance(submitted_profile, str) or not submitted_profile:
+            raise SubmissionDatabaseError(
+                f"submission run '{run_id}' has no profile attribution"
+            )
         latest = run_events[-1]
         latest_event = str(latest.get("event", "unknown"))
         latest_state = _latest_state(run_events)
@@ -238,7 +286,7 @@ def records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
                 run_id=run_id,
                 job_id=str(submitted.get("job_id", "")),
                 cluster=_optional_str(submitted.get("cluster")),
-                profile=str(submitted.get("profile", "")),
+                profile=submitted_profile,
                 jobscript=str(submitted.get("jobscript", "")),
                 remote_directory=str(submitted.get("remote_directory", "")),
                 latest_event=latest_event,
@@ -249,11 +297,34 @@ def records_from_events(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
     return sorted(records, key=lambda record: record.run_id)
 
 
-def active_records(events: list[dict[str, Any]]) -> list[SubmissionRecord]:
+def active_records(
+    events: list[dict[str, Any]],
+    *,
+    profile: str,
+) -> list[SubmissionRecord]:
     return [
-        record for record in records_from_events(events)
+        record for record in records_from_events(events, profile=profile)
         if record.action != "closed"
     ]
+
+
+def require_record_for_profile(
+    events: list[dict[str, Any]],
+    *,
+    run_id: str,
+    profile: str,
+) -> SubmissionRecord:
+    for record in _records_from_events(events):
+        if record.run_id != run_id:
+            continue
+        if record.profile != profile:
+            raise SubmissionDatabaseError(
+                f"submission run '{run_id}' belongs to a different profile"
+            )
+        return record
+    raise SubmissionDatabaseError(
+        f"submission run '{run_id}' was not found for profile '{profile}'"
+    )
 
 
 def parse_sbatch_submission(output: str) -> tuple[str, str | None]:
@@ -345,7 +416,7 @@ def active_records_for_job(
     submitted_job_id = base_job_id.group(0) if base_job_id else job_id
     return [
         record
-        for record in active_records(events)
+        for record in active_records(events, profile=profile)
         if record.profile == profile
         and record.job_id in {job_id, submitted_job_id}
         and record.cluster == cluster
@@ -384,10 +455,17 @@ def mark_event(
     run_id: str,
     event: str,
     *,
+    profile: str,
     path: str | None = None,
     reason: str | None = None,
 ) -> dict[str, Any]:
-    data: dict[str, Any] = {"event": event, "run_id": run_id}
+    if not profile:
+        raise ValueError("submission mark event requires a non-empty profile")
+    data: dict[str, Any] = {
+        "event": event,
+        "run_id": run_id,
+        "profile": profile,
+    }
     if path:
         data["path"] = path
     if reason:

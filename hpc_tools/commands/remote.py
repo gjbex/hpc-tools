@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import posixpath
 import shlex
 from typing import Any
 
-from hpc_tools.commands.common import _quote_remote_path_expression, _section_command
+from hpc_tools.authorization import namespace_arguments, require_authorized
+from hpc_tools.commands.common import _quote_remote_path_expression
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import run_command
+from hpc_tools.filesystem import FilesystemService
 from hpc_tools.hardware import profile_has_hardware_context
 from hpc_tools.hardware import render_hardware_context
+from hpc_tools.remote_filesystem import (
+    ensure_remote_directory,
+    list_remote_directory,
+    resolve_granted_path,
+)
 
 
 def register(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -37,8 +45,7 @@ def register_storage(subparsers: Any, handlers: Any) -> None:
     storage_inspect_parser.add_argument(
         "path",
         nargs="?",
-        default=".",
-        help="Remote path to inspect; defaults to the remote current directory",
+        help="Remote directory to inspect; defaults to profile projects_dir",
     )
     storage_inspect_parser.set_defaults(
         handler=handlers.cmd_storage_inspect,
@@ -135,42 +142,122 @@ def register_hardware(subparsers: Any, profile: Any, handlers: Any) -> None:
         )
 
 def cmd_storage_inspect(args: argparse.Namespace, profile: Profile) -> int:
-    return run_command(profile, _storage_inspect_command(args.path), dry_run=args.dry_run)
+    require_authorized("filesystem.inspect", profile, namespace_arguments(args))
+    selected_path = profile.projects_dir if args.path in {None, "."} else args.path
+    if not selected_path:
+        raise ConfigError(
+            f"profile '{profile.name}' does not define projects_dir; pass a path"
+        )
+    if args.dry_run:
+        print(f"filesystem list {selected_path}")
+        return 0
+    selected, entries, truncated = list_remote_directory(
+        profile,
+        selected_path,
+        roots=profile.capabilities.remote_roots.list,
+    )
+    print(f"path: {selected}")
+    for entry in entries:
+        size = "-" if entry.size is None else str(entry.size)
+        print(f"{entry.kind}\t{size}\t{entry.name}")
+    if truncated:
+        print("[listing truncated]")
+    return 0
 
 def cmd_repo_status(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("repository.status", profile, namespace_arguments(args))
+    if not args.dry_run:
+        list_remote_directory(
+            profile,
+            args.directory,
+            roots=profile.capabilities.remote_roots.list,
+        )
+        selected, root = resolve_granted_path(
+            f"{args.directory}/.git/HEAD",
+            profile.capabilities.remote_roots.read,
+        )
+        head = FilesystemService(profile).read_text(
+            selected,
+            roots=profile.capabilities.remote_roots.read,
+            root=root,
+        )
+        if not head.ok:
+            detail = head.failure.message if head.failure else "unknown filesystem failure"
+            raise ConfigError(f"could not inspect repository metadata: {detail}")
     return run_command(profile, _repo_status_command(args.directory), dry_run=args.dry_run)
 
 def cmd_quota(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("cluster.quota", profile, namespace_arguments(args))
     if not profile.quota_command:
         raise ConfigError(f"profile '{profile.name}' does not define quota_command")
     return run_command(profile, profile.quota_command, dry_run=args.dry_run)
 
 def cmd_projects(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("filesystem.projects", profile, namespace_arguments(args))
     if not profile.projects_dir:
         raise ConfigError(f"profile '{profile.name}' does not define projects_dir")
-    remote_path = _quote_remote_path_expression(profile.projects_dir)
-    command = f"ls -ld {remote_path} 2>/dev/null && ls -1 {remote_path}"
-    return run_command(profile, command, dry_run=args.dry_run)
+    if args.dry_run:
+        print(f"filesystem list {profile.projects_dir}")
+        return 0
+    selected, entries, truncated = list_remote_directory(
+        profile,
+        profile.projects_dir,
+        roots=profile.capabilities.remote_roots.list,
+    )
+    print(f"path: {selected}")
+    for entry in entries:
+        print(entry.name)
+    if truncated:
+        print("[listing truncated]")
+    return 0
 
 def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("repository.clone", profile, namespace_arguments(args))
     directory = args.directory or profile.projects_dir
     if not directory:
         raise ConfigError(
             f"profile '{profile.name}' does not define projects_dir; pass --directory"
         )
+    name = args.name or _clone_destination_name(args.url)
+    if "/" in name or name in {"", ".", ".."}:
+        raise ConfigError("clone destination name must be one path component")
+    selected_directory, _ = resolve_granted_path(
+        directory,
+        profile.capabilities.remote_roots.write,
+    )
     parts = ["git", "clone"]
     if args.branch:
         parts.extend(["--branch", args.branch])
-    parts.append(args.url)
-    if args.name:
-        parts.append(args.name)
-    command = f"cd {_quote_remote_path_expression(directory)} && {' '.join(shlex.quote(part) for part in parts)}"
+    parts.extend([args.url, name])
+    command = (
+        f"cd {_quote_remote_path_expression(selected_directory)} && "
+        f"{' '.join(shlex.quote(part) for part in parts)}"
+    )
+    if not args.dry_run:
+        ensure_remote_directory(
+            profile,
+            selected_directory,
+            roots=profile.capabilities.remote_roots.write,
+        )
+        _, entries, truncated = list_remote_directory(
+            profile,
+            selected_directory,
+            roots=profile.capabilities.remote_roots.write,
+        )
+        if truncated:
+            raise ConfigError(
+                "clone destination cannot be proven absent because the parent listing was truncated"
+            )
+        if any(entry.name == name for entry in entries):
+            raise ConfigError(f"clone destination already exists: {name}")
     return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("cluster.modules", profile, namespace_arguments(args))
     return run_command(profile, _module_spider_command(args.name), dry_run=args.dry_run)
 
 def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("references.context", profile, namespace_arguments(args))
     if args.source and args.path:
         raise ConfigError("use only one of --source or --path")
     print(render_hardware_context(profile, source_only=args.source, path_only=args.path))
@@ -178,20 +265,6 @@ def cmd_hardware(args: argparse.Namespace, profile: Profile) -> int:
 
 def _module_spider_command(name: str) -> str:
     return f"module spider {shlex.quote(name)} 2>&1"
-
-def _storage_inspect_command(path: str) -> str:
-    remote_path = _quote_remote_path_expression(path)
-    return "; ".join(
-        [
-            _section_command("path", f"pwd; ls -ld {remote_path} 2>/dev/null || true"),
-            _section_command(
-                "filesystem",
-                f"df -hT {remote_path} 2>/dev/null || df -h {remote_path} 2>/dev/null || true",
-            ),
-            _section_command("usage", f"du -sh {remote_path} 2>/dev/null || true"),
-            _section_command("mounts", "mount | sed -n '1,80p'"),
-        ]
-    )
 
 def _repo_status_command(directory: str) -> str:
     remote_dir = _quote_remote_path_expression(directory)
@@ -203,3 +276,13 @@ def _repo_status_command(directory: str) -> str:
         "printf '\\n## latest-commit\\n'; git log -1 --oneline; "
         "}"
     )
+
+
+def _clone_destination_name(url: str) -> str:
+    candidate = url.rstrip("/").rsplit("/", 1)[-1].rsplit(":", 1)[-1]
+    if candidate.endswith(".git"):
+        candidate = candidate[:-4]
+    candidate = posixpath.basename(candidate)
+    if not candidate or candidate in {".", ".."}:
+        raise ConfigError("could not derive a safe clone destination; pass --name")
+    return candidate

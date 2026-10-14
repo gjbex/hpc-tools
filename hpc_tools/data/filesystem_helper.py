@@ -86,6 +86,8 @@ def _validate_request(request):
     timeout = limits.get("timeout_seconds")
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
         raise HelperError("invalid-request", "timeout_seconds must be positive")
+    if action == "write" and request.get("mode", 0o600) not in {0o600, 0o700}:
+        raise HelperError("invalid-request", "write mode must be 0600 or 0700")
     return action, limits
 
 
@@ -375,6 +377,7 @@ def _write_file(root_fd, components, request, limits):
             0o600,
             dir_fd=parent_fd,
         )
+        os.fchmod(temp_fd, request.get("mode", 0o600))
         view = memoryview(data)
         while view:
             written = os.write(temp_fd, view)

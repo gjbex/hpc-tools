@@ -147,37 +147,18 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     confirm=True,
                 )
 
-    def test_status_tool_returns_structured_combined_report(self) -> None:
+    def test_status_tool_returns_focused_site_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config_path = self._write_config(Path(directory))
-            completed_quota = mock.Mock(
-                returncode=0,
-                stdout="file system: $VSC_DATA\nBlocks: 573G* of 600G\n",
-                stderr="",
-            )
-            completed_balance = mock.Mock(
-                returncode=0,
-                stdout="ID Name Balance\n142 geniusdefaultslurmaccount 0\n",
-                stderr="",
-            )
-
             with mock.patch("hpc_tools.commands.slurm._fetch_status_page", return_value="All systems running fine"), \
-                    mock.patch("hpc_tools.commands.slurm.run_command_capture", side_effect=[completed_quota, completed_balance]), \
-                    mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]):
+                    mock.patch("hpc_tools.commands.slurm.run_command_capture") as remote:
                 result = mcp_server.hpc_status(config=str(config_path))
 
         self.assertTrue(result["ok"])
         self.assertEqual(result["failures"], 0)
-        self.assertEqual([section["title"] for section in result["sections"]], [
-            "status page",
-            "quota",
-            "balance",
-            "submissions",
-        ])
+        self.assertEqual([section["title"] for section in result["sections"]], ["status page"])
         self.assertIn("All systems running fine", result["sections"][0]["lines"])
-        self.assertIn("Blocks: 573G* of 600G", result["sections"][1]["lines"])
-        self.assertIn("geniusdefaultslurmaccount", "\n".join(result["sections"][2]["lines"]))
-        self.assertEqual(result["submissions"], [])
+        remote.assert_not_called()
 
     def test_slurm_limits_tool_returns_best_effort_parsed_fields(self) -> None:
         stdout = textwrap.dedent(
@@ -330,32 +311,51 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
     def test_submissions_close_requires_confirm_before_append(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            database_path = Path(directory) / "submissions.sqlite3"
+            root = Path(directory)
+            config_path = self._write_config(root)
+            database_path = root / "submissions.sqlite3"
+            submissions.append_event(
+                {
+                    "event": "submitted",
+                    "run_id": "run-1",
+                    "profile": "genius",
+                    "job_id": "1",
+                    "cluster": "wice",
+                },
+                path=database_path,
+            )
 
             preview = mcp_server.hpc_submissions_close(
                 "run-1",
                 reason="done",
                 database=str(database_path),
+                config=str(config_path),
             )
             self.assertTrue(preview["confirm_required"])
-            self.assertFalse(database_path.exists())
+            self.assertEqual(len(submissions.read_events(database_path)), 1)
 
             result = mcp_server.hpc_submissions_close(
                 "run-1",
                 reason="done",
                 database=str(database_path),
+                config=str(config_path),
                 confirm=True,
             )
 
             self.assertTrue(result["appended"])
             events = submissions.read_events(database_path)
-            self.assertEqual("closed", events[0]["event"])
+            self.assertEqual("closed", events[-1]["event"])
+            self.assertEqual("genius", events[-1]["profile"])
 
     def test_write_probe_requires_confirm_before_writing_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "hardware-probe.slurm"
+            root = Path(directory)
+            config_path = self._write_config(root)
+            output = root / "hardware-probe.slurm"
 
-            preview = mcp_server.hpc_write_probe(output=str(output), account="proj")
+            preview = mcp_server.hpc_write_probe(
+                output=str(output), account="proj", config=str(config_path)
+            )
             self.assertTrue(preview["confirm_required"])
             self.assertIn("#SBATCH --account=proj", preview["contents"])
             self.assertFalse(output.exists())
@@ -363,6 +363,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             result = mcp_server.hpc_write_probe(
                 output=str(output),
                 account="proj",
+                config=str(config_path),
                 confirm=True,
             )
 
@@ -371,14 +372,20 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
     def test_write_container_requires_confirm_before_writing_bundle(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / "bundle"
+            root = Path(directory)
+            config_path = self._write_config(root)
+            output = root / "bundle"
 
-            preview = mcp_server.hpc_write_container(output=str(output))
+            preview = mcp_server.hpc_write_container(
+                output=str(output), config=str(config_path)
+            )
             self.assertTrue(preview["confirm_required"])
             self.assertIn("create_apptainer_container.slurm", preview["files"])
             self.assertFalse(output.exists())
 
-            result = mcp_server.hpc_write_container(output=str(output), confirm=True)
+            result = mcp_server.hpc_write_container(
+                output=str(output), config=str(config_path), confirm=True
+            )
 
             self.assertTrue(result["written"])
             self.assertTrue((output / "create_apptainer_container.slurm").exists())
@@ -387,7 +394,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config_path = self._write_config(Path(directory))
 
-            with mock.patch("hpc_tools.mcp.common.run_command_capture") as remote:
+            with mock.patch("hpc_tools.mcp.tools.install_remote_assets") as install:
                 result = mcp_server.hpc_install_probe(
                     config=str(config_path),
                     directory="$VSC_DATA/probes",
@@ -397,15 +404,16 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
         self.assertTrue(result["confirm_required"])
         self.assertFalse(result["executed"])
-        self.assertIn("cat > hardware-probe.slurm", result["command"])
-        remote.assert_not_called()
+        self.assertIn("hardware-probe.slurm", result["files"])
+        install.assert_not_called()
 
     def test_install_container_executes_only_with_confirm_and_not_dry_run(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             config_path = self._write_config(Path(directory))
-            completed = mock.Mock(returncode=0, stdout="", stderr="")
-
-            with mock.patch("hpc_tools.mcp.common.run_command_capture", return_value=completed) as remote:
+            with mock.patch(
+                "hpc_tools.mcp.tools.install_remote_assets",
+                return_value=(),
+            ) as install:
                 result = mcp_server.hpc_install_container(
                     config=str(config_path),
                     directory="$VSC_DATA/containers",
@@ -415,5 +423,4 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
         self.assertTrue(result["executed"])
         self.assertFalse(result["dry_run"])
-        self.assertIn("cat > create_apptainer_container.slurm", result["command"])
-        remote.assert_called_once()
+        install.assert_called_once()

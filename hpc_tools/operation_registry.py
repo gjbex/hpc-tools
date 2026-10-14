@@ -253,14 +253,14 @@ _OPERATIONS = (
     _op("references.show", "C0", [], ["local-read"], cli=["references show"], mcp=["hpc_references_show"], resources=["hpc://reference-sets/{name}"], selectors=["name"]),
     _op("references.validate", "C0", [], ["local-read"], cli=["references validate"], mcp=[], resources=[], selectors=["name"]),
     _op("references.create", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references create"], mcp=["hpc_references_create"], resources=[], selectors=["profile", "config", "name", "reference files"]),
-    _op("references.export", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references export"], mcp=[], resources=[], selectors=["name", "output"]),
-    _op("references.import", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references import"], mcp=["hpc_references_import"], resources=[], selectors=["archive", "reference-set destination"]),
+    _op("references.export", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references export"], mcp=[], resources=[], selectors=["profile", "config", "name", "output"]),
+    _op("references.import", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references import"], mcp=["hpc_references_import"], resources=[], selectors=["profile", "config", "archive", "reference-set destination"]),
     _op("references.attach", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references attach"], mcp=["hpc_references_attach"], resources=[], selectors=["profile", "config", "name"]),
     _op("references.detach", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["references detach"], mcp=[], resources=[], selectors=["profile", "config"]),
-    _op("agent.audit", "C2", ["delegation-ledger.read"], ["local-read"], cli=["agent audit"], mcp=[], resources=[], selectors=["ledger", "database", "delegation-id"]),
-    _op("agent.export", "C2", ["delegation-ledger.read", "local-state.write"], ["local-read", "local-write"], cli=["agent export"], mcp=[], resources=[], selectors=["ledger", "database", "delegation-id", "output"]),
+    _op("agent.audit", "C2", ["delegation-ledger.read"], ["local-read"], cli=["agent audit"], mcp=[], resources=[], selectors=["profile", "config", "ledger", "database", "delegation-id"]),
+    _op("agent.export", "C2", ["delegation-ledger.read", "local-state.write"], ["local-read", "local-write"], cli=["agent export"], mcp=[], resources=[], selectors=["profile", "config", "ledger", "database", "delegation-id", "output"]),
     _op("cluster.doctor", "C1", [], ["remote-read"], cli=["doctor"], mcp=[], resources=[], selectors=["profile", "config"]),
-    _op("cluster.status", "C2", ["accounting.read"], ["web-read", "remote-read", "local-read", "local-write"], cli=["status"], mcp=["hpc_status"], resources=[], selectors=["profile", "config", "status_url", "submission database"]),
+    _op("cluster.status", "C1", [], ["web-read"], cli=["status"], mcp=["hpc_status"], resources=[], selectors=["profile", "config", "status_url"]),
     _op("cluster.site-env", "C1", [], ["remote-read"], cli=["site-env"], mcp=["hpc_site_env"], resources=[], selectors=["profile", "config"]),
     _op("references.context", "C0", [], ["local-read"], cli=["hardware"], mcp=["hpc_hardware_context"], resources=["hpc://profiles/{profile}/hardware", "hpc://profiles/{profile}/slurm", "hpc://profiles/{profile}/storage", "hpc://cluster/hardware", "hpc://cluster/slurm", "hpc://cluster/storage"], selectors=["profile", "config", "reference files"]),
     _op("references.sources", "C0", [], ["local-read"], cli=[], mcp=["hpc_hardware_sources"], resources=[], selectors=["profile", "config", "reference_set"]),
@@ -274,7 +274,7 @@ _OPERATIONS = (
     _op("remote.shell", "operator", ["remote-shell.execute"], ["remote-execute"], cli=["run"], mcp=[], resources=[], selectors=["profile", "config", "remote_command"]),
     _op("probe.write", "C0", [], ["local-read", "local-write"], cli=["write-probe", "write-hardware-probe"], mcp=["hpc_write_probe"], resources=[], selectors=["profile", "config", "kind", "output", "force"]),
     _op("probe.install", "C1", ["remote-install.write"], ["local-read", "remote-write"], cli=["install-probe", "install-hardware-probe"], mcp=["hpc_install_probe"], resources=[], selectors=["profile", "config", "kind", "directory", "name", "force"]),
-    _op("container.write", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["write-container"], mcp=["hpc_write_container"], resources=[], selectors=["kind", "output", "force"]),
+    _op("container.write", "C0", ["local-state.write"], ["local-read", "local-write"], cli=["write-container"], mcp=["hpc_write_container"], resources=[], selectors=["profile", "config", "kind", "output", "force"]),
     _op("container.install", "C1", ["remote-install.write"], ["local-read", "remote-write"], cli=["install-container"], mcp=["hpc_install_container"], resources=[], selectors=["profile", "config", "kind", "directory", "force"]),
     _op("job.quote", "C2", ["job.validate", "accounting.read"], ["remote-read", "local-read", "local-write"], cli=["quote"], mcp=["hpc_quote_job"], resources=[], selectors=["profile", "config", "account", "jobscript", "directory", "resource shape", "container", "idempotency_key"]),
     _op("account.balance", "C1", ["accounting.read"], ["remote-read"], cli=["balance"], mcp=[], resources=[], selectors=["profile", "config", "sam_balance_command"]),
@@ -286,11 +286,11 @@ _OPERATIONS = (
     _op("job.cancel", "C3", [], ["scheduler-write", "local-read", "local-write"], cli=["cancel"], mcp=["hpc_cancel_job"], resources=[], selectors=["profile", "config", "jobid", "cluster", "database", "reason", "idempotency_key"]),
     _op("job.queue", "C2", [], ["remote-read"], cli=["queue"], mcp=[], resources=[], selectors=["profile", "config", "queue_command"]),
     _op("job.accounting", "C2", [], ["remote-read", "local-read", "local-write"], cli=["sacct"], mcp=["hpc_job_accounting"], resources=[], selectors=["profile", "config", "jobid", "cluster", "delegation ledger"]),
-    _op("submissions.list", "C2", [], ["local-read", "local-write"], cli=["submissions list"], mcp=["hpc_submissions_list"], resources=["hpc://submissions/active", "hpc://submissions/all"], selectors=["database", "all"]),
+    _op("submissions.list", "C2", [], ["local-read"], cli=["submissions list"], mcp=["hpc_submissions_list"], resources=["hpc://submissions/active", "hpc://submissions/all"], selectors=["profile", "config", "database", "all"]),
     _op("submissions.observe", "C2", ["submission-record.write"], ["local-read", "remote-read", "local-write"], cli=["submissions observe"], mcp=[], resources=[], selectors=["profile", "config", "database", "run_id"]),
-    _op("submissions.mark-collected", "C2", ["submission-record.write"], ["local-read", "local-write"], cli=["submissions mark-collected"], mcp=["hpc_submissions_mark_collected"], resources=[], selectors=["database", "run_id", "path"]),
-    _op("submissions.mark-analysed", "C2", ["submission-record.write"], ["local-read", "local-write"], cli=["submissions mark-analysed"], mcp=["hpc_submissions_mark_analysed"], resources=[], selectors=["database", "run_id", "path"]),
-    _op("submissions.close", "C2", ["submission-record.write"], ["local-read", "local-write"], cli=["submissions close"], mcp=["hpc_submissions_close"], resources=[], selectors=["database", "run_id", "reason"]),
+    _op("submissions.mark-collected", "C2", ["submission-record.write"], ["local-read", "local-write"], cli=["submissions mark-collected"], mcp=["hpc_submissions_mark_collected"], resources=[], selectors=["profile", "config", "database", "run_id", "path"]),
+    _op("submissions.mark-analysed", "C2", ["submission-record.write"], ["local-read", "local-write"], cli=["submissions mark-analysed"], mcp=["hpc_submissions_mark_analysed"], resources=[], selectors=["profile", "config", "database", "run_id", "path"]),
+    _op("submissions.close", "C2", ["submission-record.write"], ["local-read", "local-write"], cli=["submissions close"], mcp=["hpc_submissions_close"], resources=[], selectors=["profile", "config", "database", "run_id", "reason"]),
     _op("benchmark.summarize", "C0", [], ["local-read"], cli=["benchmark summarize"], mcp=[], resources=[], selectors=["targets"]),
     _op("benchmark.compare", "C0", [], ["local-read"], cli=["benchmark compare"], mcp=[], resources=[], selectors=["baseline", "candidate", "candidate_threads"]),
     _op("cxx.scan", "C0", [], ["local-read"], cli=["cxx scan"], mcp=[], resources=[], selectors=["target"]),
@@ -312,12 +312,13 @@ _OPERATIONS = (
 
 _DESCRIPTOR_OVERRIDES: dict[str, dict[str, object]] = {
     "cluster.status": {
-        "site_features": ("status-page", "quota", "account-balance"),
-        "resolver": "status",
+        "site_features": ("status-page",),
     },
     "cluster.quota": {"site_features": ("quota",)},
     "filesystem.inspect": {
-        "path_bindings": (PathBinding("list", "path", argument="path"),),
+        "path_bindings": (
+            PathBinding("list", "path", argument="path", profile_field="projects_dir"),
+        ),
     },
     "filesystem.projects": {
         "site_features": ("projects-directory",),
@@ -515,37 +516,6 @@ def _resolve_clone(
     )
 
 
-def _resolve_status(
-    descriptor: OperationDescriptor,
-    request: RequestContext,
-) -> ResolvedOperation:
-    """Resolve the current compound status operation before WP5 splits it."""
-    base = _resolved(descriptor, request)
-    components = (
-        CapabilityRequirement(
-            operation_id="cluster.status:status-page",
-            minimum_level=CapabilityLevel.CLUSTER_DISCOVERY,
-            site_features=("status-page",),
-        ),
-        CapabilityRequirement(
-            operation_id="cluster.quota",
-            minimum_level=CapabilityLevel.CLUSTER_DISCOVERY,
-            site_features=("quota",),
-        ),
-        CapabilityRequirement(
-            operation_id="account.balance",
-            minimum_level=CapabilityLevel.CLUSTER_DISCOVERY,
-            scopes=("accounting.read",),
-            site_features=("account-balance",),
-        ),
-        CapabilityRequirement(
-            operation_id="submissions.list",
-            minimum_level=CapabilityLevel.JOB_INSPECTION,
-        ),
-    )
-    return replace(base, components=components)
-
-
 def _resolve_mcp_confirm_or_delegation(
     descriptor: OperationDescriptor,
     request: RequestContext,
@@ -560,6 +530,8 @@ def _resolve_mcp_confirm_or_delegation(
 
 def _path_value(binding: PathBinding, request: RequestContext) -> str | None:
     value = request.arguments.get(binding.argument) if binding.argument else None
+    if value == "." and binding.profile_field:
+        value = None
     if value is None and binding.profile_field and request.profile is not None:
         value = getattr(request.profile, binding.profile_field, None)
     return str(value) if value is not None else None
@@ -577,7 +549,6 @@ OPERATION_REGISTRY = OperationRegistry(
         "job-submit": _resolve_job_submit,
         "mcp-confirm-or-delegation": _resolve_mcp_confirm_or_delegation,
         "probe-write": _resolve_probe_write,
-        "status": _resolve_status,
     },
 )
 

@@ -6,6 +6,7 @@ from typing import Any
 import argparse
 
 from hpc_tools import submissions
+from hpc_tools.authorization import namespace_arguments, require_authorized
 from hpc_tools.config import Profile
 from hpc_tools.execution import run_command_capture
 
@@ -91,23 +92,28 @@ def register(subparsers: Any, handlers: Any) -> None:
         operation_id="submissions.close",
     )
 
-def cmd_submissions_list(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+def cmd_submissions_list(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("submissions.list", profile, namespace_arguments(args))
     events = submissions.read_events(args.database)
     records = (
-        submissions.records_from_events(events)
+        submissions.records_from_events(events, profile=profile.name)
         if args.all
-        else submissions.active_records(events)
+        else submissions.active_records(events, profile=profile.name)
     )
     print(submissions.format_records(records))
     return 0
 
 def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("submissions.observe", profile, namespace_arguments(args))
     events = submissions.read_events(args.database)
-    records = submissions.active_records(events)
+    records = submissions.active_records(events, profile=profile.name)
     if args.run_id:
-        records = [record for record in records if record.run_id == args.run_id]
-    records = [record for record in records if record.profile == profile.name]
+        selected = submissions.require_record_for_profile(
+            events,
+            run_id=args.run_id,
+            profile=profile.name,
+        )
+        records = [record for record in records if record.run_id == selected.run_id]
     if not records:
         print("No active submissions to observe.")
         return 0
@@ -143,32 +149,66 @@ def cmd_submissions_observe(args: argparse.Namespace, profile: Profile) -> int:
     refreshed_events = submissions.read_events(args.database)
     observed_run_ids = {record.run_id for record in observed_records}
     refreshed_records = [
-        record for record in submissions.records_from_events(refreshed_events)
+        record
+        for record in submissions.records_from_events(
+            refreshed_events,
+            profile=profile.name,
+        )
         if record.run_id in observed_run_ids
     ]
     print(submissions.format_records(refreshed_records))
     return 0
 
-def cmd_submissions_mark_collected(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+def cmd_submissions_mark_collected(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("submissions.mark-collected", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; results_collected event not appended for {args.run_id}.")
+        return 0
+    events = submissions.read_events(args.database)
+    submissions.require_record_for_profile(events, run_id=args.run_id, profile=profile.name)
     submissions.append_event(
-        submissions.mark_event(args.run_id, "results_collected", path=args.path),
+        submissions.mark_event(
+            args.run_id,
+            "results_collected",
+            profile=profile.name,
+            path=args.path,
+        ),
         path=args.database,
     )
     return 0
 
-def cmd_submissions_mark_analysed(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+def cmd_submissions_mark_analysed(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("submissions.mark-analysed", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; analysed event not appended for {args.run_id}.")
+        return 0
+    events = submissions.read_events(args.database)
+    submissions.require_record_for_profile(events, run_id=args.run_id, profile=profile.name)
     submissions.append_event(
-        submissions.mark_event(args.run_id, "analysed", path=args.path),
+        submissions.mark_event(
+            args.run_id,
+            "analysed",
+            profile=profile.name,
+            path=args.path,
+        ),
         path=args.database,
     )
     return 0
 
-def cmd_submissions_close(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+def cmd_submissions_close(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("submissions.close", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; closed event not appended for {args.run_id}.")
+        return 0
+    events = submissions.read_events(args.database)
+    submissions.require_record_for_profile(events, run_id=args.run_id, profile=profile.name)
     submissions.append_event(
-        submissions.mark_event(args.run_id, "closed", reason=args.reason),
+        submissions.mark_event(
+            args.run_id,
+            "closed",
+            profile=profile.name,
+            reason=args.reason,
+        ),
         path=args.database,
     )
     return 0

@@ -126,7 +126,7 @@ def current_surface_snapshot() -> dict:
     return {
         "format_version": 1,
         "snapshot_semantics": (
-            "current pre-policy surface; update intentionally with implementation, "
+            "current capability-transition surface; update intentionally with implementation, "
             "inventory, documentation, examples, and tests"
         ),
         "cli": builtin_cli_tree(),

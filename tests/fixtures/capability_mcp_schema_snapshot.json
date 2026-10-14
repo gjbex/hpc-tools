@@ -1,33 +1,2425 @@
 {
-  "hpc_profiles_list": {"properties":{"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"}},"title":"hpc_profiles_listArguments","type":"object"},
-  "hpc_paths": {"properties":{},"title":"hpc_pathsArguments","type":"object"},
-  "hpc_profile_show": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"}},"title":"hpc_profile_showArguments","type":"object"},
-  "hpc_hardware_context": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"}},"title":"hpc_hardware_contextArguments","type":"object"},
-  "hpc_hardware_sources": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"}},"title":"hpc_hardware_sourcesArguments","type":"object"},
-  "hpc_references_list": {"properties":{},"title":"hpc_references_listArguments","type":"object"},
-  "hpc_references_show": {"properties":{"name":{"title":"Name","type":"string"}},"required":["name"],"title":"hpc_references_showArguments","type":"object"},
-  "hpc_plugins_list": {"properties":{},"title":"hpc_plugins_listArguments","type":"object"},
-  "hpc_submissions_list": {"properties":{"all":{"default":false,"title":"All","type":"boolean"},"database":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Database"}},"title":"hpc_submissions_listArguments","type":"object"},
-  "hpc_status": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"title":"hpc_statusArguments","type":"object"},
-  "hpc_jobs": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"cluster":{"default":"all","title":"Cluster","type":"string"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"title":"hpc_jobsArguments","type":"object"},
-  "hpc_job": {"properties":{"jobid":{"title":"Jobid","type":"string"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"cluster":{"default":"all","title":"Cluster","type":"string"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"required":["jobid"],"title":"hpc_jobArguments","type":"object"},
-  "hpc_job_accounting": {"properties":{"jobid":{"title":"Jobid","type":"string"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"required":["jobid"],"title":"hpc_job_accountingArguments","type":"object"},
-  "hpc_cancel_job": {"properties":{"jobid":{"title":"Jobid","type":"string"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"reason":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Reason"},"database":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Database"},"idempotency_key":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Idempotency Key"},"dry_run":{"default":true,"title":"Dry Run","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["jobid"],"title":"hpc_cancel_jobArguments","type":"object"},
-  "hpc_slurm_limits": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"partition":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Partition"},"qos":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Qos"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"title":"hpc_slurm_limitsArguments","type":"object"},
-  "hpc_module_spider": {"properties":{"name":{"title":"Name","type":"string"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"required":["name"],"title":"hpc_module_spiderArguments","type":"object"},
-  "hpc_storage_inspect": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"path":{"default":".","title":"Path","type":"string"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"title":"hpc_storage_inspectArguments","type":"object"},
-  "hpc_site_env": {"properties":{"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"title":"hpc_site_envArguments","type":"object"},
-  "hpc_references_create": {"properties":{"name":{"title":"Name","type":"string"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"force":{"default":false,"title":"Force","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["name"],"title":"hpc_references_createArguments","type":"object"},
-  "hpc_references_import": {"properties":{"archive":{"title":"Archive","type":"string"},"force":{"default":false,"title":"Force","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["archive"],"title":"hpc_references_importArguments","type":"object"},
-  "hpc_references_attach": {"properties":{"name":{"title":"Name","type":"string"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["name"],"title":"hpc_references_attachArguments","type":"object"},
-  "hpc_submissions_mark_collected": {"properties":{"run_id":{"title":"Run Id","type":"string"},"path":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Path"},"database":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Database"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["run_id"],"title":"hpc_submissions_mark_collectedArguments","type":"object"},
-  "hpc_submissions_mark_analysed": {"properties":{"run_id":{"title":"Run Id","type":"string"},"path":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Path"},"database":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Database"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["run_id"],"title":"hpc_submissions_mark_analysedArguments","type":"object"},
-  "hpc_submissions_close": {"properties":{"run_id":{"title":"Run Id","type":"string"},"reason":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Reason"},"database":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Database"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["run_id"],"title":"hpc_submissions_closeArguments","type":"object"},
-  "hpc_write_probe": {"properties":{"kind":{"default":"hardware","title":"Kind","type":"string"},"output":{"default":"-","title":"Output","type":"string"},"force":{"default":false,"title":"Force","type":"boolean"},"account":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Account"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"partition":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Partition"},"qos":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Qos"},"cpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cpus Per Task"},"time":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Time"},"mail_user":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mail User"},"mail_notifications":{"default":false,"title":"Mail Notifications","type":"boolean"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"title":"hpc_write_probeArguments","type":"object"},
-  "hpc_install_probe": {"properties":{"directory":{"title":"Directory","type":"string"},"kind":{"default":"hardware","title":"Kind","type":"string"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Name"},"force":{"default":false,"title":"Force","type":"boolean"},"account":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Account"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"partition":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Partition"},"qos":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Qos"},"cpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cpus Per Task"},"time":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Time"},"mail_user":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mail User"},"mail_notifications":{"default":false,"title":"Mail Notifications","type":"boolean"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":true,"title":"Dry Run","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["directory"],"title":"hpc_install_probeArguments","type":"object"},
-  "hpc_write_container": {"properties":{"output":{"title":"Output","type":"string"},"kind":{"default":"generic","title":"Kind","type":"string"},"force":{"default":false,"title":"Force","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["output"],"title":"hpc_write_containerArguments","type":"object"},
-  "hpc_install_container": {"properties":{"directory":{"title":"Directory","type":"string"},"kind":{"default":"generic","title":"Kind","type":"string"},"force":{"default":false,"title":"Force","type":"boolean"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":true,"title":"Dry Run","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["directory"],"title":"hpc_install_containerArguments","type":"object"},
-  "hpc_quote_job": {"properties":{"jobscript":{"title":"Jobscript","type":"string"},"directory":{"default":".","title":"Directory","type":"string"},"account":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Account"},"array":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Array"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"dependency":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Dependency"},"error":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Error"},"export":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Export"},"gpu_bind":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpu Bind"},"gpus":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus"},"gpus_per_node":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus Per Node"},"gpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus Per Task"},"gres":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gres"},"job_name":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Job Name"},"mem":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mem"},"mem_per_cpu":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mem Per Cpu"},"nodes":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Nodes"},"ntasks":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Ntasks"},"ntasks_per_node":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Ntasks Per Node"},"output":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Output"},"partition":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Partition"},"reservation":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Reservation"},"time":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Time"},"cpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cpus Per Task"},"container":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Container"},"idempotency_key":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Idempotency Key"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"required":["jobscript"],"title":"hpc_quote_jobArguments","type":"object"},
-  "hpc_validate_job": {"properties":{"jobscript":{"title":"Jobscript","type":"string"},"directory":{"default":".","title":"Directory","type":"string"},"account":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Account"},"array":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Array"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"dependency":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Dependency"},"error":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Error"},"export":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Export"},"gpu_bind":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpu Bind"},"gpus":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus"},"gpus_per_node":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus Per Node"},"gpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus Per Task"},"gres":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gres"},"job_name":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Job Name"},"mem":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mem"},"mem_per_cpu":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mem Per Cpu"},"nodes":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Nodes"},"ntasks":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Ntasks"},"ntasks_per_node":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Ntasks Per Node"},"output":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Output"},"partition":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Partition"},"reservation":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Reservation"},"time":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Time"},"cpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cpus Per Task"},"container":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Container"},"idempotency_key":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Idempotency Key"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":false,"title":"Dry Run","type":"boolean"}},"required":["jobscript"],"title":"hpc_validate_jobArguments","type":"object"},
-  "hpc_submit_job": {"properties":{"jobscript":{"title":"Jobscript","type":"string"},"directory":{"title":"Directory","type":"string"},"quote_evidence":{"additionalProperties":true,"title":"Quote Evidence","type":"object"},"validation_evidence":{"additionalProperties":true,"title":"Validation Evidence","type":"object"},"account":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Account"},"array":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Array"},"cluster":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cluster"},"dependency":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Dependency"},"error":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Error"},"export":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Export"},"gpu_bind":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpu Bind"},"gpus":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus"},"gpus_per_node":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus Per Node"},"gpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gpus Per Task"},"gres":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Gres"},"job_name":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Job Name"},"mem":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mem"},"mem_per_cpu":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Mem Per Cpu"},"nodes":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Nodes"},"ntasks":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Ntasks"},"ntasks_per_node":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Ntasks Per Node"},"output":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Output"},"partition":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Partition"},"reservation":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Reservation"},"time":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Time"},"cpus_per_task":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Cpus Per Task"},"container":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Container"},"idempotency_key":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Idempotency Key"},"database":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Database"},"profile":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Profile"},"config":{"anyOf":[{"type":"string"},{"type":"null"}],"default":null,"title":"Config"},"dry_run":{"default":true,"title":"Dry Run","type":"boolean"},"confirm":{"default":false,"title":"Confirm","type":"boolean"}},"required":["jobscript","directory","quote_evidence","validation_evidence"],"title":"hpc_submit_jobArguments","type":"object"}
+  "hpc_cancel_job": {
+    "properties": {
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "database": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Database"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "idempotency_key": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Idempotency Key"
+      },
+      "jobid": {
+        "title": "Jobid",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reason"
+      }
+    },
+    "required": [
+      "jobid"
+    ],
+    "title": "hpc_cancel_jobArguments",
+    "type": "object"
+  },
+  "hpc_hardware_context": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_hardware_contextArguments",
+    "type": "object"
+  },
+  "hpc_hardware_sources": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_hardware_sourcesArguments",
+    "type": "object"
+  },
+  "hpc_install_container": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "directory": {
+        "title": "Directory",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "kind": {
+        "default": "generic",
+        "title": "Kind",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "directory"
+    ],
+    "title": "hpc_install_containerArguments",
+    "type": "object"
+  },
+  "hpc_install_probe": {
+    "properties": {
+      "account": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Account"
+      },
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "cpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cpus Per Task"
+      },
+      "directory": {
+        "title": "Directory",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "kind": {
+        "default": "hardware",
+        "title": "Kind",
+        "type": "string"
+      },
+      "mail_notifications": {
+        "default": false,
+        "title": "Mail Notifications",
+        "type": "boolean"
+      },
+      "mail_user": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mail User"
+      },
+      "name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Name"
+      },
+      "partition": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Partition"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "qos": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Qos"
+      },
+      "time": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Time"
+      }
+    },
+    "required": [
+      "directory"
+    ],
+    "title": "hpc_install_probeArguments",
+    "type": "object"
+  },
+  "hpc_job": {
+    "properties": {
+      "cluster": {
+        "default": "all",
+        "title": "Cluster",
+        "type": "string"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "jobid": {
+        "title": "Jobid",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "jobid"
+    ],
+    "title": "hpc_jobArguments",
+    "type": "object"
+  },
+  "hpc_job_accounting": {
+    "properties": {
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "jobid": {
+        "title": "Jobid",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "jobid"
+    ],
+    "title": "hpc_job_accountingArguments",
+    "type": "object"
+  },
+  "hpc_jobs": {
+    "properties": {
+      "cluster": {
+        "default": "all",
+        "title": "Cluster",
+        "type": "string"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_jobsArguments",
+    "type": "object"
+  },
+  "hpc_module_spider": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "hpc_module_spiderArguments",
+    "type": "object"
+  },
+  "hpc_paths": {
+    "properties": {},
+    "title": "hpc_pathsArguments",
+    "type": "object"
+  },
+  "hpc_plugins_list": {
+    "properties": {},
+    "title": "hpc_plugins_listArguments",
+    "type": "object"
+  },
+  "hpc_profile_show": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_profile_showArguments",
+    "type": "object"
+  },
+  "hpc_profiles_list": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      }
+    },
+    "title": "hpc_profiles_listArguments",
+    "type": "object"
+  },
+  "hpc_quote_job": {
+    "properties": {
+      "account": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Account"
+      },
+      "array": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Array"
+      },
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "container": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Container"
+      },
+      "cpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cpus Per Task"
+      },
+      "dependency": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dependency"
+      },
+      "directory": {
+        "default": ".",
+        "title": "Directory",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Error"
+      },
+      "export": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Export"
+      },
+      "gpu_bind": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpu Bind"
+      },
+      "gpus": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus"
+      },
+      "gpus_per_node": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus Per Node"
+      },
+      "gpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus Per Task"
+      },
+      "gres": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gres"
+      },
+      "idempotency_key": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Idempotency Key"
+      },
+      "job_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Job Name"
+      },
+      "jobscript": {
+        "title": "Jobscript",
+        "type": "string"
+      },
+      "mem": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mem"
+      },
+      "mem_per_cpu": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mem Per Cpu"
+      },
+      "nodes": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Nodes"
+      },
+      "ntasks": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ntasks"
+      },
+      "ntasks_per_node": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ntasks Per Node"
+      },
+      "output": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Output"
+      },
+      "partition": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Partition"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "reservation": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reservation"
+      },
+      "time": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Time"
+      }
+    },
+    "required": [
+      "jobscript"
+    ],
+    "title": "hpc_quote_jobArguments",
+    "type": "object"
+  },
+  "hpc_references_attach": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "hpc_references_attachArguments",
+    "type": "object"
+  },
+  "hpc_references_create": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "hpc_references_createArguments",
+    "type": "object"
+  },
+  "hpc_references_import": {
+    "properties": {
+      "archive": {
+        "title": "Archive",
+        "type": "string"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "archive"
+    ],
+    "title": "hpc_references_importArguments",
+    "type": "object"
+  },
+  "hpc_references_list": {
+    "properties": {},
+    "title": "hpc_references_listArguments",
+    "type": "object"
+  },
+  "hpc_references_show": {
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "title": "hpc_references_showArguments",
+    "type": "object"
+  },
+  "hpc_site_env": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_site_envArguments",
+    "type": "object"
+  },
+  "hpc_slurm_limits": {
+    "properties": {
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "partition": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Partition"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "qos": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Qos"
+      }
+    },
+    "title": "hpc_slurm_limitsArguments",
+    "type": "object"
+  },
+  "hpc_status": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_statusArguments",
+    "type": "object"
+  },
+  "hpc_storage_inspect": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Path"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_storage_inspectArguments",
+    "type": "object"
+  },
+  "hpc_submissions_close": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "database": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Database"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "reason": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reason"
+      },
+      "run_id": {
+        "title": "Run Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "run_id"
+    ],
+    "title": "hpc_submissions_closeArguments",
+    "type": "object"
+  },
+  "hpc_submissions_list": {
+    "properties": {
+      "all": {
+        "default": false,
+        "title": "All",
+        "type": "boolean"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "database": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Database"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "title": "hpc_submissions_listArguments",
+    "type": "object"
+  },
+  "hpc_submissions_mark_analysed": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "database": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Database"
+      },
+      "path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Path"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "run_id": {
+        "title": "Run Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "run_id"
+    ],
+    "title": "hpc_submissions_mark_analysedArguments",
+    "type": "object"
+  },
+  "hpc_submissions_mark_collected": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "database": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Database"
+      },
+      "path": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Path"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "run_id": {
+        "title": "Run Id",
+        "type": "string"
+      }
+    },
+    "required": [
+      "run_id"
+    ],
+    "title": "hpc_submissions_mark_collectedArguments",
+    "type": "object"
+  },
+  "hpc_submit_job": {
+    "properties": {
+      "account": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Account"
+      },
+      "array": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Array"
+      },
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "container": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Container"
+      },
+      "cpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cpus Per Task"
+      },
+      "database": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Database"
+      },
+      "dependency": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dependency"
+      },
+      "directory": {
+        "title": "Directory",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Error"
+      },
+      "export": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Export"
+      },
+      "gpu_bind": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpu Bind"
+      },
+      "gpus": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus"
+      },
+      "gpus_per_node": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus Per Node"
+      },
+      "gpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus Per Task"
+      },
+      "gres": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gres"
+      },
+      "idempotency_key": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Idempotency Key"
+      },
+      "job_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Job Name"
+      },
+      "jobscript": {
+        "title": "Jobscript",
+        "type": "string"
+      },
+      "mem": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mem"
+      },
+      "mem_per_cpu": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mem Per Cpu"
+      },
+      "nodes": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Nodes"
+      },
+      "ntasks": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ntasks"
+      },
+      "ntasks_per_node": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ntasks Per Node"
+      },
+      "output": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Output"
+      },
+      "partition": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Partition"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "quote_evidence": {
+        "additionalProperties": true,
+        "title": "Quote Evidence",
+        "type": "object"
+      },
+      "reservation": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reservation"
+      },
+      "time": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Time"
+      },
+      "validation_evidence": {
+        "additionalProperties": true,
+        "title": "Validation Evidence",
+        "type": "object"
+      }
+    },
+    "required": [
+      "jobscript",
+      "directory",
+      "quote_evidence",
+      "validation_evidence"
+    ],
+    "title": "hpc_submit_jobArguments",
+    "type": "object"
+  },
+  "hpc_validate_job": {
+    "properties": {
+      "account": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Account"
+      },
+      "array": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Array"
+      },
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "container": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Container"
+      },
+      "cpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cpus Per Task"
+      },
+      "dependency": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Dependency"
+      },
+      "directory": {
+        "default": ".",
+        "title": "Directory",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Error"
+      },
+      "export": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Export"
+      },
+      "gpu_bind": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpu Bind"
+      },
+      "gpus": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus"
+      },
+      "gpus_per_node": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus Per Node"
+      },
+      "gpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gpus Per Task"
+      },
+      "gres": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Gres"
+      },
+      "idempotency_key": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Idempotency Key"
+      },
+      "job_name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Job Name"
+      },
+      "jobscript": {
+        "title": "Jobscript",
+        "type": "string"
+      },
+      "mem": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mem"
+      },
+      "mem_per_cpu": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mem Per Cpu"
+      },
+      "nodes": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Nodes"
+      },
+      "ntasks": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ntasks"
+      },
+      "ntasks_per_node": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Ntasks Per Node"
+      },
+      "output": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Output"
+      },
+      "partition": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Partition"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "reservation": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reservation"
+      },
+      "time": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Time"
+      }
+    },
+    "required": [
+      "jobscript"
+    ],
+    "title": "hpc_validate_jobArguments",
+    "type": "object"
+  },
+  "hpc_write_container": {
+    "properties": {
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "kind": {
+        "default": "generic",
+        "title": "Kind",
+        "type": "string"
+      },
+      "output": {
+        "title": "Output",
+        "type": "string"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      }
+    },
+    "required": [
+      "output"
+    ],
+    "title": "hpc_write_containerArguments",
+    "type": "object"
+  },
+  "hpc_write_probe": {
+    "properties": {
+      "account": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Account"
+      },
+      "cluster": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cluster"
+      },
+      "config": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Config"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "cpus_per_task": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Cpus Per Task"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "kind": {
+        "default": "hardware",
+        "title": "Kind",
+        "type": "string"
+      },
+      "mail_notifications": {
+        "default": false,
+        "title": "Mail Notifications",
+        "type": "boolean"
+      },
+      "mail_user": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Mail User"
+      },
+      "output": {
+        "default": "-",
+        "title": "Output",
+        "type": "string"
+      },
+      "partition": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Partition"
+      },
+      "profile": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Profile"
+      },
+      "qos": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Qos"
+      },
+      "time": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Time"
+      }
+    },
+    "title": "hpc_write_probeArguments",
+    "type": "object"
+  }
 }

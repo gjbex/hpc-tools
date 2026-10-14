@@ -305,7 +305,8 @@ authorization policy. See [MCP integration](mcp.md).
 
 | Class | Examples | Principal risk |
 | --- | --- | --- |
-| local read | `hpc paths`, `hpc submissions list` | stale or misunderstood context |
+| local read | `hpc paths`, installed reference reads | stale or misunderstood context |
+| profile-bound job-history read | `hpc --profile example submissions list` | cross-profile disclosure or stale workflow state |
 | remote read | `doctor`, `jobs`, `slurm-limits`, bounded storage inspection | load, privacy, or misleading snapshots |
 | local write | writing a probe or container bundle, updating references | overwriting or misplacing local artifacts |
 | remote write | cloning a repository, installing a probe or container bundle | modifying the wrong directory or filesystem |

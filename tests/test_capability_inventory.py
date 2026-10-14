@@ -116,7 +116,8 @@ class CapabilityInventoryTests(unittest.TestCase):
         )
         no_config = self.surface["pre_policy_no_config_examples"]
         self.assertTrue(no_config["root-help"])
-        self.assertTrue(no_config["submissions-mark"])
+        self.assertFalse(no_config["submissions-mark"])
+        self.assertFalse(no_config["references-import"])
         self.assertFalse(no_config["submissions-observe"])
         self.assertFalse(no_config["python-check"])
 

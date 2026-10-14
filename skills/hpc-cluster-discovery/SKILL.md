@@ -248,14 +248,14 @@ local submission database. Do not edit `submissions.sqlite3` directly
 unless the CLI is unavailable or broken:
 
 ```bash
-hpc submissions mark-collected <run-id> --path <remote-result-path>
-hpc submissions mark-analysed <run-id> --path ~/.config/hpc-tools/profiles/<profile>/probe-hardware-report.md
-hpc submissions close <run-id> --reason "<GPU class> CUDA device properties collected and consolidated into probe hardware report"
+hpc --profile <profile> submissions mark-collected <run-id> --path <remote-result-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path ~/.config/hpc-tools/profiles/<profile>/probe-hardware-report.md
+hpc --profile <profile> submissions close <run-id> --reason "<GPU class> CUDA device properties collected and consolidated into probe hardware report"
 ```
 
 If an earlier probe submission failed but its logs were enough to identify the
 problem and a corrected rerun later succeeded, close the failed run with a
-superseded reason through `hpc submissions close` so it does not remain as
+superseded reason through `hpc --profile <profile> submissions close` so it does not remain as
 active triage work.
 
 If the resulting reference notes are meant to be reused across multiple users

@@ -101,6 +101,7 @@ class FilesystemRequest:
     root: str | None = None
     data: bytes | None = None
     overwrite: bool = False
+    mode: int = 0o600
     limits: FilesystemLimits = FilesystemLimits()
 
     def __post_init__(self) -> None:
@@ -125,6 +126,8 @@ class FilesystemRequest:
         if self.action is FilesystemAction.WRITE:
             if not isinstance(self.data, bytes):
                 raise ValueError("write requests require bytes")
+            if self.mode not in {0o600, 0o700}:
+                raise ValueError("write mode must be 0600 or 0700")
             if len(self.data) > self.limits.max_transfer_bytes:
                 raise ValueError("write data exceeds max_transfer_bytes")
         elif self.data is not None:
@@ -145,6 +148,7 @@ class FilesystemRequest:
             })
         if self.data is not None:
             result["data"] = base64.b64encode(self.data).decode("ascii")
+            result["mode"] = self.mode
         return result
 
 
@@ -285,6 +289,7 @@ class FilesystemService:
         roots: tuple[str, ...],
         root: str | None = None,
         overwrite: bool = False,
+        mode: int = 0o600,
     ) -> FilesystemResult:
         if len(data) > self.limits.max_transfer_bytes:
             return _local_failure(
@@ -299,6 +304,7 @@ class FilesystemService:
             root=root,
             data=data,
             overwrite=overwrite,
+            mode=mode,
             limits=self.limits,
         ))
 
@@ -311,6 +317,7 @@ class FilesystemService:
         root: str | None = None,
         overwrite: bool = False,
         encoding: str = "utf-8",
+        mode: int = 0o600,
     ) -> FilesystemResult:
         return self.write_bytes(
             path,
@@ -318,6 +325,7 @@ class FilesystemService:
             roots=roots,
             root=root,
             overwrite=overwrite,
+            mode=mode,
         )
 
     def make_directory(

@@ -262,7 +262,7 @@ def create_server(
 
     full_resources = (
         ("hpc://paths", resource_paths, "application/json"),
-        ("hpc://config", resource_config, "text/plain"),
+        ("hpc://config", resource_config, "application/json"),
         ("hpc://submissions/active", resource_submissions_active, "application/json"),
         ("hpc://submissions/all", resource_submissions_all, "application/json"),
         ("hpc://profiles/{profile}", resource_profile, "application/json"),

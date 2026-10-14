@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from test_cli_fixtures import *
 
-from hpc_tools.commands.probes import _container_bundle, _install_bundle_command
+from hpc_tools.commands.probes import _container_bundle
 
 
 class CliCoreTests(unittest.TestCase):
@@ -113,7 +113,7 @@ class CliCoreTests(unittest.TestCase):
 
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
-            result = args.handler(args, None)
+            result = args.handler(args, make_profile())
 
         self.assertEqual(result, 0)
         self.assertIn("#SBATCH --job-name=hardware-probe", stdout.getvalue())
@@ -152,7 +152,7 @@ class CliCoreTests(unittest.TestCase):
             output = Path(directory) / "hardware-probe.slurm"
             args = parser.parse_args(["write-hardware-probe", str(output)])
 
-            result = args.handler(args, None)
+            result = args.handler(args, make_profile())
 
             self.assertEqual(result, 0)
             self.assertIn("Hardware probe output written", output.read_text(encoding="utf-8"))
@@ -163,7 +163,7 @@ class CliCoreTests(unittest.TestCase):
             output = Path(directory) / "bundle"
             args = parser.parse_args(["write-container", "--kind", "generic", str(output)])
 
-            result = args.handler(args, None)
+            result = args.handler(args, make_profile())
 
             self.assertEqual(result, 0)
             self.assertTrue((output / "create_apptainer_container.slurm").exists())
@@ -180,7 +180,7 @@ class CliCoreTests(unittest.TestCase):
                 ["write-container", "--kind", "agent", str(output)]
             )
 
-            self.assertEqual(0, args.handler(args, None))
+            self.assertEqual(0, args.handler(args, make_profile()))
             definition = (output / "Apptainer.def").read_text(encoding="utf-8")
             wrapper = (output / "codex-agent").read_text(encoding="utf-8")
             config = (output / "config.toml").read_text(encoding="utf-8")
@@ -225,7 +225,7 @@ class CliCoreTests(unittest.TestCase):
                 ["write-container", "--kind", "agent-boundary", str(output)]
             )
 
-            self.assertEqual(0, args.handler(args, None))
+            self.assertEqual(0, args.handler(args, make_profile()))
             definition = (output / "Apptainer.def").read_text(encoding="utf-8")
             self.assertIn("restricted agent boundary fixture", definition)
             self.assertIn("From: python:3.12.11-slim-bookworm", definition)
@@ -245,7 +245,7 @@ class CliCoreTests(unittest.TestCase):
             args = parser.parse_args(["write-hardware-probe", str(output)])
 
             with self.assertRaises(ConfigError):
-                args.handler(args, None)
+                args.handler(args, make_profile())
 
     def test_write_hardware_probe_main_does_not_require_config(self) -> None:
         stdout = io.StringIO()
@@ -269,7 +269,7 @@ class CliCoreTests(unittest.TestCase):
             output = Path(directory) / "cuda-probe"
             args = parser.parse_args(["write-probe", "--kind", "cuda-device-properties", str(output)])
 
-            result = args.handler(args, None)
+            result = args.handler(args, make_profile())
 
             self.assertEqual(result, 0)
             self.assertIn(
@@ -292,64 +292,20 @@ class CliCoreTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             args.handler(args, None)
 
-    def test_install_hardware_probe_command_writes_remote_file(self) -> None:
-        command = _install_hardware_probe_command(
-            "$VSC_DATA/probes",
-            "probe.slurm",
-            "#!/bin/bash\n#SBATCH --job-name=hardware-probe\n",
-        )
-
-        self.assertIn("mkdir -p $VSC_DATA/probes", command)
-        self.assertIn("cd $VSC_DATA/probes", command)
-        self.assertIn("cat > probe.slurm", command)
-        self.assertIn("#SBATCH --job-name=hardware-probe", command)
-        self.assertIn("chmod +x probe.slurm", command)
-
-    def test_install_cuda_device_properties_command_writes_remote_bundle(self) -> None:
-        command = _install_cuda_device_properties_command(
-            "$VSC_DATA/probes",
-            "cuda-device-properties.slurm",
-        )
-
-        self.assertIn("mkdir -p $VSC_DATA/probes", command)
-        self.assertIn("cd $VSC_DATA/probes", command)
-        self.assertIn("mkdir -p cuda", command)
-        self.assertIn("cat > cuda-device-properties.slurm", command)
-        self.assertIn("cat > cuda/CMakeLists.txt", command)
-        self.assertIn("cat > cuda/device_properties.cu", command)
-        self.assertIn("cudaGetDeviceProperties", command)
-        self.assertIn("chmod +x cuda-device-properties.slurm", command)
-
     def test_install_container_bundle_writes_remote_bundle(self) -> None:
         profile = make_profile()
         parser = build_parser(profile)
         args = parser.parse_args(["install-container", "--kind", "generic", "--directory", "$VSC_DATA/containers"])
 
-        with mock.patch("hpc_tools.commands.probes.run_command", return_value=0) as run_remote:
+        with mock.patch(
+            "hpc_tools.commands.probes.install_remote_assets",
+            return_value=(),
+        ) as install:
             result = cmd_install_container(args, profile)
 
         self.assertEqual(result, 0)
-        command = run_remote.call_args.args[1]
-        self.assertIn("mkdir -p $VSC_DATA/containers", command)
-        self.assertIn("cat > create_apptainer_container.slurm", command)
-        self.assertIn("apptainer build", command)
-
-    def test_install_agent_container_bundle_creates_skill_directories(self) -> None:
-        command = _install_bundle_command(
-            directory="$VSC_DATA/containers/agent",
-            bundle=_container_bundle("agent"),
-        )
-
-        self.assertIn("mkdir -p skills/hpc-delegated-slurm", command)
-        self.assertIn(
-            "mkdir -p skills/hpc-delegated-slurm/references",
-            command,
-        )
-        self.assertIn("cat > skills/hpc-delegated-slurm/SKILL.md", command)
-        self.assertIn(
-            "cat > skills/hpc-delegated-slurm/references/arrays.md",
-            command,
-        )
+        self.assertEqual(install.call_args.args[1], "$VSC_DATA/containers")
+        self.assertIn("create_apptainer_container.slurm", install.call_args.args[2])
 
     def test_apptainer_container_file_is_packaged(self) -> None:
         data = resources.files("hpc_tools.data")

@@ -5,6 +5,7 @@ from importlib import resources
 from typing import Any
 
 from hpc_tools import plugin_system, submissions
+from hpc_tools.authorization import namespace_arguments, require_authorized
 from hpc_tools.commands.common import _section_command, _tool_check_loop
 from hpc_tools.config import (
     ConfigError,
@@ -76,12 +77,15 @@ def register_local(subparsers: Any, handlers: Any) -> None:
     plugins_info_parser.set_defaults(handler=handlers.cmd_plugins_info, operation_id="plugins.info")
 
 def cmd_run(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("remote.shell", profile, namespace_arguments(args))
     return run_command(profile, args.remote_command, dry_run=args.dry_run)
 
 def cmd_doctor(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("cluster.doctor", profile, namespace_arguments(args))
     return run_command(profile, _doctor_command(), dry_run=args.dry_run)
 
 def cmd_site_env(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("cluster.site-env", profile, namespace_arguments(args))
     return run_command(profile, _site_env_command(), dry_run=args.dry_run)
 
 def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:

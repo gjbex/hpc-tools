@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from hpc_tools import references
-from hpc_tools.config import Profile, default_config_path
+from hpc_tools.authorization import namespace_arguments, require_authorized
+from hpc_tools.config import ConfigError, Profile, default_config_path
 
 
 def register(subparsers: Any, handlers: Any) -> None:
@@ -133,12 +134,22 @@ def cmd_references_validate(args: argparse.Namespace, profile: Profile | None) -
     return 0
 
 def cmd_references_create(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("references.create", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; reference set '{args.name}' not created.")
+        return 0
     reference_set = references.create_reference_set(args.name, profile, force=args.force)
     print(f"Reference set created: {reference_set.path}")
     return 0
 
 def cmd_references_export(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+    if profile is None:
+        raise ConfigError("exporting a reference set requires a selected capability profile")
+    require_authorized("references.export", profile, namespace_arguments(args))
+    if args.dry_run:
+        output = args.output or Path.cwd() / f"{args.name}-reference-set.tar.gz"
+        print(f"Dry run; reference set archive not written: {output}")
+        return 0
     archive_path = references.export_reference_set(
         args.name,
         output=args.output,
@@ -148,13 +159,25 @@ def cmd_references_export(args: argparse.Namespace, profile: Profile | None) -> 
     return 0
 
 def cmd_references_import(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+    if profile is None:
+        raise ConfigError("importing a reference set requires a selected capability profile")
+    require_authorized("references.import", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; reference set archive not imported: {args.archive}")
+        return 0
     reference_set = references.import_reference_set(args.archive, force=args.force)
     print(f"Reference set imported: {reference_set.path}")
     return 0
 
 def cmd_references_attach(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("references.attach", profile, namespace_arguments(args))
     references.load_reference_set(args.name)
+    if args.dry_run:
+        print(
+            f"Dry run; reference set '{args.name}' not attached to profile "
+            f"'{profile.name}'."
+        )
+        return 0
     references.set_profile_reference_set(
         Path(args.config).expanduser() if args.config else default_config_path(),
         profile.name,
@@ -164,6 +187,10 @@ def cmd_references_attach(args: argparse.Namespace, profile: Profile) -> int:
     return 0
 
 def cmd_references_detach(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("references.detach", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; reference set not detached from profile '{profile.name}'.")
+        return 0
     references.set_profile_reference_set(
         Path(args.config).expanduser() if args.config else default_config_path(),
         profile.name,

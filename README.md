@@ -336,11 +336,12 @@ Path precedence is: explicit `--config`, then `HPC_TOOLS_CONFIG`, then
 `XDG_CONFIG_HOME`, then `~/.config`.
 
 Every profile must define a versioned `[profiles.<name>.capabilities]` table.
-The current release validates and stores this typed policy, has a shared
-operation registry and pure evaluator, and includes the packaged bounded
-filesystem foundation. Existing commands are not yet routed through that
-foundation, and CLI command hiding/denial and MCP discovery filtering are still
-being implemented, so the policy is not yet a runtime authorization boundary. See
+The current release validates this typed policy, guards built-in service
+callables before effects, profile-filters submission records, and routes
+directory inspection and packaged remote asset installation through the
+bounded filesystem helper. CLI command hiding and MCP discovery filtering are
+deferred to later work packages, so discovery can currently show an
+operation that invocation will deny. See
 [docs/configuration.md](docs/configuration.md) for levels, scopes, and root
 syntax.
 
@@ -559,7 +560,7 @@ hpc install-probe --kind hardware --directory <remote-dir>
 hpc install-probe --kind cuda-device-properties --directory <remote-dir>
 hpc write-hardware-probe hardware-probe.slurm
 hpc install-hardware-probe --directory <remote-dir>
-hpc status          # full status, quota, balance, and submissions report
+hpc status                # public site-status page only
 hpc quota                  # if quota_command is configured
 hpc projects
 hpc clone https://github.com/org/repo.git --branch main
@@ -585,15 +586,16 @@ hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm
 hpc submit --gpus-per-node 1 --gpu-bind closest gpu-job.slurm
 hpc submit --cluster mindwell --partition gpu_b200 --reservation pilot --gpus-per-node 1 gpu-job.slurm
 hpc sacct 123456 --cluster wice
-hpc submissions list
-hpc submissions observe
-hpc submissions mark-collected <run-id> --path results/
-hpc submissions mark-analysed <run-id> --path reports/benchmark.md
-hpc submissions close <run-id> --reason done
+hpc --profile genius submissions list
+hpc --profile genius submissions observe
+hpc --profile genius submissions mark-collected <run-id> --path results/
+hpc --profile genius submissions mark-analysed <run-id> --path reports/benchmark.md
+hpc --profile genius submissions close <run-id> --reason done
 ```
 
-Use `--profile` to select a profile and `--dry-run` to print the selected
-executor command without executing it:
+Use `--profile` to select a profile and `--dry-run` to preview the selected
+executor or structured filesystem operation without contacting the cluster or
+status page:
 
 ```bash
 hpc --profile genius --dry-run repo status --directory "$VSC_DATA/Projects/foo"
@@ -622,10 +624,11 @@ The detailed workflow and follow-on implementation plan live in
 and submits only if validation succeeds. `hpc submit` records successful real
 Slurm submissions in an append-only local event database at
 `~/.config/hpc-tools/submissions.sqlite3`. Use
-`hpc submissions list` to show active submissions, `hpc submissions observe` to
+`hpc --profile <name> submissions list` to show that profile's active
+submissions, `hpc --profile <name> submissions observe` to
 append current Slurm accounting observations for active jobs,
 `hpc cancel <job-id>` to request cancellation and audit matching tracked runs,
-and `hpc submissions close <run-id>` to hide handled runs from the default
+and `hpc --profile <name> submissions close <run-id>` to hide handled runs from the default
 active view. Lifecycle events remain append-only; current state is derived by replaying
 them.
 Detailed semantics for the `STATE` and `ACTION` columns, plus a state-transition

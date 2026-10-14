@@ -263,23 +263,24 @@ the Codex session. Update the database through `hpc submissions`; do not edit
 ```bash
 hpc --profile <profile> submissions list
 hpc --profile <profile> submissions observe
-hpc submissions mark-collected <run-id> --path <results-path>
-hpc submissions mark-analysed <run-id> --path <report-path>
-hpc submissions close <run-id> --reason done
+hpc --profile <profile> submissions mark-collected <run-id> --path <results-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path <report-path>
+hpc --profile <profile> submissions close <run-id> --reason done
 ```
 
 For CUDA device-property probes, treat `device-properties.txt` as the result
 artifact and the consolidated profile hardware report as the analysis artifact
 after cache, shared-memory, register, and launch-limit data are summarized. Once
 the durable report is updated, mark the run collected, mark it analysed, and
-close it so `hpc submissions list` reflects only remaining work. If a failed or
+close it so that profile's `submissions list` reflects only remaining work. If a failed or
 invalid run was only used to diagnose the cause before a corrected rerun
 succeeded, close the failed run with a superseded reason instead of leaving it
 in triage.
 
 The default `submissions list` view hides runs with a `closed` event and shows
 active work that still needs observation, result collection, analysis, or
-triage. Use `hpc submissions list --all` to replay the full history.
+triage. Use `hpc --profile <profile> submissions list --all` to replay that
+profile's full history.
 
 If a job leaves the queue quickly, check accounting and inspect the output file
 in the submission directory:

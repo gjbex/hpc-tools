@@ -29,7 +29,7 @@ hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--d
 | `--profile PROFILE` | Select a named profile instead of `default_profile`. If the configuration contains exactly one profile, it is selected when neither option is present. |
 | `--config PATH` | Read a particular TOML configuration file. This takes precedence over the default configuration path. |
 | `--executor {ssh,local}` | Select SSH transport or direct execution through the profile login shell. The default is `HPC_TOOLS_EXECUTOR`, then `ssh`. |
-| `--dry-run` | Print commands for the selected executor instead of running them. It does not turn every local operation into a preview, and `status` can still retrieve a configured web status page. |
+| `--dry-run` | Preview executor or structured filesystem operations without HTTP, SSH, scheduler, staging, or local-record mutation effects. It does not turn unrelated local file writes into previews. |
 | `--json` | Request structured output. Most commands use the generic envelope described under [Output formats](#output-formats); a small set emits command-specific JSON directly. |
 
 Put global options before the command in scripts. The CLI currently accepts
@@ -53,8 +53,9 @@ one. Repeated options are explicitly marked.
 
 ### Shared cluster references
 
-These commands operate on the local reference-set directory. Only `create`,
-`attach`, and `detach` need a selected profile.
+These commands operate on the local reference-set directory. Reading installed
+sets is profile-free bootstrap functionality. `create`, `export`, `import`,
+`attach`, and `detach` require a selected profile with `local-state.write`.
 
 | Command | Purpose and important options |
 | --- | --- |
@@ -75,10 +76,10 @@ provenance, safe import, and refresh guidance.
 | Command | Purpose and important options |
 | --- | --- |
 | `hpc doctor` | Show remote identity and whether core Slurm commands are available. |
-| `hpc status` | Combine a configured status page, quota, account balance, and active local submissions. Missing configured helpers count as failures. |
+| `hpc status` | Retrieve only the configured public site-status page. Quota, balance, and submission history are separate operations. |
 | `hpc site-env` | Show selected environment variables, common storage tools, and the module-system version. |
 | `hpc hardware [--source | --path]` | Render configured hardware, Slurm, and storage context; restrict output to source URLs or local paths with the optional flags. |
-| `hpc storage inspect [PATH]` | Run bounded read-only checks for one remote path; the default is the remote working directory. |
+| `hpc storage inspect [PATH]` | List one permitted remote directory through the bounded filesystem helper. Omitting `PATH`, or using `.`, selects `projects_dir`. |
 | `hpc quota` | Run the profile's `quota_command`. |
 | `hpc module-spider NAME` | Search the remote Lmod module catalogue. |
 | `hpc slurm-limits [-M CLUSTER] [-p PARTITION] [--qos QOS]` | Inspect controller, partition, node, QoS, and user-association limits. |
@@ -154,7 +155,7 @@ event database.
 
 | Command | Purpose and important options |
 | --- | --- |
-| `hpc submissions [--database PATH] list [--all]` | Replay the event database and list active records; `--all` includes closed records. |
+| `hpc submissions [--database PATH] list [--all]` | Replay the event database and list only records attributed to the selected profile; `--all` includes its closed records. Unlabelled records are rejected. |
 | `hpc submissions [--database PATH] observe [RUN_ID]` | Query `sacct` through the stored profile and append observations for one or all active runs. |
 | `hpc submissions [--database PATH] mark-collected RUN_ID --path PATH` | Record where results were collected. This records the claim; it does not copy or verify the results. |
 | `hpc submissions [--database PATH] mark-analysed RUN_ID --path PATH` | Record an analysis artifact path. It does not run or validate the analysis. |
@@ -222,10 +223,10 @@ commands have additional conditions:
 | Command or group | Required profile field or condition |
 | --- | --- |
 | `projects`; default destination of `clone` | `projects_dir` |
-| `status` | `status_url`; its quota and balance sections additionally use `quota_command` and `sam_balance_command` |
-| `quota`; quota section of `status` | `quota_command` |
+| `status` | `status_url` |
+| `quota` | `quota_command` |
 | `queue` | `queue_command` |
-| `balance`; balance section of `status` | `sam_balance_command` |
+| `balance` | `sam_balance_command` |
 | `statement` | `sam_statement_command` |
 | `quote` and default quote stage of Python/R `submit-install` | `sam_quote_command` |
 | probe `--mail-notifications` | `email` |
@@ -239,12 +240,11 @@ so site-specific helpers can be absent rather than merely failing later. A
 local command such as `paths`, `plugins list`, reference-set inspection, or a
 local scanner can run without a cluster configuration.
 
-This current site-feature filtering is separate from the mandatory capability
-policy parsed from each profile. A shared registry and evaluator classify the
-surface, and bounded filesystem primitives are available internally. Existing
-commands are not routed through those primitives yet, and policy-based CLI
-denial/hiding and MCP discovery filtering are not implemented until later work
-packages.
+This site-feature filtering is separate from mandatory capability policy.
+Built-in services recheck the shared registry before effects. Directory
+inspection, project listing, repository preflight, clone destination preflight,
+and packaged asset installation use bounded filesystem primitives. Policy-based
+CLI hiding and allowed-only MCP discovery remain later work packages.
 
 ## Configuration schema
 

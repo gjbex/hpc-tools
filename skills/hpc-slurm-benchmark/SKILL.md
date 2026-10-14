@@ -213,13 +213,13 @@ submission lifecycle after collection and analysis, or propose doing so when the
 user may want to keep the active database focused:
 
 ```bash
-hpc submissions mark-collected <run-id> --path <results-path>
-hpc submissions mark-analysed <run-id> --path <analysis-path>
-hpc submissions close <run-id> --reason done
+hpc --profile <profile> submissions mark-collected <run-id> --path <results-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path <analysis-path>
+hpc --profile <profile> submissions close <run-id> --reason done
 ```
 
 Close failed, invalid, or superseded benchmark attempts with a reason once their
-status is understood, so `hpc submissions list` reflects only work that still
+status is understood, so that profile's `submissions list` reflects only work that still
 needs action.
 
 ## Analysis

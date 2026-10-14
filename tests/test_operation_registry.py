@@ -290,24 +290,17 @@ class OperationRegistryTests(unittest.TestCase):
         self.assertFalse(decision.allowed)
         self.assertEqual(decision.denials[0].code, DenialCode.MISSING_PATH_GRANT)
 
-    def test_compound_status_resolves_each_planned_component(self) -> None:
+    def test_site_status_is_a_focused_c1_operation(self) -> None:
         resolved = OPERATION_REGISTRY.resolve(
             _request("cluster.status", OperationSurface.CLI)
         )
-        self.assertEqual(
-            tuple(component.operation_id for component in resolved.components),
-            (
-                "cluster.status:status-page",
-                "cluster.quota",
-                "account.balance",
-                "submissions.list",
-            ),
-        )
+        self.assertEqual(resolved.components, ())
         self.assertIs(
             resolved.requirement.minimum_level,
-            CapabilityLevel.JOB_INSPECTION,
+            CapabilityLevel.CLUSTER_DISCOVERY,
         )
-        self.assertEqual(resolved.requirement.scopes, ("accounting.read",))
+        self.assertEqual(resolved.requirement.scopes, ())
+        self.assertEqual(resolved.requirement.site_features, ("status-page",))
 
     def test_install_submission_modes_only_remove_skipped_requirements(self) -> None:
         profile = SimpleNamespace(sam_quote_command="sam-quote")

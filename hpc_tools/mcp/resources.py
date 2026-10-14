@@ -1,19 +1,22 @@
 from __future__ import annotations
 
-from hpc_tools import delegation, references, submissions
+from hpc_tools import delegation
 from hpc_tools.execution import resolve_executor
-from hpc_tools.config import default_config_path
+from hpc_tools.operation_registry import OperationSurface
 from hpc_tools.references import resolve_reference_context
 from hpc_tools.mcp.common import (
     _json_resource,
-    _load_config,
+    _authorize_mcp,
     _profile_to_dict,
     _read_reference_text,
-    _reference_set_to_dict,
     _resolve_profile,
-    _submission_record_to_dict,
 )
-from hpc_tools.mcp.tools import hpc_paths, hpc_profile_show, hpc_references_show
+from hpc_tools.mcp.tools import (
+    hpc_paths,
+    hpc_profile_show,
+    hpc_references_show,
+    hpc_submissions_list,
+)
 
 def resource_runtime(
     profile: str,
@@ -22,6 +25,12 @@ def resource_runtime(
 ) -> str:
     """Return the effective restricted-server context without profile secrets."""
     resolved = _resolve_profile(profile_name=profile)
+    _authorize_mcp(
+        resolved,
+        "delegation.runtime",
+        {"profile": resolved.name, "preset": preset},
+        surface=OperationSurface.MCP_RESOURCE,
+    )
     if runtime is None:
         delegation_data = {
             "configured": False,
@@ -62,11 +71,18 @@ def resource_paths() -> str:
     return _json_resource(hpc_paths())
 
 def resource_config() -> str:
-    """Return the active hpc-tools config file."""
-    config_path = default_config_path()
-    if not config_path.exists():
-        raise ConfigError(f"configuration file not found: {config_path}")
-    return config_path.read_text(encoding="utf-8")
+    """Return only the selected profile's raw resolved configuration."""
+    resolved = _resolve_profile()
+    _authorize_mcp(
+        resolved,
+        "config.read",
+        {"profile": resolved.name},
+        surface=OperationSurface.MCP_RESOURCE,
+    )
+    return _json_resource({
+        "default_profile": resolved.name,
+        "profile": _profile_to_dict(resolved),
+    })
 
 def resource_profile(profile: str) -> str:
     """Return one resolved hpc-tools profile as JSON."""
@@ -74,17 +90,38 @@ def resource_profile(profile: str) -> str:
 
 def resource_profile_hardware(profile: str) -> str:
     """Return the resolved hardware reference for a profile."""
-    context = resolve_reference_context(_resolve_profile(profile_name=profile))
+    resolved = _resolve_profile(profile_name=profile)
+    _authorize_mcp(
+        resolved,
+        "references.context",
+        {"profile": resolved.name},
+        surface=OperationSurface.MCP_RESOURCE,
+    )
+    context = resolve_reference_context(resolved)
     return _read_reference_text(context.hardware_reference, "hardware", profile)
 
 def resource_profile_slurm(profile: str) -> str:
     """Return the resolved Slurm reference for a profile."""
-    context = resolve_reference_context(_resolve_profile(profile_name=profile))
+    resolved = _resolve_profile(profile_name=profile)
+    _authorize_mcp(
+        resolved,
+        "references.context",
+        {"profile": resolved.name},
+        surface=OperationSurface.MCP_RESOURCE,
+    )
+    context = resolve_reference_context(resolved)
     return _read_reference_text(context.slurm_reference, "Slurm", profile)
 
 def resource_profile_storage(profile: str) -> str:
     """Return the resolved storage reference for a profile."""
-    context = resolve_reference_context(_resolve_profile(profile_name=profile))
+    resolved = _resolve_profile(profile_name=profile)
+    _authorize_mcp(
+        resolved,
+        "references.context",
+        {"profile": resolved.name},
+        surface=OperationSurface.MCP_RESOURCE,
+    )
+    context = resolve_reference_context(resolved)
     return _read_reference_text(context.storage_reference, "storage", profile)
 
 def resource_reference_set(name: str) -> str:

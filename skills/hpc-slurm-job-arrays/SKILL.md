@@ -299,11 +299,11 @@ task-specific, rerun only the affected task IDs.
 After collection and analysis, update the local submission lifecycle:
 
 ```bash
-hpc submissions mark-collected <run-id> --path <results-path>
-hpc submissions mark-analysed <run-id> --path <analysis-path>
-hpc submissions close <run-id> --reason done
+hpc --profile <profile> submissions mark-collected <run-id> --path <results-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path <analysis-path>
+hpc --profile <profile> submissions close <run-id> --reason done
 ```
 
 Close invalid or superseded array attempts once their role in the workflow is
-understood so `hpc submissions list` stays focused on work that still needs
+understood so that profile's `submissions list` stays focused on work that still needs
 attention.

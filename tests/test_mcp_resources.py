@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from test_mcp_fixtures import *
 
+from hpc_tools import submissions
+
 
 class McpServerFeatureTests(McpFixtures, unittest.TestCase):
     def test_profiles_list_uses_config_path(self) -> None:
@@ -12,7 +14,11 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
         self.assertEqual(result["default_profile"], "genius")
         self.assertEqual(result["profiles"][0]["name"], "genius")
-        self.assertEqual(result["profiles"][0]["ssh_target"], "genius")
+        self.assertNotIn("ssh_target", result["profiles"][0])
+        self.assertEqual(
+            result["profiles"][0]["capabilities"]["max_level"],
+            "job-lifecycle",
+        )
 
     def test_profile_show_resolves_default_profile(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -28,6 +34,30 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = self._write_config(root)
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8")
+                + textwrap.dedent(
+                    """
+
+                    [profiles.other]
+                    ssh_target = "secret-other-host"
+                    quota_command = "secret-other-quota"
+
+                    [profiles.other.capabilities]
+                    version = 1
+                    max_level = "profile-context"
+                    scopes = ["config.read.raw"]
+
+                    [profiles.other.capabilities.remote_roots]
+                    list = []
+                    read = []
+                    write = []
+                    delete = []
+                    install = []
+                    """
+                ),
+                encoding="utf-8",
+            )
 
             with mock.patch.dict(
                 "os.environ",
@@ -36,8 +66,12 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             ):
                 text = mcp_server.resource_config()
 
-        self.assertIn('default_profile = "genius"', text)
-        self.assertIn("[profiles.genius]", text)
+        payload = json.loads(text)
+        self.assertEqual(payload["default_profile"], "genius")
+        self.assertEqual(payload["profile"]["name"], "genius")
+        self.assertNotIn("other", payload)
+        self.assertNotIn("secret-other-host", text)
+        self.assertNotIn("secret-other-quota", text)
 
     def test_resource_profile_returns_json_from_active_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -53,6 +87,42 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
         self.assertEqual(result["name"], "genius")
         self.assertEqual(result["ssh_target"], "genius")
+
+    def test_submission_resource_filters_selected_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            database_path = root / "hpc-tools" / "submissions.sqlite3"
+            submissions.append_events(
+                [
+                    {
+                        "event": "submitted",
+                        "run_id": "genius-run",
+                        "profile": "genius",
+                        "job_id": "1",
+                    },
+                    {
+                        "event": "submitted",
+                        "run_id": "other-run",
+                        "profile": "other",
+                        "job_id": "2",
+                    },
+                ],
+                path=database_path,
+            )
+
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_CONFIG": str(config_path), "XDG_CONFIG_HOME": str(root)},
+                clear=False,
+            ):
+                result = json.loads(mcp_server.resource_submissions_all())
+
+        self.assertEqual(result["profile"], "genius")
+        self.assertEqual(
+            [record["run_id"] for record in result["submissions"]],
+            ["genius-run"],
+        )
 
     def test_profile_reference_resources_read_active_config_references(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -84,18 +154,13 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertEqual(result["name"], "baseline")
         self.assertTrue(result["hardware_reference"].endswith("hardware.md"))
 
-    def test_local_mcp_tools_work_without_profile_config(self) -> None:
+    def test_profile_free_bootstrap_tools_work_without_config(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            database_path = root / "submissions.sqlite3"
-
             with mock.patch.dict("os.environ", {"XDG_CONFIG_HOME": str(root)}, clear=True):
                 paths = mcp_server.hpc_paths()
                 references = mcp_server.hpc_references_list()
                 plugins = mcp_server.hpc_plugins_list()
-                submissions = mcp_server.hpc_submissions_list(database=str(database_path))
-                probe = mcp_server.hpc_write_probe(output="-")
-                container = mcp_server.hpc_write_container(output=str(root / "bundle"))
 
         self.assertTrue(paths["config"].endswith("hpc-tools/config.toml"))
         self.assertTrue(
@@ -105,11 +170,6 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         )
         self.assertEqual(references["reference_sets"], [])
         self.assertIn("plugins", plugins)
-        self.assertEqual(submissions["submissions"], [])
-        self.assertIn("#SBATCH --job-name=hardware-probe", probe["contents"])
-        self.assertIn("create_apptainer_container.slurm", container["files"])
-        self.assertFalse(database_path.exists())
-        self.assertFalse((root / "bundle").exists())
 
     def test_profile_required_tools_reject_missing_or_unknown_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
