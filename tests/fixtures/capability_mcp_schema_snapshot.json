@@ -58,6 +58,217 @@
     "title": "hpc_cancel_jobArguments",
     "type": "object"
   },
+  "hpc_files_copy": {
+    "properties": {
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "destination": {
+        "title": "Destination",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "max_bytes": {
+        "default": 4194304,
+        "title": "Max Bytes",
+        "type": "integer"
+      },
+      "source": {
+        "title": "Source",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "destination"
+    ],
+    "title": "hpc_files_copyArguments",
+    "type": "object"
+  },
+  "hpc_files_download": {
+    "properties": {
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "max_bytes": {
+        "default": 4194304,
+        "title": "Max Bytes",
+        "type": "integer"
+      },
+      "output": {
+        "title": "Output",
+        "type": "string"
+      },
+      "source": {
+        "title": "Source",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "output"
+    ],
+    "title": "hpc_files_downloadArguments",
+    "type": "object"
+  },
+  "hpc_files_list": {
+    "properties": {
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "max_entries": {
+        "default": 1000,
+        "title": "Max Entries",
+        "type": "integer"
+      },
+      "path": {
+        "title": "Path",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "title": "hpc_files_listArguments",
+    "type": "object"
+  },
+  "hpc_files_mkdir": {
+    "properties": {
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "path": {
+        "title": "Path",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "title": "hpc_files_mkdirArguments",
+    "type": "object"
+  },
+  "hpc_files_read": {
+    "properties": {
+      "dry_run": {
+        "default": false,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "encoding": {
+        "default": "utf-8",
+        "title": "Encoding",
+        "type": "string"
+      },
+      "max_bytes": {
+        "default": 1048576,
+        "title": "Max Bytes",
+        "type": "integer"
+      },
+      "path": {
+        "title": "Path",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "title": "hpc_files_readArguments",
+    "type": "object"
+  },
+  "hpc_files_remove": {
+    "properties": {
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "path": {
+        "title": "Path",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path"
+    ],
+    "title": "hpc_files_removeArguments",
+    "type": "object"
+  },
+  "hpc_files_upload": {
+    "properties": {
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "destination": {
+        "title": "Destination",
+        "type": "string"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "force": {
+        "default": false,
+        "title": "Force",
+        "type": "boolean"
+      },
+      "max_bytes": {
+        "default": 4194304,
+        "title": "Max Bytes",
+        "type": "integer"
+      },
+      "source": {
+        "title": "Source",
+        "type": "string"
+      }
+    },
+    "required": [
+      "source",
+      "destination"
+    ],
+    "title": "hpc_files_uploadArguments",
+    "type": "object"
+  },
   "hpc_hardware_context": {
     "properties": {},
     "title": "hpc_hardware_contextArguments",
@@ -733,6 +944,65 @@
       "name"
     ],
     "title": "hpc_references_showArguments",
+    "type": "object"
+  },
+  "hpc_repo_clone": {
+    "properties": {
+      "branch": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Branch"
+      },
+      "confirm": {
+        "default": false,
+        "title": "Confirm",
+        "type": "boolean"
+      },
+      "directory": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Directory"
+      },
+      "dry_run": {
+        "default": true,
+        "title": "Dry Run",
+        "type": "boolean"
+      },
+      "name": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Name"
+      },
+      "url": {
+        "title": "Url",
+        "type": "string"
+      }
+    },
+    "required": [
+      "url"
+    ],
+    "title": "hpc_repo_cloneArguments",
     "type": "object"
   },
   "hpc_site_env": {

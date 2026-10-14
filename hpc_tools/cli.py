@@ -33,6 +33,15 @@ from hpc_tools.commands.core import (
     cmd_run,
     cmd_site_env,
 )
+from hpc_tools.commands.files import (
+    cmd_files_copy,
+    cmd_files_download,
+    cmd_files_list,
+    cmd_files_mkdir,
+    cmd_files_read,
+    cmd_files_remove,
+    cmd_files_upload,
+)
 from hpc_tools.commands.probes import (
     _add_probe_directive_options,
     _container_bundle,
@@ -296,6 +305,13 @@ def _command_handlers() -> SimpleNamespace:
         cmd_doctor=cmd_doctor,
         cmd_site_env=cmd_site_env,
         cmd_storage_inspect=cmd_storage_inspect,
+        cmd_files_list=cmd_files_list,
+        cmd_files_read=cmd_files_read,
+        cmd_files_download=cmd_files_download,
+        cmd_files_upload=cmd_files_upload,
+        cmd_files_copy=cmd_files_copy,
+        cmd_files_mkdir=cmd_files_mkdir,
+        cmd_files_remove=cmd_files_remove,
         cmd_repo_status=cmd_repo_status,
         cmd_paths=cmd_paths,
         cmd_plugins_list=cmd_plugins_list,

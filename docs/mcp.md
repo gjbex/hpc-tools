@@ -220,6 +220,8 @@ The read-oriented tools are:
 | `hpc_slurm_limits` | Raw and best-effort parsed controller, partition, QoS, and association data. |
 | `hpc_module_spider` | Raw and best-effort parsed Lmod search result. |
 | `hpc_storage_inspect` | Bounded filesystem information for one remote path. |
+| `hpc_files_list` | Non-recursive bounded entries and metadata under a list root. |
+| `hpc_files_read` | Bounded UTF-8 or base64 content for one regular file under a read root. |
 | `hpc_site_env` | Site variables, module system, and common HPC helper availability. |
 
 Tools that access the cluster execute SSH-backed reads by default. Pass
@@ -288,6 +290,12 @@ The following tools can change local state:
 - `hpc_submissions_close`
 - `hpc_write_probe`
 - `hpc_write_container`
+- `hpc_files_download`
+- `hpc_files_upload`
+- `hpc_files_copy`
+- `hpc_files_mkdir`
+- `hpc_files_remove`
+- `hpc_repo_clone`
 
 Without `confirm=true`, they return a preview and do not write. Review the
 destination, selected profile, archive, generated content, overwrite flag, and
@@ -296,6 +304,13 @@ submission-database event before confirming.
 `force=true` can replace existing generated files or reference sets. The
 confirmation flag does not back up overwritten state. Prefer versioned outputs
 and inspect exact targets first.
+
+File mutations additionally require `dry_run=false`; their default call is a
+preview even when `confirm=true`. Downloads name an explicit local target.
+Uploads and copies are bounded single-file operations and publish the remote
+destination atomically. Removal accepts only a regular file or empty directory
+and never follows symlinks or removes a configured root. `hpc_repo_clone`
+accepts network sources only and disables hooks and recursive submodules.
 
 Lifecycle tools append events only. They do not copy artifacts, execute an
 analysis, validate a path, cancel a job, or reopen a closed record.

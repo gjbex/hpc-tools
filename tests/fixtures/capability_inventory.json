@@ -506,6 +506,90 @@
       "modes": []
     },
     {
+      "id": "filesystem.list",
+      "cli": ["files list"],
+      "mcp": ["hpc_files_list"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-filesystem.list"],
+      "current_effects": ["remote-read"],
+      "selectors": ["profile", "config", "path", "max_entries"],
+      "notes": "Non-recursive bounded metadata listing; symlinks are reported but never followed.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.read",
+      "cli": ["files read"],
+      "mcp": ["hpc_files_read"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-filesystem.read"],
+      "current_effects": ["remote-read"],
+      "selectors": ["profile", "config", "path", "encoding", "max_bytes"],
+      "notes": "Reads one bounded regular file as UTF-8 or base64 without following symlinks.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.download",
+      "cli": ["files download"],
+      "mcp": ["hpc_files_download"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-filesystem.read", "local-state.write"],
+      "current_effects": ["remote-read", "local-write"],
+      "selectors": ["profile", "config", "source", "output", "force", "max_bytes"],
+      "notes": "Single-file bounded download with atomic local publication; MCP requires preview and confirmation.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.upload",
+      "cli": ["files upload"],
+      "mcp": ["hpc_files_upload"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-workspace.write"],
+      "current_effects": ["local-read", "remote-write"],
+      "selectors": ["profile", "config", "source", "destination", "force", "max_bytes"],
+      "notes": "Single regular local file and atomic remote publication; uploaded content is not executed.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.copy",
+      "cli": ["files copy"],
+      "mcp": ["hpc_files_copy"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-filesystem.read", "remote-workspace.write"],
+      "current_effects": ["remote-read", "remote-write"],
+      "selectors": ["profile", "config", "source", "destination", "force", "max_bytes"],
+      "notes": "Validates source and destination grants before a bounded read and atomic write.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.mkdir",
+      "cli": ["files mkdir"],
+      "mcp": ["hpc_files_mkdir"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-workspace.write"],
+      "current_effects": ["remote-write"],
+      "selectors": ["profile", "config", "path"],
+      "notes": "Creates one directory below an existing granted parent; it is not recursive.",
+      "modes": []
+    },
+    {
+      "id": "filesystem.remove",
+      "cli": ["files remove"],
+      "mcp": ["hpc_files_remove"],
+      "resources": [],
+      "proposed_level": "C1",
+      "proposed_scopes": ["remote-workspace.delete"],
+      "current_effects": ["remote-write"],
+      "selectors": ["profile", "config", "path"],
+      "notes": "Removes one regular file or empty directory, never a configured root or symlink.",
+      "modes": []
+    },
+    {
       "id": "cluster.quota",
       "cli": [
         "quota"
@@ -621,7 +705,9 @@
       "cli": [
         "clone"
       ],
-      "mcp": [],
+      "mcp": [
+        "hpc_repo_clone"
+      ],
       "resources": [],
       "proposed_level": "C1",
       "proposed_scopes": [

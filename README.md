@@ -219,6 +219,8 @@ The MCP interface supports read-only context tools such as:
 - `hpc_slurm_limits`
 - `hpc_module_spider`
 - `hpc_storage_inspect`
+- `hpc_files_list`
+- `hpc_files_read`
 - `hpc_site_env`
 
 It also supports confirm-gated write and install tools, plus narrowly scoped
@@ -236,10 +238,15 @@ uses delegation ownership and an idempotency key:
 - `hpc_install_probe`
 - `hpc_write_container`
 - `hpc_install_container`
+- `hpc_files_download`
+- `hpc_files_upload`
+- `hpc_files_copy`
+- `hpc_files_mkdir`
+- `hpc_files_remove`
+- `hpc_repo_clone`
 
-Local writes and remote installs require `confirm=true`. Remote install tools
-return command previews by default; they only execute when `confirm=true` and
-`dry_run=false`.
+Local writes require `confirm=true`. Remote file mutations and installs return
+previews by default; they only execute when `confirm=true` and `dry_run=false`.
 
 Slurm submission is exposed only as an evidence-gated sequence:
 
@@ -553,6 +560,13 @@ hpc doctor
 hpc site-env
 hpc storage inspect .
 hpc storage inspect $VSC_DATA/Projects/demo
+hpc files list $VSC_DATA/Projects/demo
+hpc files read $VSC_DATA/Projects/demo/job.out
+hpc files upload job.slurm $VSC_DATA/Projects/demo/job.slurm
+hpc files copy $VSC_DATA/Projects/demo/job.slurm $VSC_SCRATCH/demo/job.slurm
+hpc files download $VSC_DATA/Projects/demo/job.out ./job.out
+hpc files mkdir $VSC_DATA/Projects/demo/results
+hpc files remove $VSC_DATA/Projects/demo/results
 hpc repo status --directory $VSC_DATA/Projects/demo
 hpc python scan analysis.py
 hpc python inspect-deps .

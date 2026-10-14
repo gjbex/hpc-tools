@@ -95,8 +95,17 @@ class CliCoreTests(unittest.TestCase):
 
         self.assertEqual(
             run_remote.call_args.args[1],
-            "cd $VSC_SCRATCH/repos && git clone https://github.com/org/repo.git repo",
+            "cd $VSC_SCRATCH/repos && git -c core.hooksPath=/dev/null clone "
+            "--no-recurse-submodules -- https://github.com/org/repo.git repo",
         )
+
+    def test_clone_rejects_local_source(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["--dry-run", "clone", "file:///tmp/repo"])
+
+        with self.assertRaisesRegex(ConfigError, "network URL"):
+            cmd_clone(args, profile)
 
     def test_projects_quotes_directory_paths(self) -> None:
         profile = make_profile(projects_dir="/data/My Projects")

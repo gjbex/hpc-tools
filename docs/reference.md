@@ -100,8 +100,21 @@ provenance, safe import, and refresh guidance.
 | --- | --- |
 | `hpc projects` | List the selected profile's `projects_dir`. |
 | `hpc repo status -C DIRECTORY` | Show status, remotes, and latest commit for a remote Git checkout. |
-| `hpc clone URL [-b BRANCH] [-C DIRECTORY] [--name NAME]` | Clone a remote repository. The parent directory defaults to `projects_dir`. |
+| `hpc files list PATH [--max-entries N]` | List one permitted directory without recursion. |
+| `hpc files read PATH [--encoding utf-8\|base64] [--max-bytes N]` | Read one permitted regular file. |
+| `hpc files download SOURCE OUTPUT [--force] [--max-bytes N]` | Download one regular file and publish the local destination atomically. |
+| `hpc files upload SOURCE DESTINATION [--force] [--max-bytes N]` | Upload one local regular file without executing it. |
+| `hpc files copy SOURCE DESTINATION [--force] [--max-bytes N]` | Copy one bounded remote regular file after checking both root grants. |
+| `hpc files mkdir PATH` | Create one directory below an existing permitted parent. |
+| `hpc files remove PATH` | Remove one regular file or empty directory under a delete root. |
+| `hpc clone URL [-b BRANCH] [-C DIRECTORY] [--name NAME]` | Clone a network repository without hooks or recursive submodules. The parent defaults to `projects_dir`; local/file sources are rejected. |
 | `hpc run REMOTE_COMMAND` | Run one string through the configured remote login shell. This is an unrestricted escape hatch, not a safety boundary. |
+
+The fixed ceilings are 1 MiB per content read, 4 MiB per single-file transfer,
+and 1000 directory entries. Smaller limits can be requested. Symlinks and
+special files are not read, overwritten, or removed; removal is never
+recursive and refuses a configured root itself. `--dry-run` validates policy
+and declared paths without reading or changing either filesystem.
 
 ### Packaged probes and containers
 

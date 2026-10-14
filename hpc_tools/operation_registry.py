@@ -266,12 +266,19 @@ _OPERATIONS = (
     _op("references.context", "C0", [], ["local-read"], cli=["hardware"], mcp=["hpc_hardware_context"], resources=["hpc://cluster/hardware", "hpc://cluster/slurm", "hpc://cluster/storage"], selectors=["profile", "config", "reference files"]),
     _op("references.sources", "C0", [], ["local-read"], cli=[], mcp=["hpc_hardware_sources"], resources=[], selectors=["profile", "config", "reference_set"]),
     _op("filesystem.inspect", "C1", ["remote-filesystem.list"], ["remote-read"], cli=["storage inspect"], mcp=["hpc_storage_inspect"], resources=[], selectors=["profile", "config", "path"]),
+    _op("filesystem.list", "C1", ["remote-filesystem.list"], ["remote-read"], cli=["files list"], mcp=["hpc_files_list"], resources=[], selectors=["profile", "config", "path", "max_entries"]),
+    _op("filesystem.read", "C1", ["remote-filesystem.read"], ["remote-read"], cli=["files read"], mcp=["hpc_files_read"], resources=[], selectors=["profile", "config", "path", "encoding", "max_bytes"]),
+    _op("filesystem.download", "C1", ["remote-filesystem.read", "local-state.write"], ["remote-read", "local-write"], cli=["files download"], mcp=["hpc_files_download"], resources=[], selectors=["profile", "config", "source", "output", "force", "max_bytes"]),
+    _op("filesystem.upload", "C1", ["remote-workspace.write"], ["local-read", "remote-write"], cli=["files upload"], mcp=["hpc_files_upload"], resources=[], selectors=["profile", "config", "source", "destination", "force", "max_bytes"]),
+    _op("filesystem.copy", "C1", ["remote-filesystem.read", "remote-workspace.write"], ["remote-read", "remote-write"], cli=["files copy"], mcp=["hpc_files_copy"], resources=[], selectors=["profile", "config", "source", "destination", "force", "max_bytes"]),
+    _op("filesystem.mkdir", "C1", ["remote-workspace.write"], ["remote-write"], cli=["files mkdir"], mcp=["hpc_files_mkdir"], resources=[], selectors=["profile", "config", "path"]),
+    _op("filesystem.remove", "C1", ["remote-workspace.delete"], ["remote-write"], cli=["files remove"], mcp=["hpc_files_remove"], resources=[], selectors=["profile", "config", "path"]),
     _op("cluster.quota", "C1", [], ["remote-read"], cli=["quota"], mcp=[], resources=[], selectors=["profile", "config", "quota_command"]),
     _op("cluster.modules", "C1", [], ["remote-read"], cli=["module-spider"], mcp=["hpc_module_spider"], resources=[], selectors=["profile", "config", "name"]),
     _op("cluster.limits", "C1", [], ["remote-read"], cli=["slurm-limits"], mcp=["hpc_slurm_limits"], resources=[], selectors=["profile", "config", "cluster", "partition", "qos"]),
     _op("filesystem.projects", "C1", ["remote-filesystem.list"], ["remote-read"], cli=["projects"], mcp=[], resources=[], selectors=["profile", "config", "projects_dir"]),
     _op("repository.status", "C1", ["remote-filesystem.list", "remote-filesystem.read"], ["remote-read"], cli=["repo status"], mcp=[], resources=[], selectors=["profile", "config", "directory"]),
-    _op("repository.clone", "C1", ["remote-workspace.write"], ["remote-read", "remote-write", "network-read"], cli=["clone"], mcp=[], resources=[], selectors=["profile", "config", "url", "directory", "name", "branch"]),
+    _op("repository.clone", "C1", ["remote-workspace.write"], ["remote-read", "remote-write", "network-read"], cli=["clone"], mcp=["hpc_repo_clone"], resources=[], selectors=["profile", "config", "url", "directory", "name", "branch"]),
     _op("remote.shell", "operator", ["remote-shell.execute"], ["remote-execute"], cli=["run"], mcp=[], resources=[], selectors=["profile", "config", "remote_command"]),
     _op("probe.write", "C0", [], ["local-read", "local-write"], cli=["write-probe", "write-hardware-probe"], mcp=["hpc_write_probe"], resources=[], selectors=["profile", "config", "kind", "output", "force"]),
     _op("probe.install", "C1", ["remote-install.write"], ["local-read", "remote-write"], cli=["install-probe", "install-hardware-probe"], mcp=["hpc_install_probe"], resources=[], selectors=["profile", "config", "kind", "directory", "name", "force"]),
@@ -321,6 +328,35 @@ _DESCRIPTOR_OVERRIDES: dict[str, dict[str, object]] = {
         "path_bindings": (
             PathBinding("list", "path", argument="path", profile_field="projects_dir"),
         ),
+    },
+    "filesystem.list": {
+        "path_bindings": (PathBinding("list", "path", argument="path"),),
+    },
+    "filesystem.read": {
+        "path_bindings": (PathBinding("read", "path", argument="path"),),
+    },
+    "filesystem.download": {
+        "path_bindings": (PathBinding("read", "source", argument="source"),),
+        "resolver": "mcp-confirm",
+    },
+    "filesystem.upload": {
+        "path_bindings": (PathBinding("write", "destination", argument="destination"),),
+        "resolver": "mcp-confirm",
+    },
+    "filesystem.copy": {
+        "path_bindings": (
+            PathBinding("read", "source", argument="source"),
+            PathBinding("write", "destination", argument="destination"),
+        ),
+        "resolver": "mcp-confirm",
+    },
+    "filesystem.mkdir": {
+        "path_bindings": (PathBinding("write", "path", argument="path"),),
+        "resolver": "mcp-confirm",
+    },
+    "filesystem.remove": {
+        "path_bindings": (PathBinding("delete", "path", argument="path"),),
+        "resolver": "mcp-confirm",
     },
     "filesystem.projects": {
         "site_features": ("projects-directory",),
@@ -504,7 +540,13 @@ def _resolve_clone(
     descriptor: OperationDescriptor,
     request: RequestContext,
 ) -> ResolvedOperation:
-    base = _resolved(descriptor, request)
+    base = _resolved(
+        descriptor,
+        request,
+        safety_guards=("confirmation",)
+        if request.surface is OperationSurface.MCP_TOOL
+        else (),
+    )
     if request.arguments.get("directory") is not None:
         return base
     return replace(
@@ -531,6 +573,14 @@ def _resolve_mcp_confirm_or_delegation(
     return _resolved(descriptor, request, safety_guards=guards)
 
 
+def _resolve_mcp_confirm(
+    descriptor: OperationDescriptor,
+    request: RequestContext,
+) -> ResolvedOperation:
+    guards = ("confirmation",) if request.surface is OperationSurface.MCP_TOOL else ()
+    return _resolved(descriptor, request, safety_guards=guards)
+
+
 def _path_value(binding: PathBinding, request: RequestContext) -> str | None:
     value = request.arguments.get(binding.argument) if binding.argument else None
     if value == "." and binding.profile_field:
@@ -550,6 +600,7 @@ OPERATION_REGISTRY = OperationRegistry(
         "clone": _resolve_clone,
         "install-submit": _resolve_install_submit,
         "job-submit": _resolve_job_submit,
+        "mcp-confirm": _resolve_mcp_confirm,
         "mcp-confirm-or-delegation": _resolve_mcp_confirm_or_delegation,
         "probe-write": _resolve_probe_write,
     },

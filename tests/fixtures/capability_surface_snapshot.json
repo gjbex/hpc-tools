@@ -626,6 +626,334 @@
       ],
       "handler": "hpc_tools.commands.core:cmd_doctor"
     },
+    "files": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "files copy": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "source",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "destination",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 4194304,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_copy"
+    },
+    "files download": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "source",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 4194304,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_download"
+    },
+    "files list": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 1000,
+          "dest": "max_entries",
+          "nargs": null,
+          "options": [
+            "--max-entries"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_list"
+    },
+    "files mkdir": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_mkdir"
+    },
+    "files read": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": [
+            "utf-8",
+            "base64"
+          ],
+          "default": "utf-8",
+          "dest": "encoding",
+          "nargs": null,
+          "options": [
+            "--encoding"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 1048576,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_read"
+    },
+    "files remove": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_remove"
+    },
+    "files upload": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "source",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "destination",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 4194304,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_upload"
+    },
     "hardware": {
       "arguments": [
         {
@@ -4200,6 +4528,237 @@
         "required": false
       }
     ],
+    "hpc_files_copy": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "source",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "destination",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 4194304,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_download": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "source",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 4194304,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_list": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "int",
+        "default": 1000,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_entries",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_files_mkdir": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_read": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "utf-8",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "encoding",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 1048576,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_files_remove": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_upload": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "source",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "destination",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 4194304,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
     "hpc_hardware_context": [],
     "hpc_hardware_sources": [],
     "hpc_install_container": [
@@ -4682,6 +5241,50 @@
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "name",
         "required": true
+      }
+    ],
+    "hpc_repo_clone": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "url",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "branch",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
       }
     ],
     "hpc_site_env": [

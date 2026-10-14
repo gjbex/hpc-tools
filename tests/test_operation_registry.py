@@ -44,7 +44,7 @@ class OperationRegistryTests(unittest.TestCase):
             "C3": CapabilityLevel.JOB_LIFECYCLE,
             "operator": CapabilityLevel.JOB_LIFECYCLE,
         }
-        self.assertEqual(len(OPERATION_REGISTRY.operations), 65)
+        self.assertEqual(len(OPERATION_REGISTRY.operations), 72)
         self.assertEqual(
             {operation.id for operation in OPERATION_REGISTRY.operations},
             {item["id"] for item in inventory["operations"]},
@@ -230,6 +230,27 @@ class OperationRegistryTests(unittest.TestCase):
         )
         self.assertTrue(resolved.overwrite_requested)
         self.assertEqual(resolved.requirement.scopes, ("local-state.write",))
+
+    def test_file_mutations_require_mcp_confirmation_but_not_cli_confirmation(self) -> None:
+        mcp = OPERATION_REGISTRY.resolve(
+            _request(
+                "filesystem.upload",
+                OperationSurface.MCP_TOOL,
+                source="job.slurm",
+                destination="/project/job.slurm",
+            )
+        )
+        cli = OPERATION_REGISTRY.resolve(
+            _request(
+                "filesystem.upload",
+                OperationSurface.CLI,
+                source="job.slurm",
+                destination="/project/job.slurm",
+            )
+        )
+
+        self.assertEqual(mcp.safety_guards, ("confirmation",))
+        self.assertEqual(cli.safety_guards, ())
 
     def test_path_and_site_denials_are_distinct_and_safe(self) -> None:
         path_decision = OPERATION_REGISTRY.authorize(

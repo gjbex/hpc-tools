@@ -212,44 +212,73 @@ def cmd_projects(args: argparse.Namespace, profile: Profile) -> int:
 
 def cmd_clone(args: argparse.Namespace, profile: Profile) -> int:
     require_authorized("repository.clone", profile, namespace_arguments(args))
-    directory = args.directory or profile.projects_dir
-    if not directory:
+    selected_directory, name, command = clone_plan(
+        profile,
+        args.url,
+        directory=args.directory,
+        name=args.name,
+        branch=args.branch,
+    )
+    if not args.dry_run:
+        prepare_clone_destination(profile, selected_directory, name)
+    return run_command(profile, command, dry_run=args.dry_run)
+
+
+def clone_plan(
+    profile: Profile,
+    url: str,
+    *,
+    directory: str | None = None,
+    name: str | None = None,
+    branch: str | None = None,
+) -> tuple[str, str, str]:
+    selected_parent = directory or profile.projects_dir
+    if not selected_parent:
         raise ConfigError(
-            f"profile '{profile.name}' does not define projects_dir; pass --directory"
+            f"profile '{profile.name}' does not define projects_dir; pass directory"
         )
-    name = args.name or _clone_destination_name(args.url)
-    if "/" in name or name in {"", ".", ".."}:
+    _validate_clone_source(url)
+    destination_name = name or _clone_destination_name(url)
+    if "/" in destination_name or destination_name in {"", ".", ".."}:
         raise ConfigError("clone destination name must be one path component")
     selected_directory, _ = resolve_granted_path(
-        directory,
+        selected_parent,
         profile.capabilities.remote_roots.write,
     )
-    parts = ["git", "clone"]
-    if args.branch:
-        parts.extend(["--branch", args.branch])
-    parts.extend([args.url, name])
+    parts = [
+        "git",
+        "-c",
+        "core.hooksPath=/dev/null",
+        "clone",
+        "--no-recurse-submodules",
+    ]
+    if branch:
+        parts.extend(["--branch", branch])
+    parts.extend(["--", url, destination_name])
     command = (
         f"cd {_quote_remote_path_expression(selected_directory)} && "
         f"{' '.join(shlex.quote(part) for part in parts)}"
     )
-    if not args.dry_run:
-        ensure_remote_directory(
-            profile,
-            selected_directory,
-            roots=profile.capabilities.remote_roots.write,
+    return selected_directory, destination_name, command
+
+
+def prepare_clone_destination(profile: Profile, directory: str, name: str) -> None:
+    ensure_remote_directory(
+        profile,
+        directory,
+        roots=profile.capabilities.remote_roots.write,
+    )
+    _, entries, truncated = list_remote_directory(
+        profile,
+        directory,
+        roots=profile.capabilities.remote_roots.write,
+    )
+    if truncated:
+        raise ConfigError(
+            "clone destination cannot be proven absent because the parent listing was truncated"
         )
-        _, entries, truncated = list_remote_directory(
-            profile,
-            selected_directory,
-            roots=profile.capabilities.remote_roots.write,
-        )
-        if truncated:
-            raise ConfigError(
-                "clone destination cannot be proven absent because the parent listing was truncated"
-            )
-        if any(entry.name == name for entry in entries):
-            raise ConfigError(f"clone destination already exists: {name}")
-    return run_command(profile, command, dry_run=args.dry_run)
+    if any(entry.name == name for entry in entries):
+        raise ConfigError(f"clone destination already exists: {name}")
 
 def cmd_module_spider(args: argparse.Namespace, profile: Profile) -> int:
     require_authorized("cluster.modules", profile, namespace_arguments(args))
@@ -285,3 +314,19 @@ def _clone_destination_name(url: str) -> str:
     if not candidate or candidate in {".", ".."}:
         raise ConfigError("could not derive a safe clone destination; pass --name")
     return candidate
+
+
+def _validate_clone_source(url: str) -> None:
+    lowered = url.lower()
+    if (
+        not url
+        or url != url.strip()
+        or url.startswith(("/", "./", "../", "~", "$"))
+        or lowered.startswith("file:")
+        or "\0" in url
+        or "\n" in url
+        or "\r" in url
+    ):
+        raise ConfigError(
+            "clone source must be a remote network URL; local and file sources are not supported"
+        )

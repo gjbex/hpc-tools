@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,11 @@ from hpc_tools.commands.probes import (
     _write_bundle_assets,
     _write_cuda_device_properties_bundle,
 )
-from hpc_tools.commands.remote import _module_spider_command
+from hpc_tools.commands.remote import (
+    _module_spider_command,
+    clone_plan,
+    prepare_clone_destination,
+)
 from hpc_tools.commands.slurm import build_site_status_report
 from hpc_tools.config import (
     ConfigError,
@@ -22,6 +27,14 @@ from hpc_tools.config import (
     default_reference_sets_dir,
 )
 from hpc_tools.hardware import render_hardware_context
+from hpc_tools.execution import execution_plan, run_command_capture
+from hpc_tools.filesystem import (
+    DEFAULT_MAX_BYTES,
+    DEFAULT_MAX_ENTRIES,
+    DEFAULT_MAX_TRANSFER_BYTES,
+    FilesystemLimits,
+    FilesystemService,
+)
 from hpc_tools.mcp.common import (
     _append_submission_event,
     _append_submission_mark_event,
@@ -46,9 +59,17 @@ from hpc_tools.mcp.parsers import (
 )
 from hpc_tools.references import resolve_reference_context
 from hpc_tools.remote_filesystem import (
+    copy_remote_file,
     install_remote_assets,
     list_remote_directory,
+    make_remote_directory,
     plan_remote_assets,
+    read_local_regular_file,
+    read_remote_file,
+    remove_remote_path,
+    resolve_granted_path,
+    write_local_regular_file,
+    write_remote_file,
 )
 
 
@@ -623,6 +644,384 @@ def hpc_storage_inspect(
             for entry in entries
         ],
         "truncated": truncated,
+    }
+
+
+def hpc_files_list(
+    path: str,
+    max_entries: int = DEFAULT_MAX_ENTRIES,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """List one remote directory without recursion or symlink traversal."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = {
+        "path": path,
+        "max_entries": max_entries,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    }
+    _authorize_mcp(resolved, "filesystem.list", arguments)
+    maximum = _bounded_limit(max_entries, DEFAULT_MAX_ENTRIES, "max_entries")
+    selected, _ = resolve_granted_path(path, resolved.capabilities.remote_roots.list)
+    preview = {
+        "operation": "files_list",
+        "profile": resolved.name,
+        "path": selected,
+        "max_entries": maximum,
+        "dry_run": dry_run,
+        "entries": [],
+        "truncated": False,
+    }
+    if dry_run:
+        return preview
+    selected, entries, truncated = list_remote_directory(
+        resolved,
+        path,
+        roots=resolved.capabilities.remote_roots.list,
+        service=_filesystem_service(resolved, max_bytes=DEFAULT_MAX_BYTES, max_entries=maximum),
+    )
+    return preview | {
+        "path": selected,
+        "dry_run": False,
+        "entries": [entry.__dict__ for entry in entries],
+        "truncated": truncated,
+    }
+
+
+def hpc_files_read(
+    path: str,
+    encoding: str = "utf-8",
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Read one bounded remote regular file as UTF-8 text or base64."""
+    if encoding not in {"utf-8", "base64"}:
+        raise ConfigError("encoding must be 'utf-8' or 'base64'")
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = {
+        "path": path,
+        "encoding": encoding,
+        "max_bytes": max_bytes,
+        "profile": profile,
+        "config": config,
+        "dry_run": dry_run,
+    }
+    _authorize_mcp(resolved, "filesystem.read", arguments)
+    maximum = _bounded_limit(max_bytes, DEFAULT_MAX_BYTES, "max_bytes")
+    selected, _ = resolve_granted_path(path, resolved.capabilities.remote_roots.read)
+    preview = {
+        "operation": "files_read",
+        "profile": resolved.name,
+        "path": selected,
+        "encoding": encoding,
+        "max_bytes": maximum,
+        "dry_run": dry_run,
+        "size": None,
+        "truncated": False,
+        "content": "",
+    }
+    if dry_run:
+        return preview
+    remote = read_remote_file(
+        resolved,
+        path,
+        roots=resolved.capabilities.remote_roots.read,
+        service=_filesystem_service(resolved, max_bytes=maximum),
+    )
+    if encoding == "base64":
+        content = base64.b64encode(remote.data).decode("ascii")
+    else:
+        try:
+            content = remote.data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ConfigError("remote file is not valid UTF-8; use encoding='base64'") from error
+    return preview | {
+        "dry_run": False,
+        "size": remote.size,
+        "truncated": remote.truncated,
+        "content": content,
+    }
+
+
+def hpc_files_download(
+    source: str,
+    output: str,
+    force: bool = False,
+    max_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Download one remote file; execution requires confirm=true and dry_run=false."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = locals().copy()
+    _authorize_mcp(resolved, "filesystem.download", arguments)
+    maximum = _bounded_limit(max_bytes, DEFAULT_MAX_TRANSFER_BYTES, "max_bytes")
+    selected, _ = resolve_granted_path(source, resolved.capabilities.remote_roots.read)
+    preview = _file_mutation_preview(
+        "files_download", resolved.name, dry_run, confirm,
+        source=selected, destination=str(Path(output).expanduser()), force=force,
+        max_bytes=maximum,
+    )
+    if dry_run or not confirm:
+        return preview
+    remote = read_remote_file(
+        resolved,
+        source,
+        roots=resolved.capabilities.remote_roots.read,
+        service=_filesystem_service(resolved, max_bytes=maximum),
+    )
+    if remote.truncated:
+        raise ConfigError(f"remote file exceeds the transfer limit of {maximum} bytes")
+    destination, overwritten = write_local_regular_file(
+        output, remote.data, overwrite=force, max_bytes=maximum
+    )
+    return preview | {
+        "dry_run": False,
+        "confirm_required": False,
+        "executed": True,
+        "destination": str(destination),
+        "size": remote.size,
+        "overwritten": overwritten,
+    }
+
+
+def hpc_files_upload(
+    source: str,
+    destination: str,
+    force: bool = False,
+    max_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Upload one local file; execution requires confirm=true and dry_run=false."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = locals().copy()
+    _authorize_mcp(resolved, "filesystem.upload", arguments)
+    maximum = _bounded_limit(max_bytes, DEFAULT_MAX_TRANSFER_BYTES, "max_bytes")
+    selected, _ = resolve_granted_path(destination, resolved.capabilities.remote_roots.write)
+    preview = _file_mutation_preview(
+        "files_upload", resolved.name, dry_run, confirm,
+        source=str(Path(source).expanduser()), destination=selected, force=force,
+        max_bytes=maximum,
+    )
+    if dry_run or not confirm:
+        return preview
+    local_source, data = read_local_regular_file(source, max_bytes=maximum)
+    result = write_remote_file(
+        resolved,
+        destination,
+        data,
+        roots=resolved.capabilities.remote_roots.write,
+        overwrite=force,
+        service=_filesystem_service(resolved, max_bytes=maximum),
+    )
+    return preview | {
+        "source": str(local_source),
+        "destination": result.destination,
+        "dry_run": False,
+        "confirm_required": False,
+        "executed": True,
+        "size": result.size,
+        "overwritten": result.overwritten,
+    }
+
+
+def hpc_files_copy(
+    source: str,
+    destination: str,
+    force: bool = False,
+    max_bytes: int = DEFAULT_MAX_TRANSFER_BYTES,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Copy one remote file; execution requires confirm=true and dry_run=false."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = locals().copy()
+    _authorize_mcp(resolved, "filesystem.copy", arguments)
+    maximum = _bounded_limit(max_bytes, DEFAULT_MAX_TRANSFER_BYTES, "max_bytes")
+    selected_source, _ = resolve_granted_path(source, resolved.capabilities.remote_roots.read)
+    selected_destination, _ = resolve_granted_path(
+        destination, resolved.capabilities.remote_roots.write
+    )
+    preview = _file_mutation_preview(
+        "files_copy", resolved.name, dry_run, confirm,
+        source=selected_source, destination=selected_destination, force=force,
+        max_bytes=maximum,
+    )
+    if dry_run or not confirm:
+        return preview
+    result = copy_remote_file(
+        resolved,
+        source,
+        destination,
+        read_roots=resolved.capabilities.remote_roots.read,
+        write_roots=resolved.capabilities.remote_roots.write,
+        overwrite=force,
+        service=_filesystem_service(resolved, max_bytes=maximum),
+    )
+    return preview | {
+        "dry_run": False,
+        "confirm_required": False,
+        "executed": True,
+        "size": result.size,
+        "overwritten": result.overwritten,
+    }
+
+
+def hpc_files_mkdir(
+    path: str,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Create one remote directory; execution requires confirm=true and dry_run=false."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = locals().copy()
+    _authorize_mcp(resolved, "filesystem.mkdir", arguments)
+    selected, _ = resolve_granted_path(path, resolved.capabilities.remote_roots.write)
+    preview = _file_mutation_preview(
+        "files_mkdir", resolved.name, dry_run, confirm, path=selected
+    )
+    if dry_run or not confirm:
+        return preview
+    created = make_remote_directory(
+        resolved, path, roots=resolved.capabilities.remote_roots.write
+    )
+    return preview | {
+        "path": created,
+        "dry_run": False,
+        "confirm_required": False,
+        "executed": True,
+    }
+
+
+def hpc_files_remove(
+    path: str,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Remove one remote file or empty directory; requires confirmation."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = locals().copy()
+    _authorize_mcp(resolved, "filesystem.remove", arguments)
+    selected, root = resolve_granted_path(path, resolved.capabilities.remote_roots.delete)
+    if selected == root:
+        raise ConfigError("refusing to remove a configured remote root")
+    preview = _file_mutation_preview(
+        "files_remove", resolved.name, dry_run, confirm, path=selected
+    )
+    if dry_run or not confirm:
+        return preview
+    removed, kind = remove_remote_path(
+        resolved, path, roots=resolved.capabilities.remote_roots.delete
+    )
+    return preview | {
+        "path": removed,
+        "kind": kind,
+        "dry_run": False,
+        "confirm_required": False,
+        "executed": True,
+    }
+
+
+def hpc_repo_clone(
+    url: str,
+    directory: str | None = None,
+    name: str | None = None,
+    branch: str | None = None,
+    profile: str | None = None,
+    config: str | None = None,
+    dry_run: bool = True,
+    confirm: bool = False,
+) -> dict[str, Any]:
+    """Clone a network Git repository; requires confirmation and no submodules."""
+    resolved = _resolve_profile(profile_name=profile, config_path=config)
+    arguments = locals().copy()
+    _authorize_mcp(resolved, "repository.clone", arguments)
+    selected_directory, destination_name, command = clone_plan(
+        resolved, url, directory=directory, name=name, branch=branch
+    )
+    plan = execution_plan(resolved, command)
+    preview = {
+        "operation": "repo_clone",
+        "profile": resolved.name,
+        "url": url,
+        "directory": selected_directory,
+        "name": destination_name,
+        "branch": branch,
+        "command": command,
+        **plan.metadata(),
+        "dry_run": dry_run,
+        "confirm_required": not confirm,
+        "executed": False,
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+    }
+    if dry_run or not confirm:
+        return preview
+    prepare_clone_destination(resolved, selected_directory, destination_name)
+    completed = run_command_capture(resolved, command)
+    return preview | {
+        "dry_run": False,
+        "confirm_required": False,
+        "executed": True,
+        "returncode": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+    }
+
+
+def _bounded_limit(requested: int, maximum: int, name: str) -> int:
+    if type(requested) is not int or requested <= 0 or requested > maximum:
+        raise ConfigError(f"{name} must be between 1 and {maximum}")
+    return requested
+
+
+def _filesystem_service(
+    profile: Any,
+    *,
+    max_bytes: int,
+    max_entries: int = DEFAULT_MAX_ENTRIES,
+) -> FilesystemService:
+    return FilesystemService(
+        profile,
+        limits=FilesystemLimits(
+            max_bytes=max_bytes,
+            max_entries=max_entries,
+            max_transfer_bytes=max_bytes,
+        ),
+    )
+
+
+def _file_mutation_preview(
+    operation: str,
+    profile: str,
+    dry_run: bool,
+    confirm: bool,
+    **details: Any,
+) -> dict[str, Any]:
+    return {
+        "operation": operation,
+        "profile": profile,
+        **details,
+        "dry_run": dry_run,
+        "confirm_required": not confirm,
+        "executed": False,
     }
 
 def hpc_site_env(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from hpc_tools.commands import agent, core, probes, references, remote, slurm, submissions
+from hpc_tools.commands import agent, core, files, probes, references, remote, slurm, submissions
 
 
 def register_builtin_commands(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -23,6 +23,7 @@ def register_builtin_commands(subparsers: Any, profile: Any, handlers: Any) -> N
         slurm.register_limits(subparsers, handlers)
 
     with _command_group(subparsers, "Remote workspace"):
+        files.register(subparsers, handlers)
         remote.register_projects(subparsers, handlers)
         remote.register_repo(subparsers, handlers)
         remote.register_clone(subparsers, handlers)
