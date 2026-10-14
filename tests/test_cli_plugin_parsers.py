@@ -1,9 +1,35 @@
 from __future__ import annotations
 
+import argparse
+from dataclasses import replace
+
 from test_cli_fixtures import *
 
 
 class CliCoreTests(unittest.TestCase):
+    def test_policy_filtered_plugin_group_hides_denied_leaves(self) -> None:
+        profile = replace(
+            make_profile(),
+            capabilities=CapabilityPolicy(
+                version=1,
+                max_level=CapabilityLevel.PROFILE_CONTEXT,
+                scopes=(),
+                remote_roots=RemoteRootGrants(),
+            ),
+        )
+        parser = build_parser(profile, policy_filter=True)
+        root = next(
+            action for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        python_parser = root.choices["python"]
+        python_commands = next(
+            action for action in python_parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+
+        self.assertEqual(set(python_commands.choices), {"scan", "inspect-deps"})
+
     def test_cxx_scan_parser(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["cxx", "scan", "."])

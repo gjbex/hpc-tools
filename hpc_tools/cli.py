@@ -1,13 +1,20 @@
 from __future__ import annotations
 
-import contextlib
 import argparse
+import contextlib
 import io
 import json
+import os
+from pathlib import Path
+import re
 from types import SimpleNamespace
 import sys
 import textwrap
 
+from hpc_tools import plugin_system
+from hpc_tools.authorization import CapabilityAuthorizationError
+from hpc_tools.capabilities import CAPABILITY_LEVELS
+from hpc_tools.cli_visibility import apply_cli_visibility
 from hpc_tools.commands import register_builtin_commands
 from hpc_tools.commands.agent import cmd_agent_audit, cmd_agent_export
 from hpc_tools.commands.common import (
@@ -18,6 +25,7 @@ from hpc_tools.commands.common import (
 from hpc_tools.commands.core import (
     _doctor_command,
     _site_env_command,
+    cmd_capabilities,
     cmd_doctor,
     cmd_paths,
     cmd_plugins_info,
@@ -94,11 +102,11 @@ from hpc_tools.commands.submissions import (
 from hpc_tools.config import (
     ConfigError,
     Profile,
+    default_config_path,
     load_config,
     resolve_profile,
 )
 from hpc_tools.execution import EXECUTOR_NAMES, executor_scope
-from hpc_tools import plugin_system
 
 
 LOCAL_COMMANDS = {
@@ -114,6 +122,7 @@ LOCAL_COMMANDS = {
 PROBE_KINDS = {"hardware", "cuda-device-properties"}
 CONTAINER_KINDS = {"agent", "agent-boundary", "generic", "r", "conda"}
 JSON_NATIVE_HANDLERS = {
+    "cmd_capabilities",
     "cmd_benchmark_summarize",
     "cmd_benchmark_compare",
     "cmd_cxx_scan",
@@ -139,6 +148,14 @@ class GroupedCommandParser(argparse.ArgumentParser):
         if not self.command_groups:
             return help_text
         return _replace_command_help_section(help_text, self.command_groups)
+
+    def error(self, message: str) -> None:
+        message = re.sub(
+            r"invalid choice: ([^ ]+) \(choose from .*\)",
+            r"unknown or unavailable choice: \1",
+            message,
+        )
+        super().error(message)
 
 
 class CommandGroup(SimpleNamespace):
@@ -173,13 +190,29 @@ class GroupedSubparsers:
         return getattr(self._subparsers, name)
 
 
-def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
+def build_parser(
+    profile: Profile | None = None,
+    *,
+    show_disallowed: bool = False,
+    capability: str | None = None,
+    policy_filter: bool = False,
+) -> argparse.ArgumentParser:
     parser = GroupedCommandParser(prog="hpc")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
     parser.add_argument("--profile", help="Profile name from the configuration file")
     parser.add_argument(
         "--config",
         help="Configuration file path; defaults to HPC_TOOLS_CONFIG, XDG_CONFIG_HOME, or ~/.config/hpc-tools/config.toml",
+    )
+    parser.add_argument(
+        "--capability",
+        choices=[level.value for level in CAPABILITY_LEVELS],
+        help="Narrow command discovery to this capability level; never raises or changes execution authority",
+    )
+    parser.add_argument(
+        "--show-disallowed",
+        action="store_true",
+        help="Show commands denied by the selected profile and annotate the reasons",
     )
     parser.add_argument(
         "--dry-run",
@@ -201,6 +234,14 @@ def build_parser(profile: Profile | None = None) -> argparse.ArgumentParser:
     with subparsers.group("Workflow plugins"):
         plugin_system.register_plugin_commands(subparsers, profile)
     parser.command_groups = subparsers.groups
+
+    if policy_filter:
+        apply_cli_visibility(
+            parser,
+            profile,
+            requested_level=capability,
+            show_disallowed=show_disallowed,
+        )
 
     return parser
 
@@ -251,6 +292,7 @@ def _command_handlers() -> SimpleNamespace:
         add_probe_directive_options=_add_probe_directive_options,
         add_submit_override_arguments=_add_submit_override_arguments,
         cmd_run=cmd_run,
+        cmd_capabilities=cmd_capabilities,
         cmd_doctor=cmd_doctor,
         cmd_site_env=cmd_site_env,
         cmd_storage_inspect=cmd_storage_inspect,
@@ -307,31 +349,21 @@ def main(argv: list[str] | None = None) -> int:
         original_argv = list(argv)
         argv, json_requested = _strip_json_flag(argv)
         pre_args, _ = _build_pre_parser().parse_known_args(argv)
-        if _should_parse_without_config(argv):
-            parser = build_parser()
-            args = parser.parse_args(argv)
-            setattr(args, "json", getattr(args, "json", False) or json_requested)
-            return _dispatch_command(args, None, json_requested, original_argv)
-        config = load_config(pre_args.config)
-        profile = resolve_profile(config, pre_args.profile)
-        parser = build_parser(profile)
+        profile = _resolve_invocation_profile(argv, pre_args)
+        parser = build_parser(
+            profile,
+            show_disallowed=pre_args.show_disallowed,
+            capability=pre_args.capability,
+            policy_filter=_help_requested(argv),
+        )
         args = parser.parse_args(argv)
         setattr(args, "json", getattr(args, "json", False) or json_requested)
         return _dispatch_command(args, profile, json_requested, original_argv)
     except ConfigError as error:
         if json_requested:
-            print(
-                json.dumps(
-                    {
-                        "error": str(error),
-                        "returncode": 2,
-                    },
-                    indent=2,
-                    sort_keys=True,
-                )
-            )
+            print(json.dumps(_error_payload(error), indent=2, sort_keys=True))
             return 2
-        parser = build_parser()
+        parser = build_parser(policy_filter=True)
         parser.exit(2, f"hpc: configuration error: {error}\n")
 
 
@@ -340,7 +372,39 @@ def _build_pre_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile")
     parser.add_argument("--config")
     parser.add_argument("--executor", choices=EXECUTOR_NAMES)
+    parser.add_argument(
+        "--capability",
+        choices=[level.value for level in CAPABILITY_LEVELS],
+    )
+    parser.add_argument("--show-disallowed", action="store_true")
     return parser
+
+
+def _resolve_invocation_profile(
+    argv: list[str],
+    pre_args: argparse.Namespace,
+) -> Profile | None:
+    config_path = (
+        Path(pre_args.config).expanduser()
+        if pre_args.config
+        else default_config_path()
+    )
+    explicit_selection = bool(
+        pre_args.profile
+        or pre_args.config
+        or "HPC_TOOLS_CONFIG" in os.environ
+    )
+    if explicit_selection:
+        return resolve_profile(load_config(pre_args.config), pre_args.profile)
+    if _help_requested(argv) and config_path.exists():
+        return resolve_profile(load_config(pre_args.config), pre_args.profile)
+    if not _should_parse_without_config(argv):
+        return resolve_profile(load_config(pre_args.config), pre_args.profile)
+    return None
+
+
+def _help_requested(argv: list[str]) -> bool:
+    return any(arg in {"-h", "--help"} for arg in argv)
 
 
 def _strip_json_flag(argv: list[str]) -> tuple[list[str], bool]:
@@ -384,18 +448,21 @@ def _dispatch_with_executor(
     try:
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             returncode = args.handler(args, profile)
+    except CapabilityAuthorizationError as error:
+        print(json.dumps(_error_payload(error), indent=2, sort_keys=True))
+        return 2
     except ConfigError as error:
         returncode = 2
         stderr.write(f"hpc: configuration error: {error}\n")
 
     print(
         json.dumps(
-                    {
+            {
                 "argv": original_argv,
-                        "returncode": returncode,
-                        "stdout": stdout.getvalue(),
-                        "stderr": stderr.getvalue(),
-                    },
+                "returncode": returncode,
+                "stdout": stdout.getvalue(),
+                "stderr": stderr.getvalue(),
+            },
             indent=2,
             sort_keys=True,
         )
@@ -403,12 +470,26 @@ def _dispatch_with_executor(
     return returncode
 
 
+def _error_payload(error: ConfigError) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "error": str(error),
+        "returncode": 2,
+    }
+    if isinstance(error, CapabilityAuthorizationError):
+        payload.update(error.decision.public_summary())
+    return payload
+
+
 def _should_parse_without_config(argv: list[str]) -> bool:
     pre_args, remaining = _build_pre_parser().parse_known_args(argv)
-    if any(arg in ("-h", "--help") for arg in remaining):
+    if pre_args.profile or pre_args.config:
+        return False
+    if _help_requested(remaining) and pre_args.show_disallowed:
         return True
     if not remaining:
         return False
+    if remaining[0] in {"-h", "--help"}:
+        return True
     if remaining[0] == "paths":
         return True
     if remaining[0] in {"write-hardware-probe", "write-probe", "write-container"}:
@@ -477,7 +558,7 @@ def _references_needs_profile(remaining: list[str]) -> bool:
             skip_next = False
             continue
         if arg in {"-h", "--help"}:
-            return False
+            continue
         if arg == "--output":
             skip_next = True
             continue

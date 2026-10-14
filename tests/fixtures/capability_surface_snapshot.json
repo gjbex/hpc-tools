@@ -48,6 +48,33 @@
           "type": null
         },
         {
+          "choices": [
+            "profile-context",
+            "cluster-discovery",
+            "job-inspection",
+            "job-lifecycle"
+          ],
+          "default": null,
+          "dest": "capability",
+          "nargs": null,
+          "options": [
+            "--capability"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "show_disallowed",
+          "nargs": 0,
+          "options": [
+            "--show-disallowed"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
           "choices": null,
           "default": false,
           "dest": "dry_run",
@@ -401,6 +428,23 @@
         }
       ],
       "handler": "hpc_tools.commands.slurm:cmd_cancel"
+    },
+    "capabilities": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_capabilities"
     },
     "clone": {
       "arguments": [
@@ -6348,7 +6392,7 @@
     "no-command": false,
     "paths": true,
     "plugins-list": true,
-    "profile-command-help": true,
+    "profile-command-help": false,
     "python-check": false,
     "python-scan": true,
     "r-check": false,

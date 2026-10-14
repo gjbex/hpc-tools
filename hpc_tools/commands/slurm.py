@@ -27,37 +27,35 @@ def register(subparsers: Any, profile: Any, handlers: Any) -> None:
 
 
 def register_status(subparsers: Any, profile: Any, handlers: Any) -> None:
-    if profile is None or profile.status_url:
-        status_parser = subparsers.add_parser(
-            "status",
-            help="Show the public site status page",
-        )
-        status_parser.set_defaults(handler=handlers.cmd_status, operation_id="cluster.status")
+    del profile
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show the public site status page",
+    )
+    status_parser.set_defaults(handler=handlers.cmd_status, operation_id="cluster.status")
 
 
 def register_accounting(subparsers: Any, profile: Any, handlers: Any) -> None:
-    if profile is None or profile.sam_quote_command:
-        quote_parser = subparsers.add_parser("quote", help="Estimate Slurm credits for a job")
-        quote_parser.add_argument(
-            "quote_args",
-            nargs=argparse.REMAINDER,
-            help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
-        )
-        quote_parser.set_defaults(handler=handlers.cmd_quote, operation_id="job.quote")
+    del profile
+    quote_parser = subparsers.add_parser("quote", help="Estimate Slurm credits for a job")
+    quote_parser.add_argument(
+        "quote_args",
+        nargs=argparse.REMAINDER,
+        help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
+    )
+    quote_parser.set_defaults(handler=handlers.cmd_quote, operation_id="job.quote")
 
-    if profile is None or profile.sam_balance_command:
-        balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
-        balance_parser.set_defaults(handler=handlers.cmd_balance, operation_id="account.balance")
+    balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
+    balance_parser.set_defaults(handler=handlers.cmd_balance, operation_id="account.balance")
 
-    if profile is None or profile.sam_statement_command:
-        statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
-        statement_parser.add_argument("--account", required=True, help="Slurm account name")
-        statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
-        statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
-        statement_parser.set_defaults(
-            handler=handlers.cmd_statement,
-            operation_id="account.statement",
-        )
+    statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
+    statement_parser.add_argument("--account", required=True, help="Slurm account name")
+    statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
+    statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
+    statement_parser.set_defaults(
+        handler=handlers.cmd_statement,
+        operation_id="account.statement",
+    )
 
 
 def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -118,9 +116,8 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
     )
     cancel_parser.set_defaults(handler=handlers.cmd_cancel, operation_id="job.cancel")
 
-    if profile is None or profile.queue_command:
-        queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
-        queue_parser.set_defaults(handler=handlers.cmd_queue, operation_id="job.queue")
+    queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
+    queue_parser.set_defaults(handler=handlers.cmd_queue, operation_id="job.queue")
 
     sacct_parser = subparsers.add_parser("sacct", help="Show Slurm accounting for a job")
     sacct_parser.add_argument("jobid", help="Slurm job ID")

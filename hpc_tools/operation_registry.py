@@ -243,6 +243,7 @@ def _op(
 
 
 _OPERATIONS = (
+    _op("capabilities.show", "C0", [], ["local-read"], cli=["capabilities"], mcp=[], resources=[], selectors=["profile", "config"]),
     _op("paths.show", "C0", [], ["local-read"], cli=["paths"], mcp=["hpc_paths"], resources=["hpc://paths"], selectors=[]),
     _op("plugins.list", "C0", [], ["local-read", "local-execute"], cli=["plugins list"], mcp=["hpc_plugins_list"], resources=[], selectors=[]),
     _op("plugins.info", "C0", [], ["local-read", "local-execute"], cli=["plugins info"], mcp=[], resources=[], selectors=["name"]),
@@ -311,6 +312,7 @@ _OPERATIONS = (
 
 
 _DESCRIPTOR_OVERRIDES: dict[str, dict[str, object]] = {
+    "references.context": {"site_features": ("hardware-context",)},
     "cluster.status": {
         "site_features": ("status-page",),
     },

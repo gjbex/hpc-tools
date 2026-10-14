@@ -44,7 +44,7 @@ class OperationRegistryTests(unittest.TestCase):
             "C3": CapabilityLevel.JOB_LIFECYCLE,
             "operator": CapabilityLevel.JOB_LIFECYCLE,
         }
-        self.assertEqual(len(OPERATION_REGISTRY.operations), 64)
+        self.assertEqual(len(OPERATION_REGISTRY.operations), 65)
         self.assertEqual(
             {operation.id for operation in OPERATION_REGISTRY.operations},
             {item["id"] for item in inventory["operations"]},

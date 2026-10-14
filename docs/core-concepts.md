@@ -142,8 +142,8 @@ the cluster's documented procedure.
 
 These fields describe what a site provides. They are separate from the
 mandatory `capabilities` policy table, which describes what hpc-tools is
-allowed to expose and do for that profile. Policy enforcement is introduced by
-the later capability registry and interface work packages.
+allowed to expose and do for that profile. The CLI filters profile-aware help
+from that policy and every invocation is authorized again before effects.
 
 ## Slurm requests are resource shapes
 

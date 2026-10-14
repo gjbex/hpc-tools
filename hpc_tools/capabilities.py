@@ -378,11 +378,25 @@ def site_features_from_profile(profile: Any) -> frozenset[str]:
         "projects-directory": "projects_dir",
         "profile-email": "email",
     }
-    return frozenset(
+    features = {
         feature
         for feature, field in fields.items()
         if getattr(profile, field, None)
-    )
+    }
+    if any(
+        getattr(profile, field, None)
+        for field in (
+            "hardware_reference",
+            "hardware_url",
+            "slurm_reference",
+            "slurm_url",
+            "storage_reference",
+            "storage_url",
+            "reference_set",
+        )
+    ):
+        features.add("hardware-context")
+    return frozenset(features)
 
 
 def evaluate_capability(

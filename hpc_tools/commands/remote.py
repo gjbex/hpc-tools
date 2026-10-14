@@ -10,7 +10,6 @@ from hpc_tools.commands.common import _quote_remote_path_expression
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import run_command
 from hpc_tools.filesystem import FilesystemService
-from hpc_tools.hardware import profile_has_hardware_context
 from hpc_tools.hardware import render_hardware_context
 from hpc_tools.remote_filesystem import (
     ensure_remote_directory,
@@ -80,9 +79,9 @@ def register_repo(subparsers: Any, handlers: Any) -> None:
 
 
 def register_quota(subparsers: Any, profile: Any, handlers: Any) -> None:
-    if profile is None or profile.quota_command:
-        quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
-        quota_parser.set_defaults(handler=handlers.cmd_quota, operation_id="cluster.quota")
+    del profile
+    quota_parser = subparsers.add_parser("quota", help="Show remote quota usage")
+    quota_parser.set_defaults(handler=handlers.cmd_quota, operation_id="cluster.quota")
 
 
 def register_workspace(subparsers: Any, handlers: Any) -> None:
@@ -121,25 +120,25 @@ def register_module_spider(subparsers: Any, handlers: Any) -> None:
 
 
 def register_hardware(subparsers: Any, profile: Any, handlers: Any) -> None:
-    if profile_has_hardware_context(profile):
-        hardware_parser = subparsers.add_parser(
-            "hardware",
-            help="Show profile hardware and Slurm reference context",
-        )
-        hardware_parser.add_argument(
-            "--source",
-            action="store_true",
-            help="Print configured source URLs only",
-        )
-        hardware_parser.add_argument(
-            "--path",
-            action="store_true",
-            help="Print configured local reference paths only",
-        )
-        hardware_parser.set_defaults(
-            handler=handlers.cmd_hardware,
-            operation_id="references.context",
-        )
+    del profile
+    hardware_parser = subparsers.add_parser(
+        "hardware",
+        help="Show profile hardware and Slurm reference context",
+    )
+    hardware_parser.add_argument(
+        "--source",
+        action="store_true",
+        help="Print configured source URLs only",
+    )
+    hardware_parser.add_argument(
+        "--path",
+        action="store_true",
+        help="Print configured local reference paths only",
+    )
+    hardware_parser.set_defaults(
+        handler=handlers.cmd_hardware,
+        operation_id="references.context",
+    )
 
 def cmd_storage_inspect(args: argparse.Namespace, profile: Profile) -> int:
     require_authorized("filesystem.inspect", profile, namespace_arguments(args))

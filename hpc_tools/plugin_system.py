@@ -340,7 +340,7 @@ def _contract_label(plugin: LoadedPlugin) -> str:
     return "rejected"
 
 
-def _is_profile_free(operation: OperationDescriptor) -> bool:
+def is_profile_free_operation(operation: OperationDescriptor) -> bool:
     return (
         operation.minimum_level is CapabilityLevel.PROFILE_CONTEXT
         and not operation.scopes
@@ -350,6 +350,9 @@ def _is_profile_free(operation: OperationDescriptor) -> bool:
         and not operation.path_bindings
         and set(operation.effects) <= {"local-read", "local-execute"}
     )
+
+
+_is_profile_free = is_profile_free_operation
 
 
 def _subparser_choices(subparsers: Any) -> dict[str, argparse.ArgumentParser]:

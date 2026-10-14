@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import argparse
 from importlib import resources
+import json
+from pathlib import Path
 from typing import Any
 
 from hpc_tools import plugin_system, submissions
 from hpc_tools.authorization import namespace_arguments, require_authorized
+from hpc_tools.capabilities import narrow_policy
 from hpc_tools.commands.common import _section_command, _tool_check_loop
 from hpc_tools.config import (
     ConfigError,
@@ -47,6 +50,15 @@ def register_site_env(subparsers: Any, handlers: Any) -> None:
 
 
 def register_local(subparsers: Any, handlers: Any) -> None:
+    capabilities_parser = subparsers.add_parser(
+        "capabilities",
+        help="Show the selected profile's effective capability grants",
+    )
+    capabilities_parser.set_defaults(
+        handler=handlers.cmd_capabilities,
+        operation_id="capabilities.show",
+    )
+
     paths_parser = subparsers.add_parser(
         "paths",
         help="Show hpc-tools config, reference, skill, and package paths",
@@ -125,6 +137,43 @@ def cmd_paths(args: argparse.Namespace, profile: Profile | None) -> int:
     print("  ~/.codex/skills/hpc-slurm-job-arrays")
     print("  ~/.codex/skills/hpc-slurm-benchmark")
     return 0
+
+
+def cmd_capabilities(args: argparse.Namespace, profile: Profile | None) -> int:
+    if profile is None:
+        raise ConfigError("capabilities requires a selected profile")
+    require_authorized("capabilities.show", profile, namespace_arguments(args))
+    display_policy = narrow_policy(profile.capabilities, args.capability)
+    payload = {
+        "profile": profile.name,
+        "source": {
+            "config": (
+                str(Path(args.config).expanduser())
+                if args.config
+                else str(default_config_path())
+            ),
+            "profile": profile.name,
+        },
+        "execution_grants": profile.capabilities.public_summary(),
+        "display_grants": display_policy.public_summary(),
+        "display_filter_only": True,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    print(f"profile: {payload['profile']}")
+    print(f"source: {payload['source']['config']} [{profile.name}]")
+    print(f"execution max level: {profile.capabilities.max_level.value}")
+    print(f"display max level: {display_policy.max_level.value}")
+    scopes = profile.capabilities.scopes
+    print("scopes: " + (", ".join(scopes) if scopes else "none"))
+    print("remote roots:")
+    for grant, roots in profile.capabilities.remote_roots.public_summary().items():
+        print(f"  {grant}: " + (", ".join(roots) if roots else "none"))
+    print("display filter only: yes")
+    return 0
+
 
 def cmd_plugins_list(args: argparse.Namespace, profile: Profile | None) -> int:
     del args, profile

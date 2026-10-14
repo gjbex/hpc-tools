@@ -4,6 +4,25 @@
   "effects_are": "Union of possible current effects, including conditional initialization, preview, and delegated branches; modes and notes qualify them.",
   "operations": [
     {
+      "id": "capabilities.show",
+      "cli": [
+        "capabilities"
+      ],
+      "mcp": [],
+      "resources": [],
+      "proposed_level": "C0",
+      "proposed_scopes": [],
+      "current_effects": [
+        "local-read"
+      ],
+      "selectors": [
+        "profile",
+        "config"
+      ],
+      "notes": "Shows the selected profile's configured execution grants and any narrower display-only ceiling without exposing connection details or site commands.",
+      "modes": []
+    },
+    {
       "id": "paths.show",
       "cli": [
         "paths"

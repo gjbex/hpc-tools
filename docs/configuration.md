@@ -151,11 +151,12 @@ omitting them grants nothing.
 
 !!! warning
 
-    Built-in service callables now enforce the typed policy before effects.
-    Directory inspection, project listing, repository/clone preflight, and
-    packaged asset installation use the bounded filesystem foundation. CLI
-    hiding and allowed-only MCP discovery are delivered by later work packages,
-    so a visible operation can still be denied when invoked.
+    Built-in service callables enforce the typed policy before effects. The CLI
+    hides denied leaves and empty groups by default, while
+    `--show-disallowed` explains denials and `--capability LEVEL` previews a
+    lower display ceiling. Directory inspection, project listing,
+    repository/clone preflight, and packaged asset installation use the bounded
+    filesystem foundation. Allowed-only MCP discovery is delivered separately.
 
 The recognized independent scopes are `accounting.read`, `config.read.raw`,
 `delegation-ledger.read`, `job.validate`, `local-state.write`,

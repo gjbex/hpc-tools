@@ -20,7 +20,7 @@ the effective command tree with `hpc --help` and `hpc plugins list`.
 ## Command form and global options
 
 ```text
-hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--dry-run] COMMAND ...
+hpc [--json] [--profile PROFILE] [--config CONFIG] [--capability LEVEL] [--show-disallowed] [--executor {ssh,local}] [--dry-run] COMMAND ...
 ```
 
 | Option | Meaning |
@@ -28,6 +28,8 @@ hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--d
 | `-h`, `--help` | Show help for the current command level and exit. |
 | `--profile PROFILE` | Select a named profile instead of `default_profile`. If the configuration contains exactly one profile, it is selected when neither option is present. |
 | `--config PATH` | Read a particular TOML configuration file. This takes precedence over the default configuration path. |
+| `--capability LEVEL` | Narrow help and command discovery to a lower capability ceiling. This is display-only: it never grants authority and never reduces the policy used to authorize an invocation. |
+| `--show-disallowed` | Include unavailable commands in help and annotate safe denial reasons. The default hides unavailable leaves and empty groups. |
 | `--executor {ssh,local}` | Select SSH transport or direct execution through the profile login shell. The default is `HPC_TOOLS_EXECUTOR`, then `ssh`. |
 | `--dry-run` | Preview executor or structured filesystem operations without HTTP, SSH, scheduler, staging, or local-record mutation effects. It does not turn unrelated local file writes into previews. |
 | `--json` | Request structured output. Most commands use the generic envelope described under [Output formats](#output-formats); a small set emits command-specific JSON directly. |
@@ -35,6 +37,13 @@ hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--d
 Put global options before the command in scripts. The CLI currently accepts
 `--json` at other positions too, but relying on conventional option placement
 makes invocations easier to read and forward.
+
+Help resolves an explicit profile, or the default profile when its configuration
+exists, before filtering commands. With no configuration file, root help and
+genuinely standalone local utilities expose only a small profile-free surface.
+Directly invoking a hidden command still uses the complete internal grammar so
+the authorization layer can return a precise denial; parser errors do not print
+the unfiltered command list.
 
 ## Complete CLI command reference
 
@@ -45,6 +54,7 @@ one. Repeated options are explicitly marked.
 
 | Command | Purpose |
 | --- | --- |
+| `hpc capabilities` | Show the selected profile, policy source, configured execution grants, and any narrower display-only grants. Add `--json` for the native structured form. |
 | `hpc paths` | Print the active configuration, reference, copied-skill, packaged-template, and uninstall locations. |
 | `hpc plugins list` | List core and external CLI plugins. Columns are `NAME`, `VERSION`, `SOURCE`, `CONTRACT`, and `DESCRIPTION`; incompatible contracts are shown as rejected. |
 | `hpc plugins info NAME` | Show the plugin identity, contract status, declared operations, and any contract error. |
@@ -241,10 +251,13 @@ local command such as `paths`, `plugins list`, reference-set inspection, or a
 local scanner can run without a cluster configuration.
 
 This site-feature filtering is separate from mandatory capability policy.
-Built-in services recheck the shared registry before effects. Directory
-inspection, project listing, repository preflight, clone destination preflight,
-and packaged asset installation use bounded filesystem primitives. Policy-based
-CLI hiding and allowed-only MCP discovery remain later work packages.
+The CLI hides denied leaves and empty groups by default; use
+`--show-disallowed` to display annotated denials and `--capability LEVEL` to
+preview a lower discovery ceiling. Built-in services still recheck the shared
+registry before effects. Directory inspection, project listing, repository
+preflight, clone destination preflight, and packaged asset installation use
+bounded filesystem primitives. Allowed-only MCP discovery remains a later work
+package.
 
 ## Configuration schema
 
@@ -357,10 +370,13 @@ For most commands, global `--json` captures the ordinary result in an envelope:
 }
 ```
 
-Configuration failure before dispatch instead produces an object containing
-`error` and `returncode`. The following commands emit their own command-specific
-JSON rather than the envelope:
+Configuration failure before dispatch produces an object containing `error`
+and `returncode`. Capability denials additionally contain `code =
+"capability.denied"`, the operation and profile, and structured denial details.
+The following commands emit their own command-specific JSON rather than the
+envelope:
 
+- `capabilities`;
 - `benchmark summarize` and `benchmark compare`;
 - `agent audit` and `agent export`;
 - `cxx scan`;

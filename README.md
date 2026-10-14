@@ -337,12 +337,14 @@ Path precedence is: explicit `--config`, then `HPC_TOOLS_CONFIG`, then
 `XDG_CONFIG_HOME`, then `~/.config`.
 
 Every profile must define a versioned `[profiles.<name>.capabilities]` table.
-The current release validates this typed policy, guards built-in service
-callables before effects, profile-filters submission records, and routes
-directory inspection and packaged remote asset installation through the
-bounded filesystem helper. CLI command hiding and MCP discovery filtering are
-deferred to later work packages, so discovery can currently show an
-operation that invocation will deny. See
+The current release validates this typed policy, filters CLI help to permitted
+commands, guards service callables before effects, profile-filters submission
+records, and routes directory inspection and packaged remote asset installation
+through the bounded filesystem helper. Use `hpc capabilities` to inspect the
+effective grants, `--show-disallowed` to display annotated denied commands, and
+`--capability LEVEL` to preview a lower display ceiling. Those display options
+never change execution authority. MCP discovery filtering is delivered
+separately. See
 [docs/configuration.md](docs/configuration.md) for levels, scopes, and root
 syntax.
 
