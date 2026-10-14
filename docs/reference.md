@@ -256,8 +256,8 @@ The CLI hides denied leaves and empty groups by default; use
 preview a lower discovery ceiling. Built-in services still recheck the shared
 registry before effects. Directory inspection, project listing, repository
 preflight, clone destination preflight, and packaged asset installation use
-bounded filesystem primitives. Allowed-only MCP discovery remains a later work
-package.
+bounded filesystem primitives. MCP discovery applies the same registry and
+profile policy to a startup snapshot, with an additional preset ceiling.
 
 ## Configuration schema
 
@@ -533,7 +533,10 @@ recorded Slurm state.
 ## MCP tools and resources
 
 The optional MCP server is a structured agent interface, not an alternative
-CLI syntax. Its current read tools cover profiles, paths, hardware context,
+CLI syntax. It binds one selected profile at startup and derives discovery from
+the intersection of the profile policy and the selected `context`, `discovery`,
+`job-inspect`, `job-lifecycle`, or `full` preset. Its current read tools cover
+the bound profile, paths, hardware context,
 reference sets, plugins, submissions, status, jobs, Slurm limits, modules,
 storage, and site environment. Confirm-gated tools cover reference changes,
 submission-database marks, local probe/container writes, and remote probe/container
@@ -549,17 +552,21 @@ hpc_quote_job → hpc_validate_job → hpc_submit_job
 Fixed resources are:
 
 - `hpc://paths`;
+- `hpc://profile`;
 - `hpc://config`;
+- `hpc://reference-set`, when the profile has an effective attached set;
+- `hpc://cluster/hardware`;
+- `hpc://cluster/slurm`;
+- `hpc://cluster/storage`;
 - `hpc://submissions/active`;
-- `hpc://submissions/all`.
+- `hpc://submissions/all`;
+- `hpc://runtime`.
 
-Resource templates are:
-
-- `hpc://profiles/{profile}`;
-- `hpc://profiles/{profile}/hardware`;
-- `hpc://profiles/{profile}/slurm`;
-- `hpc://profiles/{profile}/storage`;
-- `hpc://reference-sets/{name}`.
+Only authorized resources are registered, and the server publishes no
+cross-profile or arbitrary reference-set resource templates. Bound tool schemas
+also omit profile, config, and submission-database overrides. Ordinary
+lifecycle calls retain `confirm`; delegated `slurm-job` mode applies its
+additional host-side restrictions.
 
 Tool arguments and result objects are described by the running MCP server and
 can change while this interface remains experimental. Read [MCP integration](mcp.md)

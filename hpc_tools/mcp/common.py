@@ -1,21 +1,71 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Iterator
 
 from hpc_tools import references, submissions
 from hpc_tools.authorization import require_authorized
+from hpc_tools.capabilities import CapabilityPolicy
 from hpc_tools.config import Config, ConfigError, Profile, load_config, resolve_profile
 from hpc_tools.execution import execution_plan, run_command_capture
 from hpc_tools.operation_registry import OperationSurface
 
+@dataclass(frozen=True)
+class McpBinding:
+    """Trusted, immutable startup selections for one MCP server instance."""
+
+    profile: Profile
+    effective_policy: CapabilityPolicy
+    config_path: Path
+    database_path: Path
+    preset: str
+
+
+_MCP_BINDING: ContextVar[McpBinding | None] = ContextVar(
+    "hpc_tools_mcp_binding",
+    default=None,
+)
+
+
+@contextmanager
+def mcp_binding_scope(binding: McpBinding | None) -> Iterator[None]:
+    token = _MCP_BINDING.set(binding)
+    try:
+        yield
+    finally:
+        _MCP_BINDING.reset(token)
+
+
+def current_mcp_binding() -> McpBinding | None:
+    return _MCP_BINDING.get()
+
+
 def _load_config(config_path: str | None = None) -> Config:
+    binding = current_mcp_binding()
+    if binding is not None:
+        if config_path is not None and Path(config_path).expanduser() != binding.config_path:
+            raise ConfigError("the MCP server is bound to its startup configuration")
+        return Config(
+            default_profile=binding.profile.name,
+            profiles={binding.profile.name: binding.profile},
+        )
     return load_config(config_path)
 
 def _resolve_profile(*, profile_name: str | None = None, config_path: str | None = None) -> Profile:
+    binding = current_mcp_binding()
+    if binding is not None:
+        if profile_name is not None and profile_name != binding.profile.name:
+            raise ConfigError(
+                f"the MCP server is bound to profile '{binding.profile.name}'"
+            )
+        if config_path is not None and Path(config_path).expanduser() != binding.config_path:
+            raise ConfigError("the MCP server is bound to its startup configuration")
+        return binding.profile
     config = _load_config(config_path)
     return resolve_profile(config, profile_name)
 
@@ -27,12 +77,27 @@ def _authorize_mcp(
     *,
     surface: OperationSurface = OperationSurface.MCP_TOOL,
 ) -> None:
+    binding = current_mcp_binding()
+    if binding is not None and profile.name != binding.profile.name:
+        raise ConfigError(
+            f"the MCP server is bound to profile '{binding.profile.name}'"
+        )
     require_authorized(
         operation_id,
         profile,
         arguments,
         surface=surface,
+        restrictions=(binding.effective_policy,) if binding is not None else (),
     )
+
+
+def _bound_database(database: str | None) -> Path:
+    binding = current_mcp_binding()
+    if binding is not None:
+        if database is not None and Path(database).expanduser() != binding.database_path:
+            raise ConfigError("the MCP server is bound to its startup submission database")
+        return binding.database_path
+    return Path(database).expanduser() if database else submissions.default_database_path()
 
 def _remote_read_result(profile: Profile, command: str, *, dry_run: bool = False) -> dict[str, Any]:
     plan = execution_plan(profile, command)
@@ -98,11 +163,7 @@ def _append_submission_mark_event(
     database: str | None,
     confirm: bool,
 ) -> dict[str, Any]:
-    database_path = (
-        Path(database).expanduser()
-        if database
-        else submissions.default_database_path()
-    )
+    database_path = _bound_database(database)
     events = submissions.read_events(database_path)
     submissions.require_record_for_profile(
         events,
@@ -123,7 +184,7 @@ def _append_submission_event(
     database: str | None,
     confirm: bool,
 ) -> dict[str, Any]:
-    database_path = Path(database).expanduser() if database else submissions.default_database_path()
+    database_path = _bound_database(database)
     preview = {
         "operation": event["event"],
         "database": str(database_path),

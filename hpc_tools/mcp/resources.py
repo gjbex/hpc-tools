@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import tomlkit
+
 from hpc_tools import delegation
 from hpc_tools.execution import resolve_executor
 from hpc_tools.operation_registry import OperationSurface
@@ -7,7 +9,7 @@ from hpc_tools.references import resolve_reference_context
 from hpc_tools.mcp.common import (
     _json_resource,
     _authorize_mcp,
-    _profile_to_dict,
+    current_mcp_binding,
     _read_reference_text,
     _resolve_profile,
 )
@@ -25,6 +27,7 @@ def resource_runtime(
 ) -> str:
     """Return the effective restricted-server context without profile secrets."""
     resolved = _resolve_profile(profile_name=profile)
+    binding = current_mcp_binding()
     _authorize_mcp(
         resolved,
         "delegation.runtime",
@@ -61,6 +64,11 @@ def resource_runtime(
             "executor": resolve_executor().name,
             "profile": resolved.name,
             "cluster": resolved.default_cluster,
+            "capabilities": (
+                binding.effective_policy.public_summary()
+                if binding is not None
+                else resolved.capabilities.public_summary()
+            ),
             "delegation": delegation_data,
             "limitations": limitations,
         }
@@ -71,7 +79,7 @@ def resource_paths() -> str:
     return _json_resource(hpc_paths())
 
 def resource_config() -> str:
-    """Return only the selected profile's raw resolved configuration."""
+    """Return selected-profile TOML from the bound startup snapshot."""
     resolved = _resolve_profile()
     _authorize_mcp(
         resolved,
@@ -79,9 +87,34 @@ def resource_config() -> str:
         {"profile": resolved.name},
         surface=OperationSurface.MCP_RESOURCE,
     )
-    return _json_resource({
+    profile = {
+        "ssh_target": resolved.target,
+        "host": resolved.host,
+        "user": resolved.user,
+        "ssh_options": list(resolved.ssh_options),
+        "login_shell": list(resolved.login_shell),
+        "projects_dir": resolved.projects_dir,
+        "quota_command": resolved.quota_command,
+        "queue_command": resolved.queue_command,
+        "sam_balance_command": resolved.sam_balance_command,
+        "sam_statement_command": resolved.sam_statement_command,
+        "sam_quote_command": resolved.sam_quote_command,
+        "hardware_reference": resolved.hardware_reference,
+        "hardware_url": resolved.hardware_url,
+        "slurm_reference": resolved.slurm_reference,
+        "slurm_url": resolved.slurm_url,
+        "storage_reference": resolved.storage_reference,
+        "storage_url": resolved.storage_url,
+        "status_url": resolved.status_url,
+        "reference_set": resolved.reference_set,
+        "default_cluster": resolved.default_cluster,
+        "email": resolved.email,
+        "capabilities": resolved.capabilities.public_summary(),
+    }
+    profile = {key: value for key, value in profile.items() if value is not None}
+    return tomlkit.dumps({
         "default_profile": resolved.name,
-        "profile": _profile_to_dict(resolved),
+        "profiles": {resolved.name: profile},
     })
 
 def resource_profile(profile: str) -> str:

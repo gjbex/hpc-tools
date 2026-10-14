@@ -105,7 +105,7 @@
         "hpc_profile_show"
       ],
       "resources": [
-        "hpc://profiles/{profile}"
+        "hpc://profile"
       ],
       "proposed_level": "C0",
       "proposed_scopes": [
@@ -168,7 +168,7 @@
         "hpc_references_show"
       ],
       "resources": [
-        "hpc://reference-sets/{name}"
+        "hpc://reference-set"
       ],
       "proposed_level": "C0",
       "proposed_scopes": [],
@@ -444,9 +444,6 @@
         "hpc_hardware_context"
       ],
       "resources": [
-        "hpc://profiles/{profile}/hardware",
-        "hpc://profiles/{profile}/slurm",
-        "hpc://profiles/{profile}/storage",
         "hpc://cluster/hardware",
         "hpc://cluster/slurm",
         "hpc://cluster/storage"

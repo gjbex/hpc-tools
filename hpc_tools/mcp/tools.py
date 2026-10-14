@@ -26,6 +26,8 @@ from hpc_tools.mcp.common import (
     _append_submission_event,
     _append_submission_mark_event,
     _authorize_mcp,
+    _bound_database,
+    current_mcp_binding,
     _expanded,
     _load_config,
     _probe_args,
@@ -114,6 +116,15 @@ def hpc_hardware_sources(profile: str | None = None, config: str | None = None) 
 
 def hpc_references_list() -> dict[str, Any]:
     """List installed hpc-tools reference sets."""
+    binding = current_mcp_binding()
+    if binding is not None:
+        names = (binding.profile.reference_set,) if binding.profile.reference_set else ()
+        return {
+            "reference_sets": [
+                _reference_set_to_dict(references.load_reference_set(name))
+                for name in names
+            ]
+        }
     return {
         "reference_sets": [
             _reference_set_to_dict(reference_set)
@@ -123,6 +134,11 @@ def hpc_references_list() -> dict[str, Any]:
 
 def hpc_references_show(name: str) -> dict[str, Any]:
     """Show one installed hpc-tools reference set."""
+    binding = current_mcp_binding()
+    if binding is not None and name != binding.profile.reference_set:
+        raise ConfigError(
+            "the MCP server can only read the selected profile's effective reference set"
+        )
     return _reference_set_to_dict(references.load_reference_set(name))
 
 def hpc_plugins_list() -> dict[str, Any]:
@@ -153,7 +169,7 @@ def hpc_submissions_list(
         "profile": profile,
         "config": config,
     })
-    database_path = Path(database).expanduser() if database else None
+    database_path = _bound_database(database)
     events = submissions.read_events(database_path)
     records = (
         submissions.records_from_events(events, profile=resolved.name)
@@ -161,7 +177,7 @@ def hpc_submissions_list(
         else submissions.active_records(events, profile=resolved.name)
     )
     return {
-        "database": str(database_path or submissions.default_database_path()),
+        "database": str(database_path),
         "profile": resolved.name,
         "all": all,
         "submissions": [_submission_record_to_dict(record) for record in records],
@@ -487,7 +503,7 @@ def hpc_cancel_job(
                 ledger_recovery_error = str(recovery_error)
                 ledger_status = "unrecorded"
 
-    database_path = Path(database).expanduser() if database else submissions.default_database_path()
+    database_path = _bound_database(database)
     cancellation_events: list[dict[str, Any]] = []
     database_error = None
     if result["executed"] and result["returncode"] == 0:

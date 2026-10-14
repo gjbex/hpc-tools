@@ -3986,6 +3986,10 @@
           },
           {
             "choices": [
+              "context",
+              "discovery",
+              "job-inspect",
+              "job-lifecycle",
               "full",
               "slurm-job"
             ],
@@ -4164,20 +4168,6 @@
         "annotation": "str | None",
         "default": null,
         "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
         "name": "cluster",
         "required": false
       },
@@ -4186,13 +4176,6 @@
         "default": null,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "reason",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "database",
         "required": false
       },
       {
@@ -4217,38 +4200,8 @@
         "required": false
       }
     ],
-    "hpc_hardware_context": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      }
-    ],
-    "hpc_hardware_sources": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      }
-    ],
+    "hpc_hardware_context": [],
+    "hpc_hardware_sources": [],
     "hpc_install_container": [
       {
         "annotation": "str",
@@ -4269,20 +4222,6 @@
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "force",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
         "required": false
       },
       {
@@ -4386,20 +4325,6 @@
         "required": false
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": true,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4421,20 +4346,6 @@
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "jobid",
         "required": true
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
       },
       {
         "annotation": "str",
@@ -4463,20 +4374,6 @@
         "annotation": "str | None",
         "default": null,
         "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
         "name": "cluster",
         "required": false
       },
@@ -4489,20 +4386,6 @@
       }
     ],
     "hpc_jobs": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
       {
         "annotation": "str",
         "default": "all",
@@ -4527,20 +4410,6 @@
         "required": true
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4550,31 +4419,8 @@
     ],
     "hpc_paths": [],
     "hpc_plugins_list": [],
-    "hpc_profile_show": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      }
-    ],
-    "hpc_profiles_list": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      }
-    ],
+    "hpc_profile_show": [],
+    "hpc_profiles_list": [],
     "hpc_quote_job": [
       {
         "annotation": "str",
@@ -4759,20 +4605,6 @@
         "required": false
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4789,20 +4621,6 @@
         "required": true
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4817,20 +4635,6 @@
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "name",
         "required": true
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
       },
       {
         "annotation": "bool",
@@ -4863,20 +4667,6 @@
         "required": false
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4896,20 +4686,6 @@
     ],
     "hpc_site_env": [
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4918,20 +4694,6 @@
       }
     ],
     "hpc_slurm_limits": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
       {
         "annotation": "str | None",
         "default": null,
@@ -4963,20 +4725,6 @@
     ],
     "hpc_status": [
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -4985,20 +4733,6 @@
       }
     ],
     "hpc_storage_inspect": [
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
       {
         "annotation": "str | None",
         "default": null,
@@ -5030,27 +4764,6 @@
         "required": false
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "database",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -5064,27 +4777,6 @@
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "all",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "database",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
         "required": false
       }
     ],
@@ -5101,27 +4793,6 @@
         "default": null,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "path",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "database",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
         "required": false
       },
       {
@@ -5145,27 +4816,6 @@
         "default": null,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "path",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "database",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
         "required": false
       },
       {
@@ -5374,27 +5024,6 @@
         "required": false
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "database",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": true,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -5593,20 +5222,6 @@
         "required": false
       },
       {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
-        "required": false
-      },
-      {
         "annotation": "bool",
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -5634,20 +5249,6 @@
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "force",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
         "required": false
       },
       {
@@ -5734,20 +5335,6 @@
         "default": false,
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "mail_notifications",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "profile",
-        "required": false
-      },
-      {
-        "annotation": "str | None",
-        "default": null,
-        "kind": "POSITIONAL_OR_KEYWORD",
-        "name": "config",
         "required": false
       },
       {
@@ -6410,17 +5997,17 @@
   "resources": {
     "full": [
       "hpc://paths",
+      "hpc://profile",
       "hpc://config",
+      "hpc://reference-set",
+      "hpc://cluster/hardware",
+      "hpc://cluster/slurm",
+      "hpc://cluster/storage",
       "hpc://submissions/active",
-      "hpc://submissions/all"
+      "hpc://submissions/all",
+      "hpc://runtime"
     ],
-    "full_templates": [
-      "hpc://profiles/{profile}",
-      "hpc://profiles/{profile}/hardware",
-      "hpc://profiles/{profile}/slurm",
-      "hpc://profiles/{profile}/storage",
-      "hpc://reference-sets/{name}"
-    ],
+    "full_templates": [],
     "slurm_job": [
       "hpc://runtime",
       "hpc://cluster/hardware",

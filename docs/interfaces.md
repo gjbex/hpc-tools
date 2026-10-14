@@ -67,6 +67,10 @@ resources. It is useful when an agent needs structured profile data, reference
 content, submission records, or bounded inspection results rather than parsing
 terminal text.
 
+Each server binds one profile and registers only operations permitted by that
+profile and its selected capability preset. Bound schemas omit profile, config,
+and submission-database overrides; restart the server after policy changes.
+
 MCP write and remote-install tools require explicit confirmation. Slurm
 submission uses a quote → validate → submit evidence chain, and the server
 rejects failed, dry-run, tampered, or shape-mismatched evidence. These gates

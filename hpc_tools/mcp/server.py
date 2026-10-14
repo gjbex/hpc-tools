@@ -5,12 +5,26 @@ import inspect
 import os
 import sys
 from collections.abc import Callable
+from dataclasses import replace
 from functools import wraps
+from pathlib import Path
 from typing import Any
 
-from hpc_tools import delegation
-from hpc_tools.config import ConfigError
+from hpc_tools import delegation, references, submissions
+from hpc_tools.authorization import CapabilityAuthorizationError
+from hpc_tools.capabilities import (
+    AuthorizationContext,
+    AuthorizationDecision,
+    CapabilityLevel,
+    CapabilityPolicy,
+    CapabilityRequirement,
+    capability_level_allows,
+    evaluate_capability,
+    narrow_policy,
+)
+from hpc_tools.config import ConfigError, Profile, default_config_path, load_config, resolve_profile
 from hpc_tools.execution import EXECUTOR_NAMES, executor_scope, resolve_executor
+from hpc_tools.mcp.common import McpBinding, mcp_binding_scope
 from hpc_tools.mcp.resources import (
     resource_config,
     resource_paths,
@@ -54,46 +68,36 @@ from hpc_tools.mcp.tools import (
     hpc_write_container,
     hpc_write_probe,
 )
+from hpc_tools.operation_registry import (
+    OPERATION_REGISTRY,
+    OperationDescriptor,
+    OperationSurface,
+    RequestContext,
+)
+from hpc_tools.references import resolve_reference_context
 
 PRESET_ENV_VAR = "HPC_TOOLS_MCP_PRESET"
 PROFILE_ENV_VAR = "HPC_TOOLS_MCP_PROFILE"
 DEFAULT_PRESET = "full"
-PRESET_NAMES = ("full", "slurm-job")
-
-
-FULL_TOOL_NAMES = (
-    "hpc_profiles_list",
-    "hpc_paths",
-    "hpc_profile_show",
-    "hpc_hardware_context",
-    "hpc_hardware_sources",
-    "hpc_references_list",
-    "hpc_references_show",
-    "hpc_plugins_list",
-    "hpc_submissions_list",
-    "hpc_status",
-    "hpc_jobs",
-    "hpc_job",
-    "hpc_job_accounting",
-    "hpc_cancel_job",
-    "hpc_slurm_limits",
-    "hpc_module_spider",
-    "hpc_storage_inspect",
-    "hpc_site_env",
-    "hpc_references_create",
-    "hpc_references_import",
-    "hpc_references_attach",
-    "hpc_submissions_mark_collected",
-    "hpc_submissions_mark_analysed",
-    "hpc_submissions_close",
-    "hpc_write_probe",
-    "hpc_install_probe",
-    "hpc_write_container",
-    "hpc_install_container",
-    "hpc_quote_job",
-    "hpc_validate_job",
-    "hpc_submit_job",
+PRESET_NAMES = (
+    "context",
+    "discovery",
+    "job-inspect",
+    "job-lifecycle",
+    "full",
+    "slurm-job",
 )
+
+PRESET_LEVELS = {
+    "context": CapabilityLevel.PROFILE_CONTEXT,
+    "discovery": CapabilityLevel.CLUSTER_DISCOVERY,
+    "job-inspect": CapabilityLevel.JOB_INSPECTION,
+    "job-lifecycle": CapabilityLevel.JOB_LIFECYCLE,
+    "slurm-job": CapabilityLevel.JOB_LIFECYCLE,
+}
+
+
+FULL_TOOL_NAMES = tuple(OPERATION_REGISTRY.bindings(OperationSurface.MCP_TOOL))
 
 SLURM_JOB_TOOL_NAMES = (
     "hpc_jobs",
@@ -105,20 +109,8 @@ SLURM_JOB_TOOL_NAMES = (
     "hpc_submit_job",
 )
 
-FULL_RESOURCE_URIS = (
-    "hpc://paths",
-    "hpc://config",
-    "hpc://submissions/active",
-    "hpc://submissions/all",
-)
-
-FULL_RESOURCE_TEMPLATES = (
-    "hpc://profiles/{profile}",
-    "hpc://profiles/{profile}/hardware",
-    "hpc://profiles/{profile}/slurm",
-    "hpc://profiles/{profile}/storage",
-    "hpc://reference-sets/{name}",
-)
+FULL_RESOURCE_URIS = tuple(OPERATION_REGISTRY.bindings(OperationSurface.MCP_RESOURCE))
+FULL_RESOURCE_TEMPLATES: tuple[str, ...] = ()
 
 SLURM_JOB_RESOURCE_URIS = (
     "hpc://runtime",
@@ -134,6 +126,190 @@ RESOURCE_URIS = FULL_RESOURCE_URIS
 RESOURCE_TEMPLATES = FULL_RESOURCE_TEMPLATES
 
 
+_TOOLS = (
+    hpc_profiles_list,
+    hpc_paths,
+    hpc_profile_show,
+    hpc_hardware_context,
+    hpc_hardware_sources,
+    hpc_references_list,
+    hpc_references_show,
+    hpc_plugins_list,
+    hpc_submissions_list,
+    hpc_status,
+    hpc_jobs,
+    hpc_job,
+    hpc_job_accounting,
+    hpc_cancel_job,
+    hpc_slurm_limits,
+    hpc_module_spider,
+    hpc_storage_inspect,
+    hpc_site_env,
+    hpc_references_create,
+    hpc_references_import,
+    hpc_references_attach,
+    hpc_submissions_mark_collected,
+    hpc_submissions_mark_analysed,
+    hpc_submissions_close,
+    hpc_write_probe,
+    hpc_install_probe,
+    hpc_write_container,
+    hpc_install_container,
+    hpc_quote_job,
+    hpc_validate_job,
+    hpc_submit_job,
+)
+_TOOLS_BY_NAME = {function.__name__: function for function in _TOOLS}
+
+
+def _no_resource_args(
+    binding: McpBinding,
+    runtime: delegation.DelegationRuntime | None,
+) -> tuple[Any, ...]:
+    return ()
+
+
+def _profile_resource_args(
+    binding: McpBinding,
+    runtime: delegation.DelegationRuntime | None,
+) -> tuple[Any, ...]:
+    return (binding.profile.name,)
+
+
+def _runtime_resource_args(
+    binding: McpBinding,
+    runtime: delegation.DelegationRuntime | None,
+) -> tuple[Any, ...]:
+    return (binding.profile.name, binding.preset, runtime)
+
+
+def _reference_resource_args(
+    binding: McpBinding,
+    runtime: delegation.DelegationRuntime | None,
+) -> tuple[Any, ...]:
+    return (binding.profile.reference_set,)
+
+
+_RESOURCES = (
+    ("hpc://paths", resource_paths, _no_resource_args, "application/json"),
+    ("hpc://profile", resource_profile, _profile_resource_args, "application/json"),
+    ("hpc://config", resource_config, _no_resource_args, "application/toml"),
+    ("hpc://reference-set", resource_reference_set, _reference_resource_args, "application/json"),
+    ("hpc://cluster/hardware", resource_profile_hardware, _profile_resource_args, "text/markdown"),
+    ("hpc://cluster/slurm", resource_profile_slurm, _profile_resource_args, "text/markdown"),
+    ("hpc://cluster/storage", resource_profile_storage, _profile_resource_args, "text/markdown"),
+    ("hpc://submissions/active", resource_submissions_active, _no_resource_args, "application/json"),
+    ("hpc://submissions/all", resource_submissions_all, _no_resource_args, "application/json"),
+    ("hpc://runtime", resource_runtime, _runtime_resource_args, "application/json"),
+)
+
+
+def _effective_policy(profile: Profile, preset: str) -> CapabilityPolicy:
+    level = PRESET_LEVELS.get(preset)
+    return narrow_policy(profile.capabilities, level)
+
+
+def _default_arguments(function: Callable[..., Any]) -> dict[str, Any]:
+    return {
+        name: (None if parameter.default is inspect.Parameter.empty else parameter.default)
+        for name, parameter in inspect.signature(function).parameters.items()
+    }
+
+
+def _decision(
+    descriptor: OperationDescriptor,
+    profile: Profile,
+    policy: CapabilityPolicy,
+    surface: OperationSurface,
+    arguments: dict[str, Any],
+) -> AuthorizationDecision:
+    resolved = OPERATION_REGISTRY.resolve(RequestContext(
+        operation_id=descriptor.id,
+        surface=surface,
+        arguments=arguments,
+        profile=profile,
+    ))
+    context = AuthorizationContext.from_profile(profile, restrictions=(policy,))
+
+    def representative(requirement: CapabilityRequirement) -> CapabilityRequirement:
+        return replace(
+            requirement,
+            paths=tuple(
+                replace(path, path=getattr(context.policy.remote_roots, path.grant)[0])
+                if path.path is None and getattr(context.policy.remote_roots, path.grant)
+                else path
+                for path in requirement.paths
+            ),
+        )
+
+    decisions = (
+        evaluate_capability(representative(resolved.requirement), context),
+        *(evaluate_capability(representative(item), context) for item in resolved.components),
+    )
+    denials = tuple(item for decision in decisions for item in decision.denials)
+    return AuthorizationDecision(
+        operation_id=descriptor.id,
+        profile_name=profile.name,
+        denials=denials,
+    )
+
+
+def _tool_is_available(
+    name: str,
+    profile: Profile,
+    policy: CapabilityPolicy,
+) -> bool:
+    if name == "hpc_references_show":
+        try:
+            references.load_reference_set(profile.reference_set)
+        except ConfigError:
+            return False
+    descriptor = OPERATION_REGISTRY.for_binding(OperationSurface.MCP_TOOL, name)
+    if descriptor is None:
+        return False
+    return _decision(
+        descriptor,
+        profile,
+        policy,
+        OperationSurface.MCP_TOOL,
+        _default_arguments(_TOOLS_BY_NAME[name]),
+    ).allowed
+
+
+def _resource_is_available(
+    uri: str,
+    profile: Profile,
+    policy: CapabilityPolicy,
+) -> bool:
+    if uri == "hpc://reference-set":
+        try:
+            references.load_reference_set(profile.reference_set)
+        except ConfigError:
+            return False
+    reference_field = {
+        "hpc://cluster/hardware": "hardware_reference",
+        "hpc://cluster/slurm": "slurm_reference",
+        "hpc://cluster/storage": "storage_reference",
+    }.get(uri)
+    if reference_field is not None:
+        try:
+            reference_path = getattr(resolve_reference_context(profile), reference_field)
+        except ConfigError:
+            return False
+        if not reference_path or not Path(reference_path).expanduser().is_file():
+            return False
+    descriptor = OPERATION_REGISTRY.for_binding(OperationSurface.MCP_RESOURCE, uri)
+    if descriptor is None:
+        return False
+    return _decision(
+        descriptor,
+        profile,
+        policy,
+        OperationSurface.MCP_RESOURCE,
+        {"profile": profile.name},
+    ).allowed
+
+
 def resolve_preset(name: str | None = None) -> str:
     selected = name or os.environ.get(PRESET_ENV_VAR) or DEFAULT_PRESET
     if selected not in PRESET_NAMES:
@@ -144,23 +320,72 @@ def resolve_preset(name: str | None = None) -> str:
     return selected
 
 
-def tool_names_for_preset(preset: str) -> tuple[str, ...]:
+def tool_names_for_preset(
+    preset: str,
+    profile: Profile | None = None,
+) -> tuple[str, ...]:
     selected = resolve_preset(preset)
-    return FULL_TOOL_NAMES if selected == "full" else SLURM_JOB_TOOL_NAMES
+    candidates = (
+        SLURM_JOB_TOOL_NAMES if selected == "slurm-job" else FULL_TOOL_NAMES
+    )
+    if profile is None:
+        ceiling = PRESET_LEVELS.get(selected)
+        if ceiling is None or selected == "slurm-job":
+            return candidates
+        return tuple(
+            name
+            for name in candidates
+            if (
+                (descriptor := OPERATION_REGISTRY.for_binding(
+                    OperationSurface.MCP_TOOL,
+                    name,
+                )) is not None
+                and not descriptor.operator_only
+                and capability_level_allows(ceiling, descriptor.minimum_level)
+            )
+        )
+    policy = _effective_policy(profile, selected)
+    return tuple(
+        name
+        for name in candidates
+        if _tool_is_available(name, profile, policy)
+    )
 
 
-def resource_uris_for_preset(preset: str) -> tuple[str, ...]:
+def resource_uris_for_preset(
+    preset: str,
+    profile: Profile | None = None,
+) -> tuple[str, ...]:
     selected = resolve_preset(preset)
-    return FULL_RESOURCE_URIS if selected == "full" else SLURM_JOB_RESOURCE_URIS
+    candidates = (
+        SLURM_JOB_RESOURCE_URIS if selected == "slurm-job" else FULL_RESOURCE_URIS
+    )
+    if profile is None:
+        ceiling = PRESET_LEVELS.get(selected)
+        if ceiling is None or selected == "slurm-job":
+            return candidates
+        return tuple(
+            uri
+            for uri in candidates
+            if (
+                (descriptor := OPERATION_REGISTRY.for_binding(
+                    OperationSurface.MCP_RESOURCE,
+                    uri,
+                )) is not None
+                and capability_level_allows(ceiling, descriptor.minimum_level)
+            )
+        )
+    policy = _effective_policy(profile, selected)
+    return tuple(
+        uri
+        for uri in candidates
+        if _resource_is_available(uri, profile, policy)
+    )
 
 
 def resource_templates_for_preset(preset: str) -> tuple[str, ...]:
-    selected = resolve_preset(preset)
-    return (
-        FULL_RESOURCE_TEMPLATES
-        if selected == "full"
-        else SLURM_JOB_RESOURCE_TEMPLATES
-    )
+    resolve_preset(preset)
+    return ()
 
 
 def create_server(
@@ -181,12 +406,22 @@ def create_server(
 
     selected_preset = resolve_preset(preset)
     executor = resolve_executor()
-    selected_profile = profile or os.environ.get(PROFILE_ENV_VAR)
+    config_path = default_config_path().expanduser()
+    config = load_config(str(config_path))
+    selected = resolve_profile(
+        config,
+        profile or os.environ.get(PROFILE_ENV_VAR),
+    )
+    effective_policy = _effective_policy(selected, selected_preset)
+    binding = McpBinding(
+        profile=selected,
+        effective_policy=effective_policy,
+        config_path=config_path,
+        database_path=submissions.default_database_path().expanduser(),
+        preset=selected_preset,
+    )
     runtime = None
     if selected_preset == "slurm-job":
-        from hpc_tools.mcp.common import _resolve_profile
-
-        selected_profile = _resolve_profile(profile_name=selected_profile).name
         manifest_path = delegation_manifest or os.environ.get(delegation.DELEGATION_ENV_VAR)
         if not manifest_path:
             raise ConfigError(
@@ -201,7 +436,7 @@ def create_server(
                 )
             runtime = delegation.load_runtime(
                 manifest_path,
-                profile=selected_profile,
+                profile=selected.name,
                 ledger_path=ledger,
                 parent_job_id=parent_job_id,
             )
@@ -210,103 +445,58 @@ def create_server(
         "hpc-tools",
         instructions=(
             "Guarded hpc-tools interface for agents. This server exposes "
-            f"the {selected_preset} capability preset. "
+            f"the {selected_preset} preset for profile {selected.name}. "
             "Slurm job submission is exposed only through quote, validation, "
-            "and evidence-gated submit tools. Full mode also requires explicit "
+            "and evidence-gated submit tools. Ordinary mode also requires explicit "
             "confirmation; delegated mode uses host-side authorization. "
-            "The slurm-job preset is restricted to stored cluster context and "
-            "job-lifecycle operations bound to one selected profile. "
+            "Tools and resources are filtered from the immutable startup policy "
+            "snapshot; restart the server after configuration changes. "
             f"Delegation enforcement is {'enabled' if runtime else 'not configured'}. "
             f"Cluster commands use the {executor.name} executor."
         ),
     )
-    tools = (
-        hpc_profiles_list,
-        hpc_paths,
-        hpc_profile_show,
-        hpc_hardware_context,
-        hpc_hardware_sources,
-        hpc_references_list,
-        hpc_references_show,
-        hpc_plugins_list,
-        hpc_submissions_list,
-        hpc_status,
-        hpc_jobs,
-        hpc_job,
-    hpc_job_accounting,
-        hpc_cancel_job,
-        hpc_slurm_limits,
-        hpc_module_spider,
-        hpc_storage_inspect,
-        hpc_site_env,
-        hpc_references_create,
-        hpc_references_import,
-        hpc_references_attach,
-        hpc_submissions_mark_collected,
-        hpc_submissions_mark_analysed,
-        hpc_submissions_close,
-        hpc_write_probe,
-        hpc_install_probe,
-        hpc_write_container,
-        hpc_install_container,
-        hpc_quote_job,
-        hpc_validate_job,
-        hpc_submit_job,
-    )
-    tools_by_name = {function.__name__: function for function in tools}
-    for name in tool_names_for_preset(selected_preset):
-        function = tools_by_name[name]
-        if selected_preset == "slurm-job":
-            function = _bind_profile(function, selected_profile, runtime)
-        server.tool()(function)
+    for name in tool_names_for_preset(selected_preset, selected):
+        server.tool()(_bind_profile(_TOOLS_BY_NAME[name], binding, runtime))
 
-    full_resources = (
-        ("hpc://paths", resource_paths, "application/json"),
-        ("hpc://config", resource_config, "application/json"),
-        ("hpc://submissions/active", resource_submissions_active, "application/json"),
-        ("hpc://submissions/all", resource_submissions_all, "application/json"),
-        ("hpc://profiles/{profile}", resource_profile, "application/json"),
-        ("hpc://profiles/{profile}/hardware", resource_profile_hardware, "text/markdown"),
-        ("hpc://profiles/{profile}/slurm", resource_profile_slurm, "text/markdown"),
-        ("hpc://profiles/{profile}/storage", resource_profile_storage, "text/markdown"),
-        ("hpc://reference-sets/{name}", resource_reference_set, "application/json"),
-    )
-    if selected_preset == "full":
-        selected_resources = full_resources
-    else:
-        selected_resources = (
-            (
-                "hpc://runtime",
-                _bind_resource(resource_runtime, selected_profile, selected_preset, runtime),
-                "application/json",
-            ),
-            (
-                "hpc://cluster/hardware",
-                _bind_resource(resource_profile_hardware, selected_profile),
-                "text/markdown",
-            ),
-            (
-                "hpc://cluster/slurm",
-                _bind_resource(resource_profile_slurm, selected_profile),
-                "text/markdown",
-            ),
-            (
-                "hpc://cluster/storage",
-                _bind_resource(resource_profile_storage, selected_profile),
-                "text/markdown",
-            ),
-        )
-    for uri, function, mime_type in selected_resources:
-        server.resource(uri, mime_type=mime_type)(function)
+    allowed_resources = set(resource_uris_for_preset(selected_preset, selected))
+    for uri, function, args, mime_type in _RESOURCES:
+        if uri not in allowed_resources:
+            continue
+        if uri == "hpc://reference-set" and not selected.reference_set:
+            continue
+        bound = _bind_resource(uri, function, binding, runtime, *args(binding, runtime))
+        server.resource(uri, mime_type=mime_type)(bound)
     return server
 
 
-def _bind_resource(function: Callable[..., str], *args: str) -> Callable[[], str]:
+def _bind_resource(
+    uri: str,
+    function: Callable[..., str],
+    binding: McpBinding,
+    runtime: delegation.DelegationRuntime | None,
+    *args: Any,
+) -> Callable[[], str]:
     """Bind fixed resource arguments while preserving a useful MCP name."""
 
     @wraps(function)
     def bound() -> str:
-        return function(*args)
+        with mcp_binding_scope(binding), delegation.delegation_scope(runtime):
+            descriptor = OPERATION_REGISTRY.for_binding(
+                OperationSurface.MCP_RESOURCE,
+                uri,
+            )
+            if descriptor is None:
+                raise ConfigError(f"MCP resource is not registered: {uri}")
+            decision = _decision(
+                descriptor,
+                binding.profile,
+                binding.effective_policy,
+                OperationSurface.MCP_RESOURCE,
+                {"profile": binding.profile.name},
+            )
+            if not decision.allowed:
+                raise CapabilityAuthorizationError(decision)
+            return function(*args)
 
     bound.__signature__ = inspect.Signature(return_annotation=str)
     return bound
@@ -314,39 +504,72 @@ def _bind_resource(function: Callable[..., str], *args: str) -> Callable[[], str
 
 def _bind_profile(
     function: Callable[..., Any],
-    profile: str,
+    binding: McpBinding,
     runtime: delegation.DelegationRuntime | None = None,
 ) -> Callable[..., Any]:
-    """Bind a restricted tool to one profile and hide profile/config inputs."""
+    """Bind one MCP tool to trusted startup selections and hide overrides."""
     signature = inspect.signature(function)
-    if "profile" not in signature.parameters:
-        return function
-    hidden = {"profile", "config", "database", "confirm"}
+    public_signature = _bound_tool_signature(function, delegated=runtime is not None)
     restricted_submission = runtime is not None and function.__name__ in {
         "hpc_quote_job", "hpc_validate_job", "hpc_submit_job"
     }
-    if restricted_submission:
-        hidden.update({"error", "output", "export"})
-    public_parameters = [
-        parameter
-        for name, parameter in signature.parameters.items()
-        if name not in hidden
-    ]
-    fixed_kwargs: dict[str, Any] = {"profile": profile, "config": None}
+    fixed_kwargs: dict[str, Any] = {}
+    if "profile" in signature.parameters:
+        fixed_kwargs["profile"] = binding.profile.name
+    if "config" in signature.parameters:
+        fixed_kwargs["config"] = str(binding.config_path)
     if "database" in signature.parameters:
-        fixed_kwargs["database"] = None
-    if "confirm" in signature.parameters:
+        fixed_kwargs["database"] = str(binding.database_path)
+    if runtime is not None and "confirm" in signature.parameters:
         fixed_kwargs["confirm"] = False
     if restricted_submission:
         fixed_kwargs.update({"error": None, "output": None, "export": None})
 
     @wraps(function)
     def bound(**kwargs: Any) -> Any:
-        with delegation.delegation_scope(runtime):
+        with mcp_binding_scope(binding), delegation.delegation_scope(runtime):
+            descriptor = OPERATION_REGISTRY.for_binding(
+                OperationSurface.MCP_TOOL,
+                function.__name__,
+            )
+            if descriptor is None:
+                raise ConfigError(
+                    f"MCP tool is not registered: {function.__name__}"
+                )
+            decision = _decision(
+                descriptor,
+                binding.profile,
+                binding.effective_policy,
+                OperationSurface.MCP_TOOL,
+                {**kwargs, **fixed_kwargs},
+            )
+            if not decision.allowed:
+                raise CapabilityAuthorizationError(decision)
             return function(**kwargs, **fixed_kwargs)
 
-    bound.__signature__ = signature.replace(parameters=public_parameters)
+    bound.__signature__ = public_signature
     return bound
+
+
+def _bound_tool_signature(
+    function: Callable[..., Any],
+    *,
+    delegated: bool = False,
+) -> inspect.Signature:
+    """Return the public schema for a profile-bound MCP tool."""
+    signature = inspect.signature(function)
+    hidden = {"profile", "config", "database"}
+    if delegated:
+        hidden.add("confirm")
+        if function.__name__ in {
+            "hpc_quote_job", "hpc_validate_job", "hpc_submit_job"
+        }:
+            hidden.update({"error", "output", "export"})
+    return signature.replace(parameters=[
+        parameter
+        for name, parameter in signature.parameters.items()
+        if name not in hidden
+    ])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -364,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--profile",
         help=(
-            "profile bound to the slurm-job preset; defaults to "
+            "profile bound to this server; defaults to "
             f"{PROFILE_ENV_VAR} or the configured default"
         ),
     )

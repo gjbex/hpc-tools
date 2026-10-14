@@ -170,6 +170,23 @@ Run the server with:
 hpc-mcp
 ```
 
+Every server binds one profile at startup (the configured default unless
+`--profile NAME` or `HPC_TOOLS_MCP_PROFILE` selects another) and registers only
+the operations allowed by that profile. `full` is the default convenience
+preset; it requests the profile's complete grant but cannot bypass it. Use a
+lower ceiling when the client needs less authority:
+
+```bash
+hpc-mcp --profile genius --preset context
+hpc-mcp --profile genius --preset discovery
+hpc-mcp --profile genius --preset job-inspect
+hpc-mcp --profile genius --preset job-lifecycle
+```
+
+The bound tool schemas do not expose profile, config, or submission-database
+overrides. Policy and profile changes require a server restart before they
+affect discovery or calls.
+
 Cluster commands use the SSH executor by default. When the server itself runs
 on an approved cluster login node, select direct execution explicitly:
 
@@ -205,7 +222,7 @@ The MCP interface supports read-only context tools such as:
 - `hpc_site_env`
 
 It also supports confirm-gated write and install tools, plus narrowly scoped
-job cancellation. Full mode is confirm-gated; a configured restricted server
+job cancellation. Ordinary mode is confirm-gated; a configured restricted server
 uses delegation ownership and an idempotency key:
 
 - `hpc_cancel_job`
@@ -231,7 +248,7 @@ Slurm submission is exposed only as an evidence-gated sequence:
 3. `hpc_submit_job`
 
 `hpc_submit_job` requires matching quote and validation evidence for the same
-profile, account, jobscript, remote directory, and Slurm resource shape. Full
+profile, account, jobscript, remote directory, and Slurm resource shape. Ordinary
 mode also requires `confirm=true`; delegated mode requires host-side policy,
 available budget, and an idempotency key.
 Stale or dry-run evidence is rejected.
@@ -265,17 +282,19 @@ credential, use
 It also exposes durable local context as MCP resources:
 
 - `hpc://paths`
+- `hpc://profile`
 - `hpc://config`
-- `hpc://profiles/{profile}`
-- `hpc://profiles/{profile}/hardware`
-- `hpc://profiles/{profile}/slurm`
-- `hpc://profiles/{profile}/storage`
-- `hpc://reference-sets/{name}`
+- `hpc://reference-set` (only when the selected profile attaches one)
+- `hpc://cluster/hardware`
+- `hpc://cluster/slurm`
+- `hpc://cluster/storage`
 - `hpc://submissions/active`
 - `hpc://submissions/all`
+- `hpc://runtime`
 
-Profile and reference resources resolve from the active hpc-tools config tree
-and installed reference-set directory, not from repository examples.
+Only policy-allowed resources are registered. These fixed URIs resolve from
+the startup-bound profile and its effective reference set; there are no
+cross-profile or arbitrary reference-set URI templates.
 
 ## Plugins
 
@@ -343,8 +362,8 @@ records, and routes directory inspection and packaged remote asset installation
 through the bounded filesystem helper. Use `hpc capabilities` to inspect the
 effective grants, `--show-disallowed` to display annotated denied commands, and
 `--capability LEVEL` to preview a lower display ceiling. Those display options
-never change execution authority. MCP discovery filtering is delivered
-separately. See
+never change execution authority. MCP discovery and invocation use the same
+profile-bound startup snapshot. See
 [docs/configuration.md](docs/configuration.md) for levels, scopes, and root
 syntax.
 

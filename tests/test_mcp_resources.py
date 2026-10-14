@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from test_mcp_fixtures import *
+import tomllib
 
 from hpc_tools import submissions
 
@@ -66,9 +67,9 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             ):
                 text = mcp_server.resource_config()
 
-        payload = json.loads(text)
+        payload = tomllib.loads(text)
         self.assertEqual(payload["default_profile"], "genius")
-        self.assertEqual(payload["profile"]["name"], "genius")
+        self.assertEqual(payload["profiles"]["genius"]["ssh_target"], "genius")
         self.assertNotIn("other", payload)
         self.assertNotIn("secret-other-host", text)
         self.assertNotIn("secret-other-quota", text)

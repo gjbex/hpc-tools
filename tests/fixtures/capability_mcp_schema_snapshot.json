@@ -13,34 +13,10 @@
         "default": null,
         "title": "Cluster"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
         "type": "boolean"
-      },
-      "database": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Database"
       },
       "dry_run": {
         "default": true,
@@ -63,18 +39,6 @@
         "title": "Jobid",
         "type": "string"
       },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      },
       "reason": {
         "anyOf": [
           {
@@ -95,79 +59,17 @@
     "type": "object"
   },
   "hpc_hardware_context": {
-    "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      }
-    },
+    "properties": {},
     "title": "hpc_hardware_contextArguments",
     "type": "object"
   },
   "hpc_hardware_sources": {
-    "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      }
-    },
+    "properties": {},
     "title": "hpc_hardware_sourcesArguments",
     "type": "object"
   },
   "hpc_install_container": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
@@ -191,18 +93,6 @@
         "default": "generic",
         "title": "Kind",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -236,18 +126,6 @@
         ],
         "default": null,
         "title": "Cluster"
-      },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
       },
       "confirm": {
         "default": false,
@@ -326,18 +204,6 @@
         "default": null,
         "title": "Partition"
       },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      },
       "qos": {
         "anyOf": [
           {
@@ -376,18 +242,6 @@
         "title": "Cluster",
         "type": "string"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
@@ -396,18 +250,6 @@
       "jobid": {
         "title": "Jobid",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -430,18 +272,6 @@
         "default": null,
         "title": "Cluster"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
@@ -450,18 +280,6 @@
       "jobid": {
         "title": "Jobid",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -477,34 +295,10 @@
         "title": "Cluster",
         "type": "string"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
         "type": "boolean"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "title": "hpc_jobsArguments",
@@ -512,18 +306,6 @@
   },
   "hpc_module_spider": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
@@ -532,18 +314,6 @@
       "name": {
         "title": "Name",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -563,50 +333,12 @@
     "type": "object"
   },
   "hpc_profile_show": {
-    "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      }
-    },
+    "properties": {},
     "title": "hpc_profile_showArguments",
     "type": "object"
   },
   "hpc_profiles_list": {
-    "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      }
-    },
+    "properties": {},
     "title": "hpc_profiles_listArguments",
     "type": "object"
   },
@@ -647,18 +379,6 @@
         ],
         "default": null,
         "title": "Cluster"
-      },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
       },
       "container": {
         "anyOf": [
@@ -902,18 +622,6 @@
         "default": null,
         "title": "Partition"
       },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      },
       "reservation": {
         "anyOf": [
           {
@@ -947,18 +655,6 @@
   },
   "hpc_references_attach": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
@@ -967,18 +663,6 @@
       "name": {
         "title": "Name",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -989,18 +673,6 @@
   },
   "hpc_references_create": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
@@ -1014,18 +686,6 @@
       "name": {
         "title": "Name",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -1040,18 +700,6 @@
         "title": "Archive",
         "type": "string"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
@@ -1061,18 +709,6 @@
         "default": false,
         "title": "Force",
         "type": "boolean"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -1101,34 +737,10 @@
   },
   "hpc_site_env": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
         "type": "boolean"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "title": "hpc_site_envArguments",
@@ -1148,18 +760,6 @@
         "default": null,
         "title": "Cluster"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
@@ -1176,18 +776,6 @@
         ],
         "default": null,
         "title": "Partition"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       },
       "qos": {
         "anyOf": [
@@ -1207,34 +795,10 @@
   },
   "hpc_status": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
         "type": "boolean"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "title": "hpc_statusArguments",
@@ -1242,18 +806,6 @@
   },
   "hpc_storage_inspect": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "dry_run": {
         "default": false,
         "title": "Dry Run",
@@ -1270,18 +822,6 @@
         ],
         "default": null,
         "title": "Path"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "title": "hpc_storage_inspectArguments",
@@ -1289,46 +829,10 @@
   },
   "hpc_submissions_close": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
         "type": "boolean"
-      },
-      "database": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Database"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       },
       "reason": {
         "anyOf": [
@@ -1359,42 +863,6 @@
         "default": false,
         "title": "All",
         "type": "boolean"
-      },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
-      "database": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Database"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "title": "hpc_submissions_listArguments",
@@ -1402,34 +870,10 @@
   },
   "hpc_submissions_mark_analysed": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
         "type": "boolean"
-      },
-      "database": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Database"
       },
       "path": {
         "anyOf": [
@@ -1442,18 +886,6 @@
         ],
         "default": null,
         "title": "Path"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       },
       "run_id": {
         "title": "Run Id",
@@ -1468,34 +900,10 @@
   },
   "hpc_submissions_mark_collected": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
         "type": "boolean"
-      },
-      "database": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Database"
       },
       "path": {
         "anyOf": [
@@ -1508,18 +916,6 @@
         ],
         "default": null,
         "title": "Path"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       },
       "run_id": {
         "title": "Run Id",
@@ -1570,18 +966,6 @@
         "default": null,
         "title": "Cluster"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
@@ -1610,18 +994,6 @@
         ],
         "default": null,
         "title": "Cpus Per Task"
-      },
-      "database": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Database"
       },
       "dependency": {
         "anyOf": [
@@ -1839,18 +1211,6 @@
         ],
         "default": null,
         "title": "Partition"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       },
       "quote_evidence": {
         "additionalProperties": true,
@@ -1934,18 +1294,6 @@
         "default": null,
         "title": "Cluster"
       },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "container": {
         "anyOf": [
           {
@@ -2188,18 +1536,6 @@
         "default": null,
         "title": "Partition"
       },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
-      },
       "reservation": {
         "anyOf": [
           {
@@ -2233,18 +1569,6 @@
   },
   "hpc_write_container": {
     "properties": {
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
-      },
       "confirm": {
         "default": false,
         "title": "Confirm",
@@ -2263,18 +1587,6 @@
       "output": {
         "title": "Output",
         "type": "string"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       }
     },
     "required": [
@@ -2308,18 +1620,6 @@
         ],
         "default": null,
         "title": "Cluster"
-      },
-      "config": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Config"
       },
       "confirm": {
         "default": false,
@@ -2381,18 +1681,6 @@
         ],
         "default": null,
         "title": "Partition"
-      },
-      "profile": {
-        "anyOf": [
-          {
-            "type": "string"
-          },
-          {
-            "type": "null"
-          }
-        ],
-        "default": null,
-        "title": "Profile"
       },
       "qos": {
         "anyOf": [

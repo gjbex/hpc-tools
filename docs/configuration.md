@@ -156,7 +156,9 @@ omitting them grants nothing.
     `--show-disallowed` explains denials and `--capability LEVEL` previews a
     lower display ceiling. Directory inspection, project listing,
     repository/clone preflight, and packaged asset installation use the bounded
-    filesystem foundation. Allowed-only MCP discovery is delivered separately.
+    filesystem foundation. Each MCP server binds one startup profile and
+    registers only tools and resources allowed by its effective preset and
+    profile policy; restart it after policy changes.
 
 The recognized independent scopes are `accounting.read`, `config.read.raw`,
 `delegation-ledger.read`, `job.validate`, `local-state.write`,
