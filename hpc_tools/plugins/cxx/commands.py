@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from hpc_tools.config import Profile
+from hpc_tools.plugin_system import PLUGIN_CONTRACT_VERSION, builtin_operations
 from hpc_tools.plugins.cxx.dependencies import (
     CxxScanResult,
     fetchcontent_package,
@@ -17,6 +18,8 @@ from hpc_tools.plugins.cxx.dependencies import (
 class CxxSupportPlugin:
     name = "cxx"
     description = "C/C++ CMake dependency scanning and FetchContent helpers."
+    contract_version = PLUGIN_CONTRACT_VERSION
+    operations = builtin_operations("cxx.scan", "cxx.fetchcontent")
 
     def register(
         self,

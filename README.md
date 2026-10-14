@@ -103,7 +103,8 @@ Keep these surfaces separate:
 - Codex plugin: cluster, Slurm, filesystem, package, benchmark, and container
   workflow skills for Codex.
 - Python package: the `hpc` executable, packaged probe templates, and the
-  `hpc_tools.plugins` CLI extension API.
+  versioned `hpc_tools.plugins` CLI extension API. Plugin commands must declare
+  capability metadata; incompatible or undeclared command surfaces are rejected.
 - User state: profile configuration, reference sets, submission databases, and
   consolidated cluster notes under `$XDG_CONFIG_HOME/hpc-tools` or
   `~/.config/hpc-tools`.

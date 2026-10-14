@@ -46,8 +46,8 @@ one. Repeated options are explicitly marked.
 | Command | Purpose |
 | --- | --- |
 | `hpc paths` | Print the active configuration, reference, copied-skill, packaged-template, and uninstall locations. |
-| `hpc plugins list` | List core and external CLI plugins. Columns are `NAME`, `VERSION`, `SOURCE`, and `DESCRIPTION`. |
-| `hpc plugins info NAME` | Show the name, version, source, and description of one plugin. |
+| `hpc plugins list` | List core and external CLI plugins. Columns are `NAME`, `VERSION`, `SOURCE`, `CONTRACT`, and `DESCRIPTION`; incompatible contracts are shown as rejected. |
+| `hpc plugins info NAME` | Show the plugin identity, contract status, declared operations, and any contract error. |
 | `hpc agent audit --ledger PATH [--database PATH] [--delegation-id ID]` | Read a protected delegation ledger and show a joined controller, mutation, submission, output, and cleanup summary. |
 | `hpc agent export --ledger PATH [--database PATH] [--delegation-id ID] --output PATH [--force]` | Export the complete joined audit report as private mode-`0600` JSON. Existing output is preserved unless `--force` is explicit. |
 
@@ -193,7 +193,7 @@ as independently installed plugins.
 | `hpc python inspect-deps TARGET [--json]` | Inspect supported dependency files without changing an environment. |
 | `hpc python check TARGET [--package NAME]... [--module NAME]... [--json]` | Test imports under a selected remote module stack. |
 | `hpc python plan-install TARGET --output FILE --venv PATH --partition NAME [--package NAME]... [--module NAME]... [--cluster NAME] [--job-name NAME] [--time TIME] [--cpus-per-task N] [--arch-guard NAME] [--no-system-site-packages] [--upgrade-pip] [--force]` | Generate, but do not submit, a virtual-environment installation job. |
-| `hpc python submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--skip-quote] [--no-validate-first]` | Stage and submit a generated install job. Quote and validation steps are on by default when available. |
+| `hpc python submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--force] [--skip-quote] [--no-validate-first]` | Authorize the complete workflow, stage through the bounded filesystem service, and submit a generated install job. Existing remote scripts require `--force`; quote and validation are on by default when available. |
 | `hpc python verify-install --job-output PATH --package NAME... [--require-venv-fragment TEXT] [--json]` | Parse a completed job's verification block and check the expected interpreter path. |
 
 #### R
@@ -206,7 +206,7 @@ shown.
 | `hpc r scan TARGET [--json]` | Discover package references locally. |
 | `hpc r check TARGET --module NAME [--package NAME]... [--cran-bundle NAME] [--bioc-bundle NAME] [--json]` | Check packages under a remote R and optional bundle-module stack. |
 | `hpc r plan-install TARGET --module NAME --output FILE --partition NAME [--package NAME]... [--cran-bundle NAME] [--bioc-bundle NAME] [--cluster NAME] [--job-name NAME] [--time TIME] [--cpus-per-task N] [--library-root-template EXPR] [--arch-guard NAME] [--archive-package PKG=URL]... [--extra-repo NAME=URL]... [--force]` | Generate, but do not submit, an R library installation job. |
-| `hpc r submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--skip-quote] [--no-validate-first]` | Stage and submit a generated install job. Quote and validation steps are on by default when available. |
+| `hpc r submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--force] [--skip-quote] [--no-validate-first]` | Authorize the complete workflow, stage through the bounded filesystem service, and submit a generated install job. Existing remote scripts require `--force`; quote and validation are on by default when available. |
 | `hpc r verify-install --job-output PATH --package NAME... [--require-lib-fragment TEXT] [--json]` | Parse a completed job's verification block and check the expected library path. |
 
 The scanners are conservative aids, not complete dependency resolvers. Dynamic
@@ -376,7 +376,7 @@ Important text tables and remote formats are:
 
 | Producer | Fields |
 | --- | --- |
-| `plugins list` | `NAME`, `VERSION`, `SOURCE`, `DESCRIPTION` |
+| `plugins list` | `NAME`, `VERSION`, `SOURCE`, `CONTRACT`, `DESCRIPTION` |
 | `references list` | `NAME`, `CREATED_AT`, `SOURCE_PROFILE`, `PATH` |
 | `submissions list` | `RUN_ID`, `PROFILE`, `CLUSTER`, `JOBID`, `STATE`, `ACTION`, `JOBSCRIPT` |
 | `jobs` | job ID, partition, job name, user, compact state, elapsed time, time limit, nodes, reason/node list |

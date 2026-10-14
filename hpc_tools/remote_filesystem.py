@@ -74,6 +74,46 @@ def list_remote_directory(
     return selected_path, result.entries, result.truncated
 
 
+def read_remote_bytes(
+    profile: Profile,
+    path: str,
+    *,
+    roots: tuple[str, ...],
+    service: FilesystemService | None = None,
+) -> tuple[str, bytes]:
+    """Read one regular remote file through the bounded filesystem service."""
+    selected_path, root = resolve_granted_path(path, roots)
+    result = (service or FilesystemService(profile)).read_bytes(
+        selected_path,
+        roots=roots,
+        root=root,
+    )
+    _require_result(result, operation="read remote file")
+    if result.data is None:
+        raise ConfigError("could not read remote file: helper returned no data")
+    return selected_path, result.data
+
+
+def read_remote_text(
+    profile: Profile,
+    path: str,
+    *,
+    roots: tuple[str, ...],
+    service: FilesystemService | None = None,
+) -> tuple[str, str]:
+    """Read one UTF-8 remote file through the bounded filesystem service."""
+    selected_path, data = read_remote_bytes(
+        profile,
+        path,
+        roots=roots,
+        service=service,
+    )
+    try:
+        return selected_path, data.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ConfigError(f"remote file is not valid UTF-8: {selected_path}") from error
+
+
 def ensure_remote_directory(
     profile: Profile,
     path: str,

@@ -375,6 +375,7 @@ def _dispatch_with_executor(
     json_requested: bool,
     original_argv: list[str],
 ) -> int:
+    plugin_system.authorize_plugin_command(args, profile)
     if not json_requested or args.handler.__name__ in JSON_NATIVE_HANDLERS:
         return args.handler(args, profile)
 

@@ -169,8 +169,8 @@ single environment variable such as `$VSC_DATA`; traversal, glob, command
 substitution, shell syntax, trailing separators, and the filesystem root `/`
 are rejected. Policy intersection compares root declarations exactly. The
 filesystem foundation expands and resolves roots on the selected executor and
-uses descriptor-relative traversal below them. Core bounded reads and packaged
-asset writes use it now; plugin integration remains WP6.
+uses descriptor-relative traversal below them. Core bounded reads, packaged
+asset writes, and Python/R install staging and verification use it now.
 
 The available fields fall into four groups.
 

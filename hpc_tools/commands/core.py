@@ -143,7 +143,19 @@ def cmd_plugins_info(args: argparse.Namespace, profile: Profile | None) -> int:
                 f"name: {plugin.name}",
                 f"version: {plugin.version}",
                 f"source: {plugin.source}",
+                f"contract: {'v' + str(plugin.contract_version) if plugin.available else 'rejected'}",
+                f"status: {'available' if plugin.available else 'rejected'}",
                 f"description: {plugin.description}",
+                "operations: " + (
+                    ", ".join(operation.id for operation in plugin.operations)
+                    if plugin.operations
+                    else "none"
+                ),
+                *(
+                    [f"contract_error: {plugin.contract_error}"]
+                    if plugin.contract_error
+                    else []
+                ),
             ]
         )
     )

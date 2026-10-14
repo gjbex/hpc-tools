@@ -9,6 +9,7 @@ import statistics
 from typing import Any
 
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.plugin_system import PLUGIN_CONTRACT_VERSION, builtin_operations
 
 
 MEASUREMENT_KEYS = ("seconds", "time", "duration", "runtime", "elapsed", "walltime")
@@ -74,6 +75,8 @@ class BenchmarkComparison:
 class BenchmarkSupportPlugin:
     name = "benchmark"
     description = "Benchmark result summarization and comparison helpers."
+    contract_version = PLUGIN_CONTRACT_VERSION
+    operations = builtin_operations("benchmark.summarize", "benchmark.compare")
 
     def register(
         self,

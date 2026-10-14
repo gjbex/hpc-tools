@@ -1549,6 +1549,17 @@
         },
         {
           "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
           "default": null,
           "dest": "cluster",
           "nargs": null,
@@ -2144,6 +2155,17 @@
           "nargs": null,
           "options": [
             "--remote-name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
           ],
           "required": false,
           "type": null

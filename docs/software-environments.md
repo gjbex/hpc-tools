@@ -209,9 +209,10 @@ runs `sbatch --test-only` and then submits the real job by default. There is no
 confirmation pause after successful validation. `--no-validate-first` removes
 that safety check and should be exceptional.
 
-Staging uses the local basename by default and overwrites a remote script with
-the same name. Use a dedicated directory or `--remote-name`, and preview the
-operation, when preserving an earlier installation plan matters.
+Staging uses the local basename by default and refuses to overwrite a remote
+script with the same name. Use a dedicated directory or `--remote-name`; pass
+`--force` only after reviewing the preview when replacement is intentional.
+The destination must be covered by the profile's `remote_roots.write` grant.
 
 After the job completes, verify the markers in its remote output:
 
@@ -223,9 +224,10 @@ hpc --profile example python verify-install \
     --require-venv-fragment .venv-icelake-py313
 ```
 
-`verify-install` reads and parses the completed job log. It does not activate
-the venv and retry the imports live. Check the job's scheduler state and full
-output as well, especially when compilation emitted warnings.
+`verify-install` reads and parses the completed job log through the bounded
+filesystem service, so the path must be covered by `remote_roots.read`. It does
+not activate the venv and retry the imports live. Check the job's scheduler
+state and full output as well, especially when compilation emitted warnings.
 
 Load the same modules before activating the venv in every runtime job:
 
@@ -319,7 +321,9 @@ hpc --profile example r submit-install \
 
 The command stages the local script remotely, quotes when configured, validates
 with Slurm, submits, and records a successful real submission locally. It is a
-chargeable scheduler action, not a planning command.
+chargeable scheduler action, not a planning command. Staging is bounded by
+`remote_roots.write` and preserves an existing script unless `--force` is
+explicit.
 
 Verify the recorded namespace and library-path evidence:
 
@@ -331,8 +335,8 @@ hpc --profile example r verify-install \
     --require-lib-fragment icelake
 ```
 
-As with Python, this parses the job output; it does not perform a fresh remote
-load. Preserve the R module, bundle modules, external dependency modules,
+As with Python, this parses the job output through `remote_roots.read`; it does
+not perform a fresh remote load. Preserve the R module, bundle modules, external dependency modules,
 `.libPaths()`, and `sessionInfo()` as part of the runtime contract.
 
 ## C and C++ dependencies

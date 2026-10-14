@@ -16,6 +16,8 @@ from hpc_tools.remote_filesystem import (
     install_remote_assets,
     list_remote_directory,
     plan_remote_assets,
+    read_remote_bytes,
+    read_remote_text,
     resolve_granted_path,
 )
 
@@ -119,6 +121,37 @@ class RemoteFilesystemServiceTests(unittest.TestCase):
             self.assertFalse(truncated)
             with self.assertRaisesRegex(ConfigError, "outside"):
                 resolve_granted_path(str(root.parent / "private"), (str(root),))
+
+    def test_remote_reads_use_the_bounded_helper(self) -> None:
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            root = Path(directory)
+            (root / "text.txt").write_text("result\n", encoding="utf-8")
+            (root / "binary.dat").write_bytes(b"\x00\xff")
+            profile, service = self._profile_and_service(root)
+
+            selected, text = read_remote_text(
+                profile,
+                str(root / "text.txt"),
+                roots=(str(root),),
+                service=service,
+            )
+            _, binary = read_remote_bytes(
+                profile,
+                str(root / "binary.dat"),
+                roots=(str(root),),
+                service=service,
+            )
+
+            self.assertEqual(selected, str(root / "text.txt"))
+            self.assertEqual(text, "result\n")
+            self.assertEqual(binary, b"\x00\xff")
+            with self.assertRaisesRegex(ConfigError, "valid UTF-8"):
+                read_remote_text(
+                    profile,
+                    str(root / "binary.dat"),
+                    roots=(str(root),),
+                    service=service,
+                )
 
     def _profile_and_service(self, root: Path):
         base = make_profile()

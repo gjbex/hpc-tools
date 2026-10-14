@@ -12,6 +12,7 @@ from hpc_tools.capabilities import (
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.operation_registry import (
     OPERATION_REGISTRY,
+    OperationRegistry,
     OperationSurface,
     RequestContext,
     ResolvedOperation,
@@ -37,6 +38,7 @@ def require_authorized(
     *,
     surface: OperationSurface = OperationSurface.SERVICE,
     restrictions: Iterable[CapabilityPolicy] = (),
+    registry: OperationRegistry = OPERATION_REGISTRY,
 ) -> ResolvedOperation:
     """Resolve and authorize one operation before any external effect."""
     request = RequestContext(
@@ -45,7 +47,7 @@ def require_authorized(
         arguments=arguments or {},
         profile=profile,
     )
-    resolved = OPERATION_REGISTRY.resolve(request)
+    resolved = registry.resolve(request)
     context = AuthorizationContext.from_profile(profile, restrictions=restrictions)
     decisions = (
         evaluate_capability(resolved.requirement, context),

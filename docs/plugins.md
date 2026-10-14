@@ -70,16 +70,57 @@ The bundled R plugin covers:
 
 ## Plugin API
 
-Plugins register top-level subcommands through a narrow Python interface:
+Plugins register top-level subcommands through a versioned Python interface:
 
 - `name`
 - `description`
+- `contract_version = 1`
+- `operations`, a non-empty tuple of `OperationDescriptor` values
 - `register(subparsers, profile)`
 - `requires_profile(argv)`
 
-This keeps the first API intentionally small. Plugins should rely on core helper
-modules for SSH, Slurm, config, and submission-database behavior instead of
-reimplementing that infrastructure.
+Every leaf parser registered by the plugin must set an `operation_id`, and its
+full CLI path and operation ID must exactly match one declared descriptor. An
+external plugin may declare CLI bindings only, may use only the default
+operation resolver, must keep each binding below its own top-level command, and
+must not collide with a core operation ID. Missing metadata, an unknown
+contract version, or an undeclared/mismatched command rejects the plugin. The
+rejected command is not registered. `hpc plugins list` shows its contract as
+`rejected`, while `hpc plugins info NAME` reports the contract error.
+
+For example, a C1 read-only plugin operation can declare:
+
+```python
+from hpc_tools.capabilities import CapabilityLevel
+from hpc_tools.operation_registry import OperationDescriptor
+from hpc_tools.plugin_system import PLUGIN_CONTRACT_VERSION
+
+class ExamplePlugin:
+    name = "example"
+    description = "Example cluster inspection"
+    contract_version = PLUGIN_CONTRACT_VERSION
+    operations = (
+        OperationDescriptor(
+            id="example.inspect",
+            minimum_level=CapabilityLevel.CLUSTER_DISCOVERY,
+            scopes=(),
+            effects=("remote-read",),
+            cli=("example inspect",),
+            profile_required=True,
+        ),
+    )
+```
+
+The CLI authorizes the declared operation before dispatch. Profile-free local
+analysis is limited to C0 descriptors with no scopes, site features, path
+bindings, or effects beyond local reads/execution. Plugins should rely on core
+helpers for bounded filesystem access, SSH, Slurm, config, and submission
+records instead of reimplementing that infrastructure.
+
+The metadata contract governs trusted installed Python code; it is not a
+sandbox. Python imports happen before metadata can be inspected, so a malicious
+plugin or import-time side effect remains under the authority of the local
+Python environment. Install only plugins you trust.
 
 ## Packaging
 
@@ -134,6 +175,19 @@ The current Python plugin covers:
 4. generation of Slurm install scripts that create or update a virtualenv
 5. staging, quoting, validating, submitting, and logging install jobs
 6. verification of completed install jobs from their output files
+
+Python and R `submit-install` commands are authorized as one compound C3
+operation before the local script is read or uploaded. Staging uses the bounded
+filesystem helper and the profile's `remote_roots.write` grants; it refuses an
+existing remote script unless `--force` is explicit. `verify-install` reads the
+output through the same helper under `remote_roots.read`. Dry runs validate
+paths and render the later quote/validation/submission commands without
+uploading, submitting, logging, or writing a local plan file.
+
+Python and R package checks are classified as remote execution, not passive
+file reads. Module loading and language package discovery can run module or
+package initialization code. Their operation descriptors deliberately record
+`remote-execute`; a plugin must not relabel such checks to evade policy.
 
 `hpc python plan-install` reuses dependency-file inspection so requirements
 files, simple pyproject dependencies, and nested `environment.yml` `pip:`

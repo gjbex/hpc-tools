@@ -1390,7 +1390,7 @@
         "output",
         "venv/library root"
       ],
-      "notes": "Checks packages remotely before generating a local script. dry_run suppresses remote execution but may still write a local script; no job is submitted.",
+      "notes": "Checks packages remotely before generating a local script. dry_run suppresses remote execution and local output writes; no job is submitted.",
       "modes": []
     },
     {
@@ -1419,6 +1419,7 @@
         "jobscript",
         "directory",
         "remote_name",
+        "force",
         "account",
         "resource shape"
       ],
@@ -1489,7 +1490,7 @@
         "job_output",
         "packages"
       ],
-      "notes": "Reads a log file via cat; no Slurm query, job-status observation, or package execution.",
+      "notes": "Reads a log file through the bounded filesystem helper; no Slurm query, job-status observation, or package execution.",
       "modes": []
     },
     {
@@ -1558,7 +1559,7 @@
         "output",
         "venv/library root"
       ],
-      "notes": "Checks packages remotely before generating a local script. dry_run suppresses remote execution but may still write a local script; no job is submitted.",
+      "notes": "Checks packages remotely before generating a local script. dry_run suppresses remote execution and local output writes; no job is submitted.",
       "modes": []
     },
     {
@@ -1587,6 +1588,7 @@
         "jobscript",
         "directory",
         "remote_name",
+        "force",
         "account",
         "resource shape"
       ],
@@ -1657,7 +1659,7 @@
         "job_output",
         "packages"
       ],
-      "notes": "Reads a log file via cat; no Slurm query, job-status observation, or package execution.",
+      "notes": "Reads a log file through the bounded filesystem helper; no Slurm query, job-status observation, or package execution.",
       "modes": []
     },
     {
