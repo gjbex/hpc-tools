@@ -25,7 +25,7 @@ from hpc_tools.config import (
     load_config,
     resolve_profile,
 )
-from hpc_tools.mcp_bridge import SOCKET_ENV_VAR
+from hpc_tools.mcp_bridge import SOCKET_ENV_VAR, readiness_path
 
 CONTAINER_SOCKET_DIRECTORY = "/run/hpc-tools-mcp"
 FORBIDDEN_COMMANDS = (
@@ -864,6 +864,7 @@ def _default_runtime_base() -> Path:
 
 
 def _wait_for_socket(path: Path, bridge: subprocess.Popen[bytes]) -> None:
+    ready = readiness_path(path)
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         if bridge.poll() is not None:
@@ -871,12 +872,17 @@ def _wait_for_socket(path: Path, bridge: subprocess.Popen[bytes]) -> None:
                 f"host MCP bridge exited before startup with return code {bridge.returncode}"
             )
         try:
-            if stat.S_ISSOCK(path.stat().st_mode):
+            marker = ready.read_text(encoding="ascii").strip()
+            if (
+                stat.S_ISSOCK(path.stat().st_mode)
+                and stat.S_ISREG(ready.stat().st_mode)
+                and marker == str(bridge.pid)
+            ):
                 return
-        except FileNotFoundError:
+        except (OSError, UnicodeError):
             pass
         time.sleep(0.05)
-    raise ConfigError("timed out waiting for the host MCP socket")
+    raise ConfigError("timed out waiting for the host MCP bridge readiness marker")
 
 
 def _sanitized_apptainer_environment() -> dict[str, str]:

@@ -253,8 +253,11 @@ delay shell trap handling and defeat the advance-warning path.
 
 The launcher requires `SLURM_JOB_ID` to match the manifest and uses the site's
 private `SLURM_TMPDIR` for the MCP socket unless `--runtime-directory` selects
-another private mode-`0700` directory. It invokes Apptainer with
-`--containall`, `--cleanenv`, `--no-home`, and
+another private mode-`0700` directory. The bridge publishes a PID-bearing
+readiness marker only after the socket is listening; the launcher verifies that
+the marker belongs to the bridge process before starting the agent container.
+The socket pathname alone is not treated as readiness. The launcher then invokes
+Apptainer with `--containall`, `--cleanenv`, `--no-home`, and
 `--no-mount home,cwd,hostfs,bind-paths`. Sites whose Apptainer version or policy
 does not support those flags fail closed and must review an adapted launcher;
 silently dropping a containment flag is unsafe.

@@ -663,6 +663,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             root = Path(directory)
             root.chmod(0o700)
             path = root / "mcp.sock"
+            ready = mcp_bridge.readiness_path(path)
             results: list[int] = []
             errors: list[OSError] = []
 
@@ -688,14 +689,15 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             server = threading.Thread(target=run_server)
             server.start()
             deadline = time.monotonic() + 5
-            while not path.exists() and not errors and time.monotonic() < deadline:
+            while not ready.exists() and not errors and time.monotonic() < deadline:
                 time.sleep(0.01)
             if errors:
                 server.join(timeout=1)
                 if errors[0].errno == 1:
                     self.skipTest("sandbox disallows Unix-domain socket binding")
                 raise errors[0]
-            self.assertTrue(path.exists(), "bridge did not create its socket")
+            self.assertTrue(ready.exists(), "bridge did not publish readiness")
+            self.assertEqual(str(os.getpid()), ready.read_text(encoding="ascii").strip())
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             client.connect(str(path))
             client.sendall(b"mcp bytes")
@@ -711,6 +713,36 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertFalse(server.is_alive())
             self.assertEqual(b"mcp bytes", received)
             self.assertEqual([0], results)
+            self.assertFalse(path.exists())
+            self.assertFalse(ready.exists())
+
+    def test_launcher_requires_matching_bridge_readiness_marker(self) -> None:
+        with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+            path = Path(directory) / "mcp.sock"
+            ready = mcp_bridge.readiness_path(path)
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(str(path))
+            ready.write_text("9999\n", encoding="ascii")
+            bridge = mock.Mock(pid=1234, returncode=None)
+            bridge.poll.return_value = None
+
+            with (
+                mock.patch(
+                    "hpc_tools.restricted_launch.time.monotonic",
+                    side_effect=[0.0, 0.0, 11.0],
+                ),
+                mock.patch("hpc_tools.restricted_launch.time.sleep"),
+                self.assertRaisesRegex(
+                    restricted_launch.ConfigError,
+                    "bridge readiness marker",
+                ),
+            ):
+                restricted_launch._wait_for_socket(path, bridge)
+
+            listener.listen(1)
+            ready.write_text("1234\n", encoding="ascii")
+            restricted_launch._wait_for_socket(path, bridge)
+            listener.close()
 
 
 if __name__ == "__main__":
