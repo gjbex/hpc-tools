@@ -4,7 +4,8 @@ This note tracks the agent-friendly MCP server for `hpc-tools`. The server now
 exists as an additional interface over the existing Python modules while
 sharing the CLI's mandatory per-profile capability policy and preserving its
 Slurm safety rules. WP12 clean-install and real stdio protocol acceptance is
-complete and recorded in [`CAPABILITIES_WP12.md`](CAPABILITIES_WP12.md).
+complete and recorded in the
+[WP12 acceptance record](capabilities/work-packages/wp12-acceptance.md).
 
 ## Goal
 

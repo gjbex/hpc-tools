@@ -13,6 +13,8 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("reference.md", navigation)
         self.assertIn("project-information.md", navigation)
         self.assertIn("capabilities.md", navigation)
+        self.assertIn("development/capabilities/index.md", navigation)
+        self.assertIn("development/mcp-roadmap.md", navigation)
 
         reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
         self.assertIn("## Complete CLI command reference", reference)
@@ -31,8 +33,25 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("knowledge, not authority", capabilities)
         self.assertIn("examples/capability-profiles.toml", capabilities)
 
+    def test_capability_development_records_are_indexed(self) -> None:
+        root = ROOT / "docs" / "development" / "capabilities"
+        index = (root / "index.md").read_text(encoding="utf-8")
+        work_packages = sorted((root / "work-packages").glob("wp*.md"))
+
+        self.assertTrue((root / "design.md").is_file())
+        self.assertTrue((root / "implementation-plan.md").is_file())
+        self.assertEqual(12, len(work_packages))
+        for record in work_packages:
+            self.assertIn(f"work-packages/{record.name}", index)
+        self.assertFalse((ROOT / "capabilities.md").exists())
+        self.assertFalse((ROOT / "CAPABILITIES_PLAN.md").exists())
+
     def test_documented_profile_toml_uses_the_accepted_capability_schema(self) -> None:
-        documents = [README, ROOT / "capabilities.md", *(ROOT / "docs").glob("*.md")]
+        documents = [
+            README,
+            ROOT / "docs" / "development" / "capabilities" / "design.md",
+            *(ROOT / "docs").glob("*.md"),
+        ]
         checked = 0
         for document in documents:
             text = document.read_text(encoding="utf-8")
