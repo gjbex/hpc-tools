@@ -30,6 +30,9 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .
 
+      - name: Install release acceptance tools
+        run: python3 -m pip install build pipx
+
       - name: Install documentation dependencies
         run: python3 -m pip install -r docs/requirements.txt
 
@@ -41,3 +44,15 @@ jobs:
 
       - name: Run tests
         run: python3 -m unittest discover -s tests
+
+      - name: Run capability acceptance tier
+        run: python3 tools/run_capability_acceptance.py
+
+      - name: Build wheel and source archive
+        run: python3 -m build --outdir dist
+
+      - name: Validate isolated wheel and source installations
+        run: |
+          python3 tools/check_capability_distribution.py \
+            --wheel dist/*.whl \
+            --sdist dist/*.tar.gz

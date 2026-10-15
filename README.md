@@ -965,6 +965,22 @@ python3 tools/check_repo_hygiene.py .
 python3 -m unittest discover -s tests
 ```
 
+For capability-policy or release acceptance, also run the focused nine-scenario
+tier and validate both distribution formats from isolated pipx homes:
+
+```bash
+python3 tools/run_capability_acceptance.py
+python3 -m build --outdir dist
+python3 tools/check_capability_distribution.py \
+  --wheel dist/hpc_tools-<version>-py3-none-any.whl \
+  --sdist dist/hpc_tools-<version>.tar.gz
+```
+
+The distribution check installs the wheel without the MCP extra, installs the
+source archive with the MCP extra, verifies the packaged filesystem helper, and
+uses a real stdio MCP client against two profile-bound server processes. Its
+pipx homes are temporary and do not change the user's normal installation.
+
 ### Build the documentation
 
 The documentation source is maintained as Markdown under [docs](docs) and built

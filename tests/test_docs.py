@@ -96,6 +96,16 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("mkdocs build --strict", deployment)
         self.assertIn("path: site", deployment)
 
+    def test_validation_ci_runs_capability_and_distribution_acceptance(self) -> None:
+        validation = (
+            ROOT / ".github" / "workflows" / "validate.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("tools/run_capability_acceptance.py", validation)
+        self.assertIn("python3 -m build --outdir dist", validation)
+        self.assertIn("tools/check_capability_distribution.py", validation)
+        self.assertIn("--wheel dist/*.whl", validation)
+        self.assertIn("--sdist dist/*.tar.gz", validation)
+
     def test_readme_installs_without_repo_dependency(self) -> None:
         text = README.read_text(encoding="utf-8")
 
@@ -153,6 +163,8 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc_tools/data/cuda-device-properties.slurm", text)
         self.assertIn("hpc_tools/data/cuda/", text)
         self.assertIn("pipx uninstall hpc-tools", text)
+        self.assertIn("tools/run_capability_acceptance.py", text)
+        self.assertIn("tools/check_capability_distribution.py", text)
         self.assertNotIn("ln -s /home", text)
 
     def test_partition_discovery_report_is_reusable(self) -> None:
