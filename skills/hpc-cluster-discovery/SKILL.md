@@ -7,14 +7,15 @@ description: Discover and summarize hardware, scheduler, storage, module, and no
 
 ## Remote Access
 
-Use the installed `hpc` CLI for remote commands:
+Inspect the selected profile before using remote commands:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
 
-For profile selection, optional helpers, login-gate handling, `--dry-run`, and
-remote command patterns, read
+For policy denials, profile selection, optional helpers, login-gate handling,
+`--dry-run`, and remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
 ## Conceptual References
@@ -49,10 +50,11 @@ Treat local references and live command output as complementary:
 - Use live commands and probe output to confirm what a real allocation exposes.
 - Call out mismatches explicitly instead of silently choosing one source.
 
-For a quick cluster status overview, prefer `hpc status`. It returns the full
-status page, quota, balance, and current submission database in one report before
-you start drilling into a specific subsystem. Let the assistant summarize the
-attention-worthy items when you need a triage view.
+For current service notices, use `hpc status`; it reads only the configured
+public site-status page. Query quota, balance, and submission history separately
+when their commands appear in filtered help and the task requires them. This
+keeps public status, account information, and job information within their
+independent grants.
 
 For scheduler details that affect where probes run, use the Slurm skill. For
 storage, quota, modules, or conda details, use the filesystem/environment skill.

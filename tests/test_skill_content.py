@@ -4,6 +4,21 @@ from test_skill_fixtures import *
 
 
 class SkillFeatureTests(SkillFixtures, unittest.TestCase):
+    def test_skills_inspect_policy_and_do_not_bypass_denials(self) -> None:
+        shared = SHARED_REMOTE_ACCESS.read_text(encoding="utf-8")
+        self.assertIn("hpc --profile <profile> capabilities", shared)
+        self.assertIn("--show-disallowed", shared)
+        self.assertIn("Stop and report the missing authority", shared)
+        self.assertIn("Do not switch to `hpc run`, raw SSH", shared)
+
+        for skill in SKILLS:
+            with self.subTest(skill=skill):
+                text = (ROOT / "skills" / skill / "SKILL.md").read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("hpc --profile <profile> capabilities", text)
+                self.assertIn("../_shared/hpc-tools-remote-access.md", text)
+
     def test_skills_do_not_hardcode_site_specific_commands_or_paths(self) -> None:
         forbidden = [
             "ssh genius",

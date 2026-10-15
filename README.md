@@ -374,16 +374,20 @@ through the bounded filesystem helper. Use `hpc capabilities` to inspect the
 effective grants, `--show-disallowed` to display annotated denied commands, and
 `--capability LEVEL` to preview a lower display ceiling. Those display options
 never change execution authority. MCP discovery and invocation use the same
-profile-bound startup snapshot. See
-[docs/configuration.md](docs/configuration.md) for levels, scopes, and root
-syntax.
+profile-bound startup snapshot. See the
+[capability policy guide](docs/capabilities.md) for the authority model and the
+[configuration guide](docs/configuration.md) for the complete profile schema.
 
-Two example configuration files are provided:
+Three example configuration files are provided:
 
 - [examples/ssh-alias-config.toml](examples/ssh-alias-config.toml) uses a target
   from `~/.ssh/config`, such as `ssh genius`.
 - [examples/user-host-config.toml](examples/user-host-config.toml) uses explicit
   `user` and `host` fields.
+- [examples/capability-profiles.toml](examples/capability-profiles.toml) contains
+  fictional C0 context, C1 staging, C2 monitoring/preflight, and C3 lifecycle
+  role templates for two centers. Copy and adapt one profile; the file is not
+  a deployable site configuration.
 
 SSH alias example:
 

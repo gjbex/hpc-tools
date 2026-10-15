@@ -88,6 +88,15 @@ contract version, or an undeclared/mismatched command rejects the plugin. The
 rejected command is not registered. `hpc plugins list` shows its contract as
 `rejected`, while `hpc plugins info NAME` reports the contract error.
 
+Each descriptor is the policy contract for that leaf: it declares the minimum
+C0--C3 level, all required scopes, local/remote/scheduler effects, whether a
+profile is required, any configured site feature, and any bounded path
+requirements. Argument-dependent modes must also be declared; a test-only
+validation cannot inherit the classification of a real submission. The CLI
+uses this metadata both for profile-aware help and for authorization immediately
+before dispatch. See [Capability policy](capabilities.md) for the level and
+scope vocabulary.
+
 For example, a C1 read-only plugin operation can declare:
 
 ```python
@@ -137,6 +146,12 @@ hpc_tools.plugins =
 
 External plugins should use the same group name and can be installed into the
 same `pipx` environment with `pipx inject`.
+
+This Python entry-point API is not the Codex plugin API. The Python package
+loads trusted executable extensions into the `hpc` process. The Codex plugin
+manifest in `.codex-plugin/plugin.json` distributes skills and MCP startup
+metadata; it does not install Python entry points, the CLI, or dependencies.
+Conversely, installing `hpc-tools` with pipx does not install Codex skills.
 
 ## R Plugin Follow-On Work
 

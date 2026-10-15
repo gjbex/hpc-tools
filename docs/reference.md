@@ -329,7 +329,8 @@ as a forward-compatibility guarantee. Validate behavior with `hpc doctor`,
 no cluster query and no write.
 
 See [Configure cluster profiles](configuration.md) for complete examples and
-SSH quoting guidance.
+SSH quoting guidance, and [Capability policy](capabilities.md) for the C0--C3
+authority model and role-based templates.
 
 ## Slurm submit override options
 

@@ -149,6 +149,13 @@ Missing, empty, unsupported-version, and otherwise invalid policy is a
 configuration error. `scopes` and every remote-root list default to empty, so
 omitting them grants nothing.
 
+Read [Capability policy](capabilities.md) for the C0--C3 model, independent
+scopes, CLI visibility behavior, and MCP startup snapshot. Fictional profiles
+for context-only, file-staging, monitoring/preflight, and lifecycle roles are
+available in
+[`examples/capability-profiles.toml`](https://github.com/gjbex/hpc-tools/blob/main/examples/capability-profiles.toml).
+The two fictional centers intentionally choose different scopes and roots.
+
 !!! warning
 
     Built-in service callables enforce the typed policy before effects. The CLI

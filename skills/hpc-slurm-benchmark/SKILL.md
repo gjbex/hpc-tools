@@ -7,14 +7,15 @@ description: Benchmark command-line scientific and HPC executables on configured
 
 ## Remote Access
 
-Use the installed `hpc` CLI for remote commands:
+Inspect the selected profile before using remote commands:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
 
-For profile selection, optional helpers, login-gate handling, `--dry-run`, and
-remote command patterns, read
+For policy denials, profile selection, optional helpers, login-gate handling,
+`--dry-run`, and remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
 ## Conceptual References

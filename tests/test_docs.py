@@ -12,6 +12,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         navigation = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
         self.assertIn("reference.md", navigation)
         self.assertIn("project-information.md", navigation)
+        self.assertIn("capabilities.md", navigation)
 
         reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
         self.assertIn("## Complete CLI command reference", reference)
@@ -21,6 +22,14 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", reference)
         self.assertIn("Unknown keys within `capabilities`", reference)
         self.assertIn("spacing or headings as a stable machine API", reference)
+
+        capabilities = (ROOT / "docs" / "capabilities.md").read_text(encoding="utf-8")
+        for level in ("profile-context", "cluster-discovery", "job-inspection", "job-lifecycle"):
+            self.assertIn(level, capabilities)
+        self.assertIn("--show-disallowed", capabilities)
+        self.assertIn("Restart the server", capabilities)
+        self.assertIn("knowledge, not authority", capabilities)
+        self.assertIn("examples/capability-profiles.toml", capabilities)
 
     def test_documented_profile_toml_uses_the_accepted_capability_schema(self) -> None:
         documents = [README, ROOT / "capabilities.md", *(ROOT / "docs").glob("*.md")]

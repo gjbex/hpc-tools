@@ -388,12 +388,47 @@ class ConfigTests(unittest.TestCase):
         self.assertNotIn("sam_quote_command", summary)
 
     def test_checked_in_profile_examples_use_the_accepted_policy_schema(self) -> None:
-        for name in ("ssh-alias-config.toml", "user-host-config.toml"):
+        for name in (
+            "ssh-alias-config.toml",
+            "user-host-config.toml",
+            "capability-profiles.toml",
+        ):
             with self.subTest(name=name):
                 config = load_config(str(ROOT / "examples" / name))
                 self.assertTrue(config.profiles)
                 for profile in config.profiles.values():
                     self.assertEqual(profile.capabilities.version, 1)
+
+    def test_capability_role_templates_cover_four_levels_and_two_centers(self) -> None:
+        config = load_config(str(ROOT / "examples" / "capability-profiles.toml"))
+
+        self.assertEqual(
+            set(config.profiles),
+            {
+                "atlas-context",
+                "atlas-staging",
+                "borealis-monitor",
+                "borealis-lifecycle",
+            },
+        )
+        self.assertEqual(
+            [
+                config.profiles[name].capabilities.max_level
+                for name in config.profiles
+            ],
+            [
+                CapabilityLevel.PROFILE_CONTEXT,
+                CapabilityLevel.CLUSTER_DISCOVERY,
+                CapabilityLevel.JOB_INSPECTION,
+                CapabilityLevel.JOB_LIFECYCLE,
+            ],
+        )
+        staging = config.profiles["atlas-staging"].capabilities
+        self.assertEqual(staging.remote_roots.read, ("/project/example-team/source",))
+        self.assertEqual(staging.remote_roots.write, ("/project/example-team/staging",))
+        lifecycle = config.profiles["borealis-lifecycle"].capabilities
+        self.assertNotIn("remote-filesystem.read", lifecycle.scopes)
+        self.assertEqual(lifecycle.remote_roots.read, ())
 
     def _write_config(self, contents: str) -> Path:
         directory = tempfile.TemporaryDirectory()

@@ -9,6 +9,10 @@ MCP is an additional interface over the same local configuration and command
 executors. It does not replace the CLI, create authorization, or make an agent
 a trusted cluster operator.
 
+Read [Capability policy](capabilities.md) first when choosing the server's
+profile and preset. MCP discovery is deliberately narrower than CLI auditing:
+denied operations are absent, not listed with denial annotations.
+
 ## Decide whether MCP is useful
 
 Use MCP when an agent needs to:
@@ -82,6 +86,28 @@ not expose overrides for those trusted selections. Restart the server after
 editing configuration; a running server intentionally keeps both discovery and
 execution on its original snapshot. Use `hpc_paths` to verify which state tree
 it sees.
+
+One process never multiplexes authority across profiles. Configure separate
+stdio servers when a client needs two centers or two roles:
+
+```json
+{
+  "mcpServers": {
+    "atlas-context": {
+      "command": "hpc-mcp",
+      "args": ["--profile", "atlas-context", "--preset", "context"]
+    },
+    "borealis-monitor": {
+      "command": "hpc-mcp",
+      "args": ["--profile", "borealis-monitor", "--preset", "job-inspect"]
+    }
+  }
+}
+```
+
+Restart the affected process after editing its profile, scopes, roots, site
+features, or attached reference set. Starting another process is also required
+to select a different profile; tools cannot switch profiles in call arguments.
 
 ## Select a capability preset
 

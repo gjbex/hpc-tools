@@ -32,6 +32,7 @@ nav:
   - Quick start: getting-started.md
   - Installation and maintenance: installation.md
   - Core concepts and safety: core-concepts.md
+  - Capability policy: capabilities.md
   - Configure cluster profiles: configuration.md
   - Onboard a new cluster: onboarding.md
   - Everyday cluster operations: everyday-operations.md

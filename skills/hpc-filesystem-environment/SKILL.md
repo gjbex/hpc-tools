@@ -7,14 +7,15 @@ description: Inspect remote HPC filesystem, quota, storage, ownership, software 
 
 ## Remote Access
 
-Use the installed `hpc` CLI for remote commands:
+Inspect the selected profile before using remote commands:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
 
-For profile selection, optional helpers, login-gate handling, `--dry-run`, and
-remote command patterns, read
+For policy denials, profile selection, optional helpers, login-gate handling,
+`--dry-run`, and remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
 ## Conceptual References
@@ -66,10 +67,10 @@ For configured project storage:
 hpc --profile <profile> projects
 ```
 
-For a quick status pass that combines the site status page, quota, balance, and
-current submissions, use `hpc status` to collect the full report before you
-split the problem into a storage-only or scheduler-only investigation. Let the
-assistant summarize the attention-worthy items when you want a triage view.
+Use `hpc status` for the configured public site-status page. Query `hpc quota`
+or `hpc balance` separately only when it is relevant and allowed by filtered
+help. Job submissions are C2 information and are not part of the status or
+filesystem workflow.
 
 For jobs with parallel I/O, heavy temporary I/O, or frequent small-file access,
 use the profile's storage reference and

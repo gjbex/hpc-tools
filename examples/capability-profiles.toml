@@ -1,0 +1,90 @@
+# Fictional role-based profile templates. Copy only the profile you need and
+# replace aliases, paths, commands, URLs, and reference-set names with values
+# published by your HPC center.
+
+# Atlas Center: installed reference material only (C0, no cluster contact).
+[profiles.atlas-context]
+reference_set = "atlas-2026"
+
+[profiles.atlas-context.capabilities]
+version = 1
+max_level = "profile-context"
+scopes = []
+
+[profiles.atlas-context.capabilities.remote_roots]
+list = []
+read = []
+write = []
+delete = []
+install = []
+
+# Atlas Center: bounded project inspection and staging (C1).
+[profiles.atlas-staging]
+ssh_target = "atlas-login"
+projects_dir = "/project/example-team"
+
+[profiles.atlas-staging.capabilities]
+version = 1
+max_level = "cluster-discovery"
+scopes = [
+    "remote-filesystem.list",
+    "remote-filesystem.read",
+    "remote-workspace.write",
+]
+
+[profiles.atlas-staging.capabilities.remote_roots]
+list = ["/project/example-team"]
+read = ["/project/example-team/source"]
+write = ["/project/example-team/staging"]
+delete = []
+install = []
+
+# Borealis Center: monitoring, accounting, quotation, and validation (C2).
+[profiles.borealis-monitor]
+ssh_target = "borealis-login"
+default_cluster = "borealis"
+queue_command = "site-queue-summary"
+sam_balance_command = "site-balance"
+sam_statement_command = "site-statement"
+sam_quote_command = "site-quote"
+
+[profiles.borealis-monitor.capabilities]
+version = 1
+max_level = "job-inspection"
+scopes = [
+    "accounting.read",
+    "job.validate",
+    "remote-filesystem.read",
+]
+
+[profiles.borealis-monitor.capabilities.remote_roots]
+list = []
+read = ["/work/example-team/logs"]
+write = []
+delete = []
+install = []
+
+# Borealis Center: reviewed submission and lifecycle management (C3). This
+# policy deliberately grants no general file read, delete, or install scope.
+[profiles.borealis-lifecycle]
+ssh_target = "borealis-login"
+default_cluster = "borealis"
+sam_balance_command = "site-balance"
+sam_quote_command = "site-quote"
+
+[profiles.borealis-lifecycle.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = [
+    "accounting.read",
+    "job.validate",
+    "remote-workspace.write",
+    "submission-record.write",
+]
+
+[profiles.borealis-lifecycle.capabilities.remote_roots]
+list = []
+read = []
+write = ["/work/example-team/jobs"]
+delete = []
+install = []

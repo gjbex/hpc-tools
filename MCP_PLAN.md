@@ -2,7 +2,9 @@
 
 This note tracks the agent-friendly MCP server for `hpc-tools`. The server now
 exists as an additional interface over the existing Python modules while
-preserving the current CLI behavior, profile model, and Slurm safety rules.
+sharing the CLI's mandatory per-profile capability policy and preserving its
+Slurm safety rules. Final clean-install acceptance is tracked as WP12 in
+[`CAPABILITIES_PLAN.md`](CAPABILITIES_PLAN.md).
 
 ## Goal
 
@@ -19,8 +21,9 @@ reusable functions.
 
 ## Design Principles
 
-- Keep profile-driven behavior. MCP tools that need a remote system must take
-  an explicit profile or use the same default-profile resolution as the CLI.
+- Bind each server process to exactly one profile at startup. Resolve that
+  profile like the CLI, snapshot its policy, and omit profile/config/database
+  overrides from public tool schemas.
 - Preserve existing XDG-aware config paths and durable state under
   `~/.config/hpc-tools` or `$XDG_CONFIG_HOME/hpc-tools`.
 - Keep the existing quote-before-submit, account-selection, validate-first,
@@ -29,13 +32,18 @@ reusable functions.
   Prefer narrow tools with typed arguments and bounded output.
 - Return structured JSON-like results rather than terminal-formatted text when
   possible.
-- Keep local read-only inspection tools available without a configured profile
-  when the equivalent CLI command is local-only.
+- Register only the tools and fixed resources allowed by the intersection of
+  the selected profile, the requested preset, configured site features, and
+  any delegation ceiling. `full` requests the complete allowed intersection;
+  it is not a policy bypass.
+- Require a server restart after profile or policy changes so discovery and
+  invocation use the same snapshot.
 
 ## Phase 1: Read-Only Tools
 
-Status: implemented in `hpc_tools/mcp_server.py` with the official FastMCP
-framework and exposed as `hpc-mcp`.
+Status: implemented through the `hpc_tools.mcp` package and the
+`hpc_tools.mcp_server` console facade with the official FastMCP framework,
+exposed as `hpc-mcp`.
 
 Start with tools that inspect local config, durable references, and remote
 state without writing files or submitting jobs.
@@ -57,6 +65,8 @@ Suggested tools:
 - `hpc_slurm_limits`
 - `hpc_module_spider`
 - `hpc_storage_inspect`
+- `hpc_files_list`
+- `hpc_files_read`
 - `hpc_site_env`
 
 These tools give agents most of the context they currently scrape from CLI
@@ -64,28 +74,31 @@ output while avoiding accidental cluster changes.
 
 ## Phase 2: MCP Resources
 
-Status: implemented in `hpc_tools/mcp_server.py` as FastMCP resources.
+Status: implemented as profile-bound FastMCP resources. There are no
+cross-profile or arbitrary reference-set resource templates.
 
 Expose durable local context as resources:
 
 - `hpc://paths`
 - `hpc://config`
-- `hpc://profiles/{profile}`
-- `hpc://profiles/{profile}/hardware`
-- `hpc://profiles/{profile}/slurm`
-- `hpc://profiles/{profile}/storage`
-- `hpc://reference-sets/{name}`
+- `hpc://profile`
+- `hpc://reference-set` when the profile attaches one
+- `hpc://cluster/hardware`
+- `hpc://cluster/slurm`
+- `hpc://cluster/storage`
 - `hpc://submissions/active`
 - `hpc://submissions/all`
+- `hpc://runtime`
 
 Resources should read from the active hpc-tools config tree, not from
 repository examples.
 
 ## Phase 3: Guarded Local And Remote Writes
 
-Status: implemented in `hpc_tools/mcp_server.py` with confirm-gated tools for
-reference sets, submission-log lifecycle marks, generated probe files, and
-container bundles. Slurm job submission remains reserved for Phase 4.
+Status: implemented with confirm-gated tools for reference sets,
+submission-log lifecycle marks, generated probe/container files, bounded
+single-file operations, repository clone, and remote installs. Slurm job
+submission remains the separate Phase 4 evidence chain.
 
 Add tools that write local state or install generated files remotely, but make
 the mutation explicit.
@@ -102,9 +115,17 @@ Suggested tools:
 - `hpc_install_probe`
 - `hpc_write_container`
 - `hpc_install_container`
+- `hpc_files_download`
+- `hpc_files_upload`
+- `hpc_files_copy`
+- `hpc_files_mkdir`
+- `hpc_files_remove`
+- `hpc_repo_clone`
 
 For tools that create or upload scripts, return the generated script or command
-preview and require `confirm=true` for the write or remote install step.
+preview and require `confirm=true` for the write or remote install step. File
+and clone tools also require the matching filesystem scope and remote root;
+they do not fall back to arbitrary shell execution.
 
 ## Phase 4: Guarded Slurm Submission
 
@@ -180,23 +201,25 @@ Update:
 
 ## Phase 7: Testing
 
-Status: implemented in `tests/test_mcp_server.py` and `tests/test_skills.py`,
-including registry/schema stability, no-config local tools, profile error
-paths, read-only no-write behavior, confirm-gated mutations, stale evidence,
-dry-run evidence, and submit evidence checks.
+Status: implemented across the MCP, capability-policy, filesystem, CLI, and
+skill tests, including registry/schema stability, bound profile schemas,
+allowed-only discovery, fixed resources, read-only no-write behavior,
+confirm-gated mutations, bounded file operations, stale evidence, dry-run
+evidence, and submit evidence checks.
 
 Add tests for:
 
 - stable MCP tool schemas;
-- local tools that work without profile config;
-- profile-required tools rejecting missing or unknown profiles;
+- startup rejecting missing, unknown, or invalid profile policy;
+- separate profiles producing different discovery surfaces;
 - read-only tools not writing local or remote state;
 - guarded write tools refusing mutation without `confirm=true`;
 - `hpc_submit_job` refusing missing account, quote evidence, validation
   evidence, or confirmation;
 - quote evidence becoming stale when resource shape changes;
 - submission tools reusing the existing append-only submissions log;
-- resources resolving from active config and reference-set paths;
+- fixed resources resolving only from the bound profile, active config, and
+  attached reference set;
 - deterministic structured output suitable for agents.
 
 ## Open Design Questions

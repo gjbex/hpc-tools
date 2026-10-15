@@ -10,6 +10,12 @@ equivalent to a VM or a security boundary between mutually distrustful Unix
 users: Apptainer shares the host kernel and normally preserves the submitting
 uid.
 
+The general C0--C3 profile model and independent scopes are described in
+[Capability policy](capabilities.md). The `slurm-job` preset is an additional
+deployment restriction: it intersects that profile policy with captured
+controller authority and the protected delegation manifest rather than
+granting another level.
+
 ## Deployment topology
 
 ```text

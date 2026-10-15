@@ -103,6 +103,17 @@ class CapabilityInventoryTests(unittest.TestCase):
         self.assertEqual(configured, self.surface["console_entry_points"])
         self.assertEqual(inventoried, configured)
 
+    def test_packaging_keeps_filesystem_helper_core_and_mcp_optional(self) -> None:
+        parser = configparser.ConfigParser()
+        parser.read(ROOT / "setup.cfg", encoding="utf-8")
+
+        package_data = parser["options.package_data"]["hpc_tools.data"]
+        install_requires = parser["options"]["install_requires"]
+        mcp_extra = parser["options.extras_require"]["mcp"]
+        self.assertIn("*.py", package_data)
+        self.assertNotIn("mcp>=", install_requires)
+        self.assertIn("mcp>=", mcp_extra)
+
     def test_compound_dynamic_and_pre_policy_exceptions_remain_explicit(self) -> None:
         operations = {item["id"]: item for item in self.inventory["operations"]}
         for operation in ("probe.write", "job.submit", "python.submit-install", "r.submit-install"):

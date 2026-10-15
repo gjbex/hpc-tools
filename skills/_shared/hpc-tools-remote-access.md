@@ -1,12 +1,24 @@
 # HPC Tools Remote Access
 
-Use the installed `hpc` CLI for all remote interaction. Prefer
-`--profile <name>` when the user names a cluster/profile; otherwise use the
-configured default profile:
+Use the installed `hpc` CLI for remote interaction. Prefer `--profile <name>`
+when the user names a cluster/profile; otherwise use the configured default.
+Before choosing an operation, inspect the selected profile's effective policy
+and allowed command surface:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
+
+Use the bounded named command for the task. If a needed command is absent, use
+`hpc --profile <profile> --show-disallowed --help` to distinguish a capability,
+scope, root, or site-feature denial. Stop and report the missing authority.
+Do not switch to `hpc run`, raw SSH, direct Slurm commands, or direct filesystem
+commands as an automatic workaround for a denial.
+
+`hpc run` is an operator-only arbitrary-shell escape hatch. Use it only when
+the task explicitly requires shell execution and the profile grants
+`remote-shell.execute`; it is not a substitute for a denied bounded command.
 
 Commands run through the profile's configured login shell. If SSH prints a
 firewall, browser, or login-gate URL, wait for the user to complete that step,
@@ -17,6 +29,7 @@ then retry the same command.
 Check the selected profile before relying on optional helpers:
 
 ```bash
+hpc --profile <profile> capabilities
 hpc --profile <profile> --help
 hpc --profile <profile> --dry-run doctor
 ```
@@ -55,8 +68,8 @@ hpc --profile <profile> doctor
 hpc --profile <profile> site-env
 ```
 
-For commands that depend on modules or environment setup, load modules and run
-the work in the same remote command:
+For an explicitly authorized operator-shell task that depends on modules or
+environment setup, load modules and run the work in the same remote command:
 
 ```bash
 hpc --profile <profile> run 'module load <module> && cd <remote-dir> && <command>'
