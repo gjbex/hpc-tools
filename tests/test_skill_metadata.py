@@ -64,4 +64,4 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc-container-workflows", text)
         self.assertIn("hpc-slurm-job-arrays", text)
         self.assertIn("hpc-slurm-benchmark", text)
-        self.assertIn("python3 -m unittest discover -s tests", text)
+        self.assertIn("uv run --locked --no-sync python -m unittest discover -s tests", text)

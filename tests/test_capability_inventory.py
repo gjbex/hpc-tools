@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import configparser
 import json
 from pathlib import Path
+import tomllib
 import unittest
 
 from hpc_tools.capabilities import CAPABILITY_SCOPES
@@ -88,13 +88,8 @@ class CapabilityInventoryTests(unittest.TestCase):
                 )
 
     def test_inventory_tracks_all_packaged_console_scripts(self) -> None:
-        parser = configparser.ConfigParser()
-        parser.read(ROOT / "setup.cfg", encoding="utf-8")
-        configured = {}
-        for line in parser["options.entry_points"]["console_scripts"].splitlines():
-            if line.strip():
-                name, entry = line.split("=", maxsplit=1)
-                configured[name.strip()] = entry.strip()
+        project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        configured = project["project"]["scripts"]
 
         inventoried = {
             item["name"]: item["entry"]
@@ -104,15 +99,22 @@ class CapabilityInventoryTests(unittest.TestCase):
         self.assertEqual(inventoried, configured)
 
     def test_packaging_keeps_filesystem_helper_core_and_mcp_optional(self) -> None:
-        parser = configparser.ConfigParser()
-        parser.read(ROOT / "setup.cfg", encoding="utf-8")
-
-        package_data = parser["options.package_data"]["hpc_tools.data"]
-        install_requires = parser["options"]["install_requires"]
-        mcp_extra = parser["options.extras_require"]["mcp"]
+        project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        package_data = project["tool"]["setuptools"]["package-data"]["hpc_tools.data"]
+        install_requires = project["project"]["dependencies"]
+        mcp_extra = project["project"]["optional-dependencies"]["mcp"]
         self.assertIn("*.py", package_data)
-        self.assertNotIn("mcp>=", install_requires)
-        self.assertIn("mcp>=", mcp_extra)
+        self.assertFalse(any(dependency.startswith("mcp") for dependency in install_requires))
+        self.assertTrue(any(dependency.startswith("mcp") for dependency in mcp_extra))
+
+    def test_uv_toolchain_policy_is_explicit(self) -> None:
+        project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+        self.assertEqual(project["project"]["requires-python"], ">=3.13")
+        self.assertEqual(project["tool"]["uv"]["required-version"], "==0.13.1")
+        self.assertEqual(project["build-system"]["requires"], ["setuptools==80.9.0"])
+        self.assertEqual((ROOT / ".python-version").read_text(encoding="utf-8").strip(), "3.13")
+        self.assertTrue((ROOT / "uv.lock").is_file())
 
     def test_compound_dynamic_and_pre_policy_exceptions_remain_explicit(self) -> None:
         operations = {item["id"]: item for item in self.inventory["operations"]}

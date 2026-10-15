@@ -52,7 +52,7 @@ implementation-status wording:
 | MCP re-export module | `hpc_tools/mcp_server.py` | Update or remove it and its internal test imports together; only the configured console entry point must remain valid |
 | Local durable state | Built-in reference, submission, and agent handlers apply scopes; submission reads/mutations are profile-isolated | Apply the plugin contract and finish interface visibility work |
 | Restricted agent | `delegation.py`, `restricted_jobs.py`, `restricted_launch.py`, `agent_cleanup.py` | Intersect policy with delegation without expanding the image's surface |
-| Packaging | `setup.cfg`, `.codex-plugin/plugin.json`, `.mcp.json` | Keep Python runtime, CLI extensions, and Codex skills distribution separate |
+| Packaging | `pyproject.toml`, `uv.lock`, `.codex-plugin/plugin.json`, `.mcp.json` | Keep Python runtime, CLI extensions, and Codex skills distribution separate |
 
 Specific traps to cover:
 
@@ -700,7 +700,7 @@ Targets: `docs/development/capabilities/design.md`, README,
 `docs/development/mcp-roadmap.md`, `docs/configuration.md`,
 `docs/reference.md`, `docs/mcp.md`, `docs/plugins.md`, reference-set and
 restricted-agent guides, relevant skills, `examples/`, `mkdocs.yml`,
-`setup.cfg`, and distribution/plugin validation as needed.
+`pyproject.toml`, `uv.lock`, and distribution/plugin validation as needed.
 
 Work:
 
@@ -781,12 +781,14 @@ cluster acceptance.
 At final acceptance run the repository-required checks:
 
 ```bash
-python3 tools/validate_plugin.py .
-python3 tools/validate_skills.py .
-python3 tools/check_repo_hygiene.py .
-python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
-python3 -m unittest discover -s tests
-mkdocs build --strict
+uv lock --check
+uv run --no-project --python 3.13 python tools/validate_plugin.py .
+uv run --no-project --python 3.13 python tools/validate_skills.py .
+uv run --no-project --python 3.13 python tools/check_repo_hygiene.py .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync python -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
+uv run --locked --no-sync python -m unittest discover -s tests
+uv run --locked --no-sync mkdocs build --strict
 git diff --check
 ```
 

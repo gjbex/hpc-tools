@@ -129,15 +129,23 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertEqual(deployment_workflows, ["docs-deploy.yml"])
 
         deployment = (workflows / "docs-deploy.yml").read_text(encoding="utf-8")
-        self.assertIn("mkdocs build --strict", deployment)
+        self.assertIn("uv run --locked --no-sync mkdocs build --strict", deployment)
         self.assertIn("path: site", deployment)
 
     def test_validation_ci_runs_capability_and_distribution_acceptance(self) -> None:
         validation = (
             ROOT / ".github" / "workflows" / "validate.yml"
         ).read_text(encoding="utf-8")
+        self.assertIn('version: "0.13.1"', validation)
+        self.assertIn('python-version: "3.13"', validation)
+        self.assertIn("uv lock --check", validation)
+        self.assertIn("uv sync --locked --all-extras --all-groups", validation)
+        self.assertLess(
+            validation.index("tools/check_repo_hygiene.py"),
+            validation.index("uv sync --locked --all-extras --all-groups"),
+        )
         self.assertIn("tools/run_capability_acceptance.py", validation)
-        self.assertIn("python3 -m build --outdir dist", validation)
+        self.assertIn("uv build --out-dir dist", validation)
         self.assertIn("tools/check_capability_distribution.py", validation)
         self.assertIn("--wheel dist/*.whl", validation)
         self.assertIn("--sdist dist/*.tar.gz", validation)
@@ -147,14 +155,14 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
 
         self.assertIn("pipx install hpc-tools", text)
         self.assertIn("pipx install .", text)
-        self.assertIn("Use an editable install only when developing", text)
+        self.assertIn("Use the pinned, locked uv environment when developing", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
         self.assertIn("cp -R skills/hpc-slurm-job-arrays", text)
         self.assertIn("hpc plugins list", text)
         self.assertIn("hpc plugins info benchmark", text)
         self.assertIn("hpc-mcp", text)
-        self.assertIn('uv pip install -e ".[mcp]"', text)
+        self.assertIn("uv sync --locked --extra mcp", text)
         self.assertIn("Run the server with", text)
         self.assertIn("guarded MCP interface", text)
         self.assertIn("plugin manifest points at `.mcp.json`", text)

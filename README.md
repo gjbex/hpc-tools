@@ -158,16 +158,16 @@ The Codex plugin manifest points at `.mcp.json`, which starts the MCP server
 with the `hpc-mcp` command. Installing the Codex plugin does not install that
 command; install the Python package first.
 
-Install the optional MCP dependency in a development checkout with:
+Synchronize the optional MCP dependency in a development checkout with:
 
 ```bash
-uv pip install -e ".[mcp]"
+uv sync --locked --extra mcp
 ```
 
 Run the server with:
 
 ```bash
-hpc-mcp
+uv run --locked --no-sync hpc-mcp
 ```
 
 Every server binds one profile at startup (the configured default unless
@@ -948,10 +948,15 @@ install:
 pipx install .
 ```
 
-Use an editable install only when developing `hpc-tools` itself:
+Development requires uv 0.13.1. The repository enforces that version,
+selects Python 3.13 through `.python-version`, and commits the complete
+dependency resolution in `uv.lock`.
+
+Use the pinned, locked uv environment when developing `hpc-tools` itself:
 
 ```bash
-python3 -m pip install --user -e .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync hpc --help
 ```
 
 ### Validation
@@ -959,19 +964,21 @@ python3 -m pip install --user -e .
 Before publishing plugin or skill changes, run the repo-local checks:
 
 ```bash
-python3 tools/validate_plugin.py .
-python3 tools/validate_skills.py .
-python3 tools/check_repo_hygiene.py .
-python3 -m unittest discover -s tests
+uv lock --check
+uv run --no-project --python 3.13 python tools/validate_plugin.py .
+uv run --no-project --python 3.13 python tools/validate_skills.py .
+uv run --no-project --python 3.13 python tools/check_repo_hygiene.py .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync python -m unittest discover -s tests
 ```
 
 For capability-policy or release acceptance, also run the focused nine-scenario
 tier and validate both distribution formats from isolated pipx homes:
 
 ```bash
-python3 tools/run_capability_acceptance.py
-python3 -m build --outdir dist
-python3 tools/check_capability_distribution.py \
+uv run --locked --no-sync python tools/run_capability_acceptance.py
+uv build --out-dir dist
+uv run --locked --no-sync python tools/check_capability_distribution.py \
   --wheel dist/hpc_tools-<version>-py3-none-any.whl \
   --sdist dist/hpc_tools-<version>.tar.gz
 ```

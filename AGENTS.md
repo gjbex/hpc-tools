@@ -7,7 +7,7 @@ scripts, example reference files, and Codex skills for working with remote
 Slurm-based HPC systems.
 
 The repository is also a Codex plugin. `.codex-plugin/plugin.json` packages the
-skills for Codex, while `setup.cfg` packages the Python CLI. Keep those
+skills for Codex, while `pyproject.toml` packages the Python CLI. Keep those
 distribution surfaces separate.
 
 This plugin is related to, but separate from, `scientific-computing-skills`.
@@ -26,8 +26,8 @@ release preparation.
 - Install the released CLI with pipx for normal use:
   `pipx install hpc-tools`
 - Use `pipx install .` only for release-style testing from this checkout.
-- Use editable installs only for development:
-  `python3 -m pip install --user -e .`
+- Use the locked uv environment for development:
+  `uv sync --locked --all-extras --all-groups`
 - Register CLI extensions through the `hpc_tools.plugins` entry-point group
   instead of hardcoding every workflow into the core CLI.
 - Treat the Codex plugin as a skills distribution layer. Installing the Codex
@@ -100,9 +100,11 @@ release preparation.
 After changing skills, README onboarding instructions, examples, or tests, run:
 
 ```bash
-python3 tools/validate_plugin.py .
-python3 tools/validate_skills.py .
-python3 tools/check_repo_hygiene.py .
-python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
-python3 -m unittest discover -s tests
+uv lock --check
+uv run --no-project --python 3.13 python tools/validate_plugin.py .
+uv run --no-project --python 3.13 python tools/validate_skills.py .
+uv run --no-project --python 3.13 python tools/check_repo_hygiene.py .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync python -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
+uv run --locked --no-sync python -m unittest discover -s tests
 ```

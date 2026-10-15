@@ -442,7 +442,7 @@ def create_server(
     except ImportError as error:  # pragma: no cover - depends on optional extra.
         raise ConfigError(
             "hpc-mcp requires the optional MCP dependency. "
-            "Install it with `uv pip install -e '.[mcp]'` or `pip install 'hpc-tools[mcp]'."
+            "Install it with `uv sync --locked --extra mcp` or `pip install 'hpc-tools[mcp]'."
         ) from error
 
     selected_preset = resolve_preset(preset)

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import shlex
+import tomllib
 from typing import Any
 
 from hpc_tools.capabilities import (
@@ -11,12 +12,6 @@ from hpc_tools.capabilities import (
     CapabilityPolicyError,
     parse_capability_policy,
 )
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
-    import tomli as tomllib  # type: ignore[no-redef]
-
 
 CONFIG_DIR_NAME = "hpc-tools"
 CONFIG_FILE_NAME = "config.toml"

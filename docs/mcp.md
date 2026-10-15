@@ -39,11 +39,11 @@ command -v hpc-mcp
 pipx list
 ```
 
-For development in an active uv environment:
+For development in the repository's locked uv environment:
 
 ```console
-uv pip install -e '.[mcp]'
-command -v hpc-mcp
+uv sync --locked --extra mcp
+uv run --locked --no-sync hpc-mcp --help
 ```
 
 The server uses the same Python-package version as the CLI installation. A

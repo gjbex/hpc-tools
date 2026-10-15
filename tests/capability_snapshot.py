@@ -27,7 +27,15 @@ def parser_schema(parser: argparse.ArgumentParser) -> dict:
         arguments.append({
             "dest": action.dest,
             "options": action.option_strings,
-            "required": action.required,
+            # Positional ``Action.required`` changed for REMAINDER between
+            # supported CPython releases. Record the public grammar instead of
+            # that implementation detail: optionals honor ``required`` while
+            # positionals are required unless their nargs makes them optional.
+            "required": (
+                action.required
+                if action.option_strings
+                else action.nargs not in ("?", "*", argparse.REMAINDER)
+            ),
             "nargs": action.nargs,
             "default": action.default,
             "choices": list(action.choices) if action.choices is not None else None,

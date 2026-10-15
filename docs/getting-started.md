@@ -9,7 +9,7 @@ If you only want to verify installation and access, stop after step 5,
 
 ## What you need
 
-- Python 3.10 or newer;
+- Python 3.13 or newer;
 - `pipx`;
 - working SSH access to a Slurm login node;
 - the correct Slurm account and partition for a small test job;

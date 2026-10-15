@@ -140,7 +140,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("pipx install .", text)
         self.assertIn("MCP Installation", text)
         self.assertIn("command -v hpc-mcp", text)
-        self.assertIn('uv pip install -e ".[mcp]"', text)
+        self.assertIn("uv sync --locked --extra mcp", text)
         self.assertIn("guarded structured interface", text)
         self.assertIn("Local writes and remote installs require", text)
         self.assertIn("hpc_quote_job", text)

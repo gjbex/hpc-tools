@@ -91,10 +91,11 @@ boundary for hostile agents or a substitute for cluster policy.
 
 ## Supported runtime and cluster assumptions
 
-The packaged Python project currently declares Python 3.10 or newer. The
-repository's continuous integration exercises Python 3.10, builds the MkDocs
-site strictly, validates the plugin and skills, compiles the Python sources,
-and runs the unit test suite. That is evidence for the tested development
+The packaged Python project currently declares Python 3.13 or newer. The
+repository pins uv 0.13.1, records Python 3.13 in `.python-version`, and uses
+the committed `uv.lock` in continuous integration. CI builds the MkDocs site
+strictly, validates the plugin and skills, compiles the Python sources, and
+runs the unit test suite. That is evidence for the tested development
 configuration, not a promise that every Python/OS/Slurm combination is covered.
 
 Normal remote operation assumes:
@@ -201,9 +202,9 @@ under the user's reference-set directory and can be exported explicitly.
 
 ## Release notes and version sources
 
-The authoritative package version is declared in `setup.cfg`; the Codex plugin
-has a separate version in `.codex-plugin/plugin.json`. A release that changes
-both distribution surfaces should keep them aligned and validate both.
+The authoritative package version is declared in `pyproject.toml`; the Codex
+plugin has a separate version in `.codex-plugin/plugin.json`. A release that
+changes both distribution surfaces should keep them aligned and validate both.
 
 The repository currently has no dedicated changelog or release-notes file.
 Until one is added, users must inspect the repository history and any release
@@ -240,7 +241,7 @@ licenses, documentation, and support channels.
 Start with [CLI plugin system](plugins.md) when adding a workflow. Register CLI
 extensions through the `hpc_tools.plugins` entry-point group rather than
 hardcoding unrelated workflows into the core. Keep the Python CLI distribution
-separate from the Codex plugin: the former is packaged by `setup.cfg`, while
+separate from the Codex plugin: the former is packaged by `pyproject.toml`, while
 the latter is described by `.codex-plugin/plugin.json` and can point to the
 optional MCP server.
 
