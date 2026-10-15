@@ -346,7 +346,8 @@ This is eventual cleanup, not immediate cleanup: the control job can wait for
 resources. Sites that prohibit nested `sbatch`, cannot reliably retain a
 dependency across requeue, or require a strict cancellation-latency bound need
 a persistent broker on a service or login node instead. Verify the chosen
-behavior with a small real-cluster pilot before production use.
+behavior with the [real-cluster qualification
+checklist](development/real-cluster-qualification.md) before production use.
 
 There is another consequence of the dependent-job design: if a requeued parent
 remains pending past manifest expiry, no new MCP operation is authorized, but
@@ -428,5 +429,6 @@ one job must still provide their own coordination and atomic-output protocol.
   Site-configured device and system mounts must be reviewed on the actual
   cluster.
 - A real SIF build, socket relay, scheduler validation, and delegate pilot must
-  be exercised on each target site; unit tests cannot establish the site's
-  Apptainer or Slurm policy.
+  follow the [real-cluster qualification
+  checklist](development/real-cluster-qualification.md) on each target site;
+  unit tests cannot establish the site's Apptainer or Slurm policy.

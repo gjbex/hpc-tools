@@ -1,6 +1,8 @@
 # Parent-agent and delegated-job lifecycle policy
 
-Status: implemented in hpc-tools; real-cluster qualification is still required.
+Status: implemented in hpc-tools; the
+[real-cluster qualification](development/real-cluster-qualification.md) is
+still required on each target site.
 
 This document defines what should happen to jobs submitted by an unattended
 parent agent when its own Slurm allocation ends. It also describes the changes
@@ -343,7 +345,8 @@ needs a pilot that verifies:
   mutate a job not owned by the affected delegation.
 - Ownership, budget, expiry, idempotency, audit, and container-boundary
   invariants hold across restart and cleanup races.
-- Site-specific behavior is demonstrated by a real parent-and-delegate pilot,
+- Site-specific behavior is demonstrated using the
+  [real-cluster qualification checklist](development/real-cluster-qualification.md),
   not inferred from unit tests.
 
 ## Remaining deployment choices

@@ -15,6 +15,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("capabilities.md", navigation)
         self.assertIn("development/capabilities/index.md", navigation)
         self.assertIn("development/mcp-roadmap.md", navigation)
+        self.assertIn("development/real-cluster-qualification.md", navigation)
 
         reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
         self.assertIn("## Complete CLI command reference", reference)
@@ -45,6 +46,22 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
             self.assertIn(f"work-packages/{record.name}", index)
         self.assertFalse((ROOT / "capabilities.md").exists())
         self.assertFalse((ROOT / "CAPABILITIES_PLAN.md").exists())
+
+    def test_real_cluster_qualification_replaces_root_todo(self) -> None:
+        qualification = (
+            ROOT / "docs" / "development" / "real-cluster-qualification.md"
+        ).read_text(encoding="utf-8")
+
+        for requirement in (
+            "same Slurm job ID",
+            "afterany:<parent-job-id>",
+            "Apptainer",
+            "unrelated control job",
+            "hpc agent export",
+            "qualified with restrictions",
+        ):
+            self.assertIn(requirement, qualification)
+        self.assertFalse((ROOT / "TODO.md").exists())
 
     def test_documented_profile_toml_uses_the_accepted_capability_schema(self) -> None:
         documents = [

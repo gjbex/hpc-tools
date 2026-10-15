@@ -17,6 +17,8 @@ For current usage and policy configuration, read the
   work packages, their dependencies, and their completion status.
 - [MCP server roadmap](../mcp-roadmap.md) tracks the broader structured-agent
   interface that the capability implementation constrains.
+- [Real-cluster qualification](../real-cluster-qualification.md) is the
+  per-site checklist for the remaining parent-agent, Slurm, and Apptainer pilot.
 
 ## Completed work packages
 
