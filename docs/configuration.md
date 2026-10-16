@@ -187,7 +187,7 @@ The available fields fall into four groups.
 | Purpose | Fields | Notes |
 | --- | --- | --- |
 | Execution and connection | `ssh_target`, `host`, `user`, `ssh_options`, `login_shell` | `ssh_target` or `host` is required by the SSH executor but optional for local execution. Prefer an SSH alias for complex connection policy. |
-| Workspace and site helpers | `projects_dir`, `quota_command`, `queue_command`, `sam_balance_command`, `sam_statement_command`, `sam_quote_command` | These are site-specific remote paths or commands. Configure only commands you have verified. |
+| Workspace and site helpers | `projects_dir`, `quota_command`, `queue_command`, `sam_balance_command`, `sam_statement_command`, `sam_quote_command`, `sam_quote_format` | These are site-specific remote paths, commands, and quote contracts. Configure only commands and formats you have verified. |
 | Cluster references | `hardware_reference`, `hardware_url`, `slurm_reference`, `slurm_url`, `storage_reference`, `storage_url`, `status_url`, `reference_set` | Local files hold durable notes; URLs point to authoritative site sources. A reference set can supply the three local reference files. |
 | Defaults and identity | `default_cluster`, `email` | `default_cluster` narrows cluster-aware Slurm queries. `email` can supply a notification address to generated scripts. |
 | Capability policy | `capabilities.version`, `capabilities.max_level`, `capabilities.scopes`, `capabilities.remote_roots` | Mandatory, strict per-profile policy. Scopes and roots are additive constraints independent of the maximum level. |

@@ -441,6 +441,15 @@ A site without `sam_quote_command` cannot use the MCP submission chain as
 currently implemented. Use the human-operated CLI workflow and the site's
 authoritative accounting process instead of bypassing the missing quote.
 
+When a profile also sets
+`sam_quote_format = "hpc-tools-credit-quote-v1"`, successful real quotes must
+emit the strict JSON envelope documented in the configuration reference.
+`hpc_quote_job` returns its parsed fixed-point value as `structured_quote`.
+Malformed, duplicate-key, oversized, unsupported, or trailing output fails
+closed. Diagnostic text belongs on stderr. This parsed WP2 field is
+informational: it is not accepted by `hpc_submit_job` and does not become budget
+authority until signed cost evidence and ledger reservation are implemented.
+
 ## Understand what evidence does not prove
 
 Evidence objects include a shape hash, timestamp, remote result, and an HMAC

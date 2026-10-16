@@ -3,7 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from hpc_tools import delegation, restricted_jobs, slurm, slurm_contracts, submissions
+from hpc_tools import (
+    credit_quotes,
+    delegation,
+    restricted_jobs,
+    slurm,
+    slurm_contracts,
+    submissions,
+)
 from hpc_tools.commands.slurm import _quote_command as _sam_quote_command
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import execution_plan, run_command_capture
@@ -107,11 +114,21 @@ def hpc_quote_job(
     finally:
         prepared.cleanup()
     evidence = _submission_evidence("quote", shape, result)
-    return result | {
+    response = result | {
         "resource_shape": shape,
         "quote_evidence": evidence,
         "output_directory": prepared.output_directory,
     }
+    if (
+        resolved.sam_quote_format is not None
+        and not result["dry_run"]
+        and result["returncode"] == 0
+    ):
+        response["structured_quote"] = credit_quotes.parse_structured_quote(
+            result["stdout"],
+            format_name=resolved.sam_quote_format,
+        ).to_dict()
+    return response
 
 def hpc_validate_job(
     jobscript: str,

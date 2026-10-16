@@ -32,6 +32,108 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertEqual(evidence["shape_token"], result["resource_shape"]["shape_token"])
         self.assertIn("sam-quote sbatch", result["command"])
         self.assertIn("--account proj", result["command"])
+        self.assertNotIn("structured_quote", result)
+
+    def test_quote_job_parses_configured_structured_stdout_only_after_success(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
+            completed = mock.Mock(
+                returncode=0,
+                stdout=(
+                    '{"format_version":1,"maximum_cost":'
+                    '{"value":2730,"scale":0,"unit":"credits"}}\n'
+                ),
+                stderr="site diagnostic\n",
+            )
+
+            with mock.patch(
+                "hpc_tools.mcp.common.run_command_capture", return_value=completed
+            ):
+                result = mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                )
+
+        self.assertEqual(
+            {
+                "format_version": 1,
+                "maximum_cost": {"value": 2730, "scale": 0, "unit": "credits"},
+            },
+            result["structured_quote"],
+        )
+        self.assertEqual("site diagnostic\n", result["stderr"])
+        self.assertNotIn("quoted_cost", result["quote_evidence"])
+
+    def test_failed_or_dry_run_structured_quote_is_not_parsed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
+            failed = mock.Mock(returncode=1, stdout="not JSON", stderr="denied")
+
+            with mock.patch(
+                "hpc_tools.mcp.common.run_command_capture", return_value=failed
+            ):
+                result = mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    jobscript="job.slurm",
+                    account="proj",
+                    dry_run=False,
+                )
+            preview = mcp_server.hpc_quote_job(
+                config=str(config_path),
+                jobscript="job.slurm",
+                account="proj",
+                dry_run=True,
+            )
+
+        self.assertNotIn("structured_quote", result)
+        self.assertNotIn("structured_quote", preview)
+
+    def test_successful_malformed_structured_quote_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
+            malformed = mock.Mock(returncode=0, stdout="2730\n", stderr="")
+
+            with (
+                mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=malformed,
+                ),
+                self.assertRaisesRegex(ValueError, "must be a JSON object"),
+            ):
+                mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    jobscript="job.slurm",
+                    account="proj",
+                )
 
     def test_validate_job_returns_shape_bound_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

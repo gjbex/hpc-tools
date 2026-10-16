@@ -307,6 +307,7 @@ capability table.
 | `sam_balance_command` | string | Site-specific account-balance command. |
 | `sam_statement_command` | string | Site-specific account-statement command prefix. |
 | `sam_quote_command` | string | Site-specific cost/credit quote command prefix. |
+| `sam_quote_format` | string | Optional strict quote-output selector; currently only `hpc-tools-credit-quote-v1`. |
 | `hardware_reference` | string | Local hardware reference file. |
 | `hardware_url` | string | Source or supporting hardware URL. |
 | `slurm_reference` | string | Local Slurm limits/policy reference file. |

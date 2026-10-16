@@ -125,6 +125,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
             login_shell=("bash", "-l", "-c"), projects_dir=None,
             quota_command=None, queue_command=None, sam_balance_command=None,
             sam_statement_command=None, sam_quote_command="quote",
+            sam_quote_format=None,
             hardware_reference=None, hardware_url=None, slurm_reference=None,
             slurm_url=None, storage_reference=None, storage_url=None,
             status_url=None, reference_set=None, default_cluster="alpha", email=None,

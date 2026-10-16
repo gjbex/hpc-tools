@@ -1,6 +1,6 @@
 # Delegated MCP credit-budget implementation plan
 
-Status: WP1 implemented on 2026-10-16; WP2--WP8 are proposed and not yet
+Status: WP1--WP2 implemented on 2026-10-16; WP3--WP8 are proposed and not yet
 implemented.
 
 This plan adds server-owned quoted-credit enforcement to the restricted
@@ -61,7 +61,8 @@ The profile retains `sam_quote_command` and gains:
 sam_quote_format = "hpc-tools-credit-quote-v1"
 ```
 
-For that format, successful stdout contains exactly one UTF-8 JSON object:
+For that format, successful stdout is at most 4096 bytes and contains exactly
+one UTF-8 JSON object:
 
 ```json
 {
@@ -200,13 +201,13 @@ the connection itself remains bidirectional. Socket possession and Unix-UID
 checking authenticate the container/user boundary, not an individual process
 inside that container.
 
-## Current characterized baseline
+## Characterized baseline and current state
 
-Before credit implementation:
+WP1 characterized the following state before credit implementation:
 
 - delegation manifest version is 2 and rejects `credit_budget`;
 - ledger schema version is 3 and stores no quote cost or quote identity;
-- the profile has `sam_quote_command` but no structured-format selector;
+- the profile had `sam_quote_command` but no structured-format selector;
 - successful quote stdout is signed as opaque text;
 - quote evidence has no typed cost or expiry;
 - `max_submissions` already counts logical submissions, with arrays consuming
@@ -216,7 +217,13 @@ Before credit implementation:
   normalization currently drops that top-level field, so the generation is not
   bound by the evidence HMAC.
 
-The synchronized baseline fixture is
+WP2 adds the strict format selector and pure structured parser. A successful
+real `hpc_quote_job` now returns `structured_quote` when the selector is set;
+that convenience field is not yet signed evidence or submission authority.
+Manifest, ledger, expiry, and controller-generation behavior remain at the WP1
+baseline until their owning packages.
+
+The synchronized work-package fixture is
 `tests/fixtures/delegated_credit_budget_baseline.json`; its regression tests are
 in `tests/test_delegated_credit_budget_baseline.py`. These are intentional
 change detectors, not promises to preserve the missing behavior. Later work
@@ -278,6 +285,8 @@ Validation record:
 
 ## WP2: Structured quote parser and profile contract
 
+Status: implemented on 2026-10-16.
+
 Add and strictly parse `sam_quote_format`. Implement the v1 envelope decoder
 with duplicate-key detection, bounded input, exact keys, fixed-point validation,
 unit normalization, and overflow checks. Keep opaque quotes available only when
@@ -287,6 +296,32 @@ stderr-only diagnostics.
 
 Exit criteria: the parser returns one immutable typed cost or fails closed; it
 has no ledger or scheduler side effects.
+
+Implementation artifacts:
+
+- `hpc_tools/credit_quotes.py` defines the immutable fixed-point types, bounds,
+  v1 selector, and strict 4096-byte parser;
+- `hpc_tools/config.py` parses the optional selector, rejects unknown formats,
+  and requires a quote command when it is set;
+- `hpc_tools/mcp/submit.py` parses successful non-dry-run quote stdout and
+  returns `structured_quote` separately from the still-opaque signed evidence;
+- parser, configuration, MCP integration, and synchronized-baseline tests cover
+  the fail-closed cases without contacting a cluster.
+
+The `structured_quote` response is informational in WP2. `hpc_submit_job` does
+not consume it, and clients must not treat it as budget authorization. WP4 will
+place the typed cost inside signed, expiring, shape-bound evidence.
+
+Validation record:
+
+- The 69-test focused parser, configuration, MCP submission, synchronized
+  baseline, MCP resource, and restricted-boundary slice passes.
+- The complete supported suite passes 458 tests.
+- Locked dependency checking and synchronization, plugin and skill validation,
+  Python compilation, focused Ruff checks, and strict MkDocs construction pass.
+- `tools/check_repo_hygiene.py` remains blocked by the pre-existing ignored
+  caches, build output, and egg-info recorded under WP1; they were preserved.
+- No live quote helper, cluster, or scheduler operation was used.
 
 ## WP3: Manifest v3 and startup admission
 

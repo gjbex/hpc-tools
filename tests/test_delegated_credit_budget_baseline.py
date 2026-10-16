@@ -102,7 +102,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
 
         self.assertEqual(self.baseline["submission_operation_columns"], columns)
 
-    def test_quote_evidence_is_currently_opaque_unexpired_and_has_no_cost(self) -> None:
+    def test_quote_evidence_remains_unexpired_and_has_no_typed_cost(self) -> None:
         shape = self._shape()
         evidence = slurm_contracts.submission_evidence(
             "quote",
@@ -121,7 +121,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
 
         self.assertEqual(self.baseline["quote_evidence_fields"], sorted(evidence))
         self.assertEqual("Maximum charge: 2730 credits\n", evidence["stdout"])
-        self.assertFalse(self.baseline["structured_quote_supported"])
+        self.assertTrue(self.baseline["structured_quote_supported"])
         self.assertFalse(self.baseline["quote_expiry_supported"])
         self.assertNotIn("quoted_cost", evidence)
         self.assertNotIn("expires_at", evidence)
