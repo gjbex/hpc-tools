@@ -2,6 +2,7 @@
   "purpose": "Synchronized delegated-credit work-package state; this is a change detector, not a compatibility promise.",
   "current": {
     "array_submission_count_unit": "logical-submission",
+    "audit_report_format_version": 2,
     "credit_budget_manifest_supported": true,
     "controller_generation_bound_to_evidence": true,
     "ledger_schema_version": 4,
@@ -34,6 +35,15 @@
     ],
     "quote_expiry_supported": true,
     "structured_quote_supported": true,
+    "structured_submission_denial_codes": [
+      "quote.format",
+      "quote.expired",
+      "budget.per_job_credit",
+      "budget.total_credits",
+      "budget.submission_count",
+      "budget.active_jobs",
+      "budget.resources"
+    ],
     "submission_operation_columns": [
       "delegation_id",
       "idempotency_key",

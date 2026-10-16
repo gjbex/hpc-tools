@@ -9,7 +9,7 @@ from dataclasses import fields
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from hpc_tools import delegation, slurm_contracts
+from hpc_tools import agent_audit, delegation, slurm_contracts
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.credit_quotes import CreditAmount
 
@@ -82,6 +82,14 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
         self.assertEqual(self.baseline["manifest_version"], delegation.MANIFEST_VERSION)
         self.assertEqual(
             self.baseline["ledger_schema_version"], delegation.LEDGER_SCHEMA_VERSION
+        )
+        self.assertEqual(
+            self.baseline["audit_report_format_version"],
+            agent_audit.REPORT_FORMAT_VERSION,
+        )
+        self.assertEqual(
+            self.baseline["structured_submission_denial_codes"],
+            [code.value for code in delegation.SubmissionDenialCode],
         )
         self.assertEqual(
             self.baseline["profile_quote_fields"],

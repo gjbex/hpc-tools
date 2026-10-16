@@ -719,10 +719,16 @@ class DelegationTests(unittest.TestCase):
                 manifest, idempotency_key="request-1", shape=self._shape()
             )
             self.assertFalse(first["idempotent_replay"])
-            with self.assertRaisesRegex(delegation.DelegationError, "active-job"):
+            with self.assertRaisesRegex(
+                delegation.SubmissionDenied, "active-job"
+            ) as denied:
                 ledger.reserve_submission(
                     manifest, idempotency_key="request-2", shape=self._shape()
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.ACTIVE_JOBS,
+                denied.exception.code,
+            )
             replay = ledger.reserve_submission(
                 manifest, idempotency_key="request-1", shape=self._shape()
             )
@@ -808,22 +814,31 @@ class DelegationTests(unittest.TestCase):
             ledger.register(manifest)
 
             with self.assertRaisesRegex(
-                delegation.DelegationError, "requires a quoted-credit reservation"
-            ):
+                delegation.SubmissionDenied,
+                "requires a quoted-credit reservation",
+            ) as missing:
                 ledger.reserve_submission(
                     manifest,
                     idempotency_key="missing-credit",
                     shape=self._shape(),
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.QUOTE_FORMAT,
+                missing.exception.code,
+            )
             with self.assertRaisesRegex(
-                delegation.DelegationError, "per-job quoted-credit"
-            ):
+                delegation.SubmissionDenied, "per-job quoted-credit"
+            ) as denied:
                 ledger.reserve_submission(
                     manifest,
                     idempotency_key="too-expensive",
                     shape=self._shape(),
                     quoted_credit=self._quoted_credit(3001),
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.PER_JOB_CREDIT,
+                denied.exception.code,
+            )
 
             first_credit = self._quoted_credit(3000)
             first = ledger.reserve_submission(
@@ -882,14 +897,18 @@ class DelegationTests(unittest.TestCase):
                 quoted_credit=self._quoted_credit(2000, token="c" * 64),
             )
             with self.assertRaisesRegex(
-                delegation.DelegationError, "total quoted-credit"
-            ):
+                delegation.SubmissionDenied, "total quoted-credit"
+            ) as denied:
                 ledger.reserve_submission(
                     manifest,
                     idempotency_key="over-total",
                     shape=self._shape(),
                     quoted_credit=self._quoted_credit(1, token="d" * 64),
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.TOTAL_CREDITS,
+                denied.exception.code,
+            )
             ledger.release_reservation(
                 manifest,
                 idempotency_key="request-2",
@@ -901,6 +920,7 @@ class DelegationTests(unittest.TestCase):
                 shape=self._shape(nodes="2"),
                 quoted_credit=self._quoted_credit(2000, token="e" * 64),
             )
+            summary = ledger.summary(manifest)
 
             with closing(sqlite3.connect(ledger_path)) as connection:
                 stored = connection.execute(
@@ -916,6 +936,14 @@ class DelegationTests(unittest.TestCase):
         self.assertEqual("credits", stored[2])
         self.assertEqual("a" * 64, stored[3])
         self.assertEqual("2098-01-01T00:00:00+00:00", stored[4])
+        self.assertEqual(
+            {"value": 5000, "scale": 0, "unit": "credits"},
+            summary["quoted_credit"]["consumed_quoted_maximum"],
+        )
+        self.assertEqual(
+            {"value": 0, "scale": 0, "unit": "credits"},
+            summary["quoted_credit"]["remaining_quoted_maximum"],
+        )
 
     def test_credit_count_budget_remains_independent_of_zero_cost_quotes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -960,14 +988,18 @@ class DelegationTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(
-                delegation.DelegationError, "submission budget"
-            ):
+                delegation.SubmissionDenied, "submission budget"
+            ) as denied:
                 ledger.reserve_submission(
                     manifest,
                     idempotency_key="request-2",
                     shape=self._shape(),
                     quoted_credit=self._quoted_credit(0, token="b" * 64),
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.SUBMISSION_COUNT,
+                denied.exception.code,
+            )
 
     def test_uncertain_credit_remains_consumed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1022,8 +1054,8 @@ class DelegationTests(unittest.TestCase):
             with (
                 mock.patch("hpc_tools.delegation._utc_now", return_value=now),
                 self.assertRaisesRegex(
-                    delegation.DelegationError, "has expired"
-                ),
+                    delegation.SubmissionDenied, "has expired"
+                ) as denied,
             ):
                 ledger.reserve_submission(
                     manifest,
@@ -1034,6 +1066,10 @@ class DelegationTests(unittest.TestCase):
                         expires_at=now,
                     ),
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.QUOTE_EXPIRED,
+                denied.exception.code,
+            )
             with closing(sqlite3.connect(ledger_path)) as connection:
                 operations = connection.execute(
                     "SELECT COUNT(*) FROM submission_operations"
@@ -1101,12 +1137,19 @@ class DelegationTests(unittest.TestCase):
             )
             ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
             ledger.register(manifest)
-            with self.assertRaisesRegex(delegation.DelegationError, "aggregate nodes"):
+            with self.assertRaisesRegex(
+                delegation.SubmissionDenied, "aggregate nodes"
+            ) as denied:
                 ledger.reserve_submission(
                     manifest,
                     idempotency_key="array-1",
                     shape=self._shape(array="0-3"),
                 )
+            self.assertEqual(
+                delegation.SubmissionDenialCode.RESOURCES,
+                denied.exception.code,
+            )
+            self.assertEqual("nodes", denied.exception.resource)
 
     def test_concurrent_first_use_and_reservations_are_serialized(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

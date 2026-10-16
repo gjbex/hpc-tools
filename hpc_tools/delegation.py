@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timezone
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,39 @@ CLEANUP_CANCEL_ATTEMPTS = 3
 
 class DelegationError(ConfigError):
     """Raised when delegation authorization or accounting fails."""
+
+
+class SubmissionDenialCode(StrEnum):
+    """Stable public reasons for rejecting a delegated submission."""
+
+    QUOTE_FORMAT = "quote.format"
+    QUOTE_EXPIRED = "quote.expired"
+    PER_JOB_CREDIT = "budget.per_job_credit"
+    TOTAL_CREDITS = "budget.total_credits"
+    SUBMISSION_COUNT = "budget.submission_count"
+    ACTIVE_JOBS = "budget.active_jobs"
+    RESOURCES = "budget.resources"
+
+
+class SubmissionDenied(DelegationError):
+    """A delegated submission denial safe to summarize to the harness."""
+
+    def __init__(
+        self,
+        code: SubmissionDenialCode,
+        message: str,
+        *,
+        resource: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.resource = resource
+
+    def public_summary(self) -> dict[str, str]:
+        result = {"code": self.code.value, "reason": str(self)}
+        if self.resource is not None:
+            result["resource"] = self.resource
+        return result
 
 
 @dataclass(frozen=True)
@@ -485,8 +519,10 @@ def authorize_shape(manifest: DelegationManifest, shape: dict[str, Any]) -> None
     resources = shape_resources(overrides)
     for key, limit in manifest.per_job_limits.items():
         if resources.get(key, 0) > limit:
-            raise DelegationError(
-                f"requested {key}={resources[key]} exceeds delegation limit {limit}"
+            raise SubmissionDenied(
+                SubmissionDenialCode.RESOURCES,
+                f"requested {key}={resources[key]} exceeds delegation limit {limit}",
+                resource=key,
             )
 
 
@@ -1160,8 +1196,9 @@ class DelegationLedger:
             if credit is not None and _parse_time(
                 str(credit["quote_expires_at"])
             ) <= _utc_now():
-                raise DelegationError(
-                    "quoted-credit reservation has expired; quote and validate again"
+                raise SubmissionDenied(
+                    SubmissionDenialCode.QUOTE_EXPIRED,
+                    "quoted-credit reservation has expired; quote and validate again",
                 )
             used, active, totals, quoted_total = self._usage(
                 db,
@@ -1602,7 +1639,7 @@ class DelegationLedger:
     def summary(self, manifest: DelegationManifest) -> dict[str, Any]:
         with self._connection() as db:
             self._active(db, manifest)
-            used, active, totals, _ = self._usage(db, manifest)
+            used, active, totals, quoted_total = self._usage(db, manifest)
         remaining = {}
         for key, limit in manifest.budget.items():
             consumed = (
@@ -1611,11 +1648,28 @@ class DelegationLedger:
                 else totals.get(key.removeprefix("max_total_"), 0)
             )
             remaining[key] = max(0, limit - consumed)
+        quoted_credit: dict[str, Any] = {"configured": False}
+        if manifest.credit_budget is not None:
+            budget = manifest.credit_budget
+            quoted_credit = {
+                "configured": True,
+                "consumed_quoted_maximum": {
+                    "value": quoted_total,
+                    "scale": budget.scale,
+                    "unit": budget.unit,
+                },
+                "remaining_quoted_maximum": {
+                    "value": max(0, budget.maximum_total - quoted_total),
+                    "scale": budget.scale,
+                    "unit": budget.unit,
+                },
+            }
         return {
             "used_submissions": used,
             "active_jobs": active,
             "requested_resources": totals,
             "remaining": remaining,
+            "quoted_credit": quoted_credit,
         }
 
     def revoke(self, delegation_id: str, *, reason: str) -> None:
@@ -1643,29 +1697,42 @@ class DelegationLedger:
         credit_budget = manifest.credit_budget
         if credit_budget is not None:
             if quoted_cost is None:
-                raise DelegationError(
-                    "delegation requires a quoted-credit reservation"
+                raise SubmissionDenied(
+                    SubmissionDenialCode.QUOTE_FORMAT,
+                    "delegation requires a quoted-credit reservation",
                 )
             if (
                 credit_budget.maximum_per_job is not None
                 and quoted_cost > credit_budget.maximum_per_job
             ):
-                raise DelegationError(
-                    "delegation per-job quoted-credit budget is exceeded"
+                raise SubmissionDenied(
+                    SubmissionDenialCode.PER_JOB_CREDIT,
+                    "delegation per-job quoted-credit budget is exceeded",
                 )
             if quoted_total + quoted_cost > credit_budget.maximum_total:
-                raise DelegationError(
-                    "delegation total quoted-credit budget is exhausted"
+                raise SubmissionDenied(
+                    SubmissionDenialCode.TOTAL_CREDITS,
+                    "delegation total quoted-credit budget is exhausted",
                 )
         if used >= manifest.budget.get("max_submissions", 2**63 - 1):
-            raise DelegationError("delegation submission budget is exhausted")
+            raise SubmissionDenied(
+                SubmissionDenialCode.SUBMISSION_COUNT,
+                "delegation submission budget is exhausted",
+            )
         if active >= manifest.budget.get("max_active_jobs", 2**63 - 1):
-            raise DelegationError("delegation active-job budget is exhausted")
+            raise SubmissionDenied(
+                SubmissionDenialCode.ACTIVE_JOBS,
+                "delegation active-job budget is exhausted",
+            )
         for key, limit in manifest.budget.items():
             if key.startswith("max_total_"):
                 resource = key.removeprefix("max_total_")
                 if totals.get(resource, 0) + requested.get(resource, 0) > limit:
-                    raise DelegationError(f"delegation aggregate {resource} budget is exhausted")
+                    raise SubmissionDenied(
+                        SubmissionDenialCode.RESOURCES,
+                        f"delegation aggregate {resource} budget is exhausted",
+                        resource=resource,
+                    )
 
     def _usage(
         self,
@@ -2170,28 +2237,42 @@ def _reservation_credit(
             )
         return None
     if not isinstance(quoted_credit, QuotedCreditReservation):
-        raise DelegationError("delegation requires a quoted-credit reservation")
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "delegation requires a quoted-credit reservation",
+        )
     try:
         cost = parse_credit_amount(
             quoted_credit.cost.to_dict(),
             label="quoted-credit reservation cost",
         )
     except (AttributeError, CreditQuoteError) as error:
-        raise DelegationError(f"invalid quoted-credit reservation: {error}") from error
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            f"invalid quoted-credit reservation: {error}",
+        ) from error
     if cost.unit != budget.unit:
-        raise DelegationError(
-            "quoted-credit reservation unit does not match the delegation"
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit reservation unit does not match the delegation",
         )
     if cost.scale != budget.scale:
-        raise DelegationError(
-            "quoted-credit reservation scale does not match the delegation"
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit reservation scale does not match the delegation",
         )
     if not isinstance(quoted_credit.evidence_token, str) or not re.fullmatch(
         r"[0-9a-f]{64}", quoted_credit.evidence_token
     ):
-        raise DelegationError("quoted-credit evidence identity is invalid")
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit evidence identity is invalid",
+        )
     if not isinstance(quoted_credit.expires_at, datetime):
-        raise DelegationError("quoted-credit expiry must be a timestamp")
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit expiry must be a timestamp",
+        )
     return {
         "quoted_cost": cost.to_dict(),
         "quote_evidence_token": quoted_credit.evidence_token,

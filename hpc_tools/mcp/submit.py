@@ -91,17 +91,20 @@ def hpc_quote_job(
     if not account_value:
         raise ConfigError("hpc_quote_job requires an account")
     runtime = delegation.current_runtime()
-    prepared = _prepare_request(
-        runtime,
-        resolved=resolved,
-        jobscript=jobscript,
-        directory=directory,
-        container=container,
-        idempotency_key=idempotency_key,
-        normalized=normalized,
-        stage=runtime is not None and not dry_run,
-        temporary=runtime is not None and not dry_run,
-    )
+    try:
+        prepared = _prepare_request(
+            runtime,
+            resolved=resolved,
+            jobscript=jobscript,
+            directory=directory,
+            container=container,
+            idempotency_key=idempotency_key,
+            normalized=normalized,
+            stage=runtime is not None and not dry_run,
+            temporary=runtime is not None and not dry_run,
+        )
+    except delegation.SubmissionDenied as denial:
+        return _submission_denial("quote", denial)
     shape = prepared.shape
     quote_jobscript = (
         str(Path(prepared.directory) / prepared.jobscript)
@@ -114,19 +117,39 @@ def hpc_quote_job(
         result = _remote_read_result(resolved, command, dry_run=dry_run)
     finally:
         prepared.cleanup()
+    budget = _credit_budget(runtime)
     structured_quote = None
     if (
         resolved.sam_quote_format is not None
         and not result["dry_run"]
         and result["returncode"] == 0
     ):
-        structured_quote = credit_quotes.parse_structured_quote(
-            result["stdout"],
-            format_name=resolved.sam_quote_format,
-        )
-    budget = _credit_budget(runtime)
+        try:
+            structured_quote = credit_quotes.parse_structured_quote(
+                result["stdout"],
+                format_name=resolved.sam_quote_format,
+            )
+        except credit_quotes.CreditQuoteError:
+            if budget is not None:
+                return _submission_denial(
+                    "quote",
+                    delegation.SubmissionDenied(
+                        delegation.SubmissionDenialCode.QUOTE_FORMAT,
+                        "the authoritative credit quote has an invalid format",
+                    ),
+                )
+            raise
     if budget is not None and structured_quote is not None:
-        _require_quote_dimensions(structured_quote.maximum_cost, budget)
+        try:
+            _require_quote_dimensions(structured_quote.maximum_cost, budget)
+        except ConfigError:
+            return _submission_denial(
+                "quote",
+                delegation.SubmissionDenied(
+                    delegation.SubmissionDenialCode.QUOTE_FORMAT,
+                    "the authoritative credit quote has incompatible dimensions",
+                ),
+            )
     evidence = _submission_evidence(
         "quote",
         shape,
@@ -144,6 +167,7 @@ def hpc_quote_job(
         now=_utc_now(),
     )
     response = result | {
+        "allowed": True,
         "resource_shape": shape,
         "quote_evidence": evidence,
         "output_directory": prepared.output_directory,
@@ -221,17 +245,20 @@ def hpc_validate_job(
         cpus_per_task=cpus_per_task,
     )
     runtime = delegation.current_runtime()
-    prepared = _prepare_request(
-        runtime,
-        resolved=resolved,
-        jobscript=jobscript,
-        directory=directory,
-        container=container,
-        idempotency_key=idempotency_key,
-        normalized=normalized,
-        stage=runtime is not None and not dry_run,
-        temporary=runtime is not None and not dry_run,
-    )
+    try:
+        prepared = _prepare_request(
+            runtime,
+            resolved=resolved,
+            jobscript=jobscript,
+            directory=directory,
+            container=container,
+            idempotency_key=idempotency_key,
+            normalized=normalized,
+            stage=runtime is not None and not dry_run,
+            temporary=runtime is not None and not dry_run,
+        )
+    except delegation.SubmissionDenied as denial:
+        return _submission_denial("validation", denial)
     shape = prepared.shape
     command = slurm.submit_command(
         prepared.jobscript,
@@ -244,32 +271,46 @@ def hpc_validate_job(
     try:
         if budget is not None:
             if quote_evidence is None:
-                raise ConfigError(
-                    "credit-budget validation requires current quote evidence"
+                return _submission_denial(
+                    "validation",
+                    delegation.SubmissionDenied(
+                        delegation.SubmissionDenialCode.QUOTE_FORMAT,
+                        "credit-budget validation requires current quote evidence",
+                    ),
                 )
-            checked_quote = _require_evidence(
-                "quote",
-                quote_evidence,
-                shape,
-                executor=execution_plan(resolved, command).executor,
-                now=_utc_now(),
-                credit_unit=budget.unit,
-                credit_scale=budget.scale,
-                quote_ttl_seconds=budget.quote_ttl_seconds,
-            )
+            try:
+                checked_quote = _require_evidence(
+                    "quote",
+                    quote_evidence,
+                    shape,
+                    executor=execution_plan(resolved, command).executor,
+                    now=_utc_now(),
+                    credit_unit=budget.unit,
+                    credit_scale=budget.scale,
+                    quote_ttl_seconds=budget.quote_ttl_seconds,
+                )
+            except slurm_contracts.QuoteEvidenceExpiredError:
+                return _quote_evidence_denial("validation", expired=True)
+            except ConfigError:
+                return _quote_evidence_denial("validation", expired=False)
         result = _remote_read_result(resolved, command, dry_run=dry_run)
         issued_at = _utc_now()
         if budget is not None and quote_evidence is not None:
-            checked_quote = _require_evidence(
-                "quote",
-                quote_evidence,
-                shape,
-                executor=execution_plan(resolved, command).executor,
-                now=issued_at,
-                credit_unit=budget.unit,
-                credit_scale=budget.scale,
-                quote_ttl_seconds=budget.quote_ttl_seconds,
-            )
+            try:
+                checked_quote = _require_evidence(
+                    "quote",
+                    quote_evidence,
+                    shape,
+                    executor=execution_plan(resolved, command).executor,
+                    now=issued_at,
+                    credit_unit=budget.unit,
+                    credit_scale=budget.scale,
+                    quote_ttl_seconds=budget.quote_ttl_seconds,
+                )
+            except slurm_contracts.QuoteEvidenceExpiredError:
+                return _quote_evidence_denial("validation", expired=True)
+            except ConfigError:
+                return _quote_evidence_denial("validation", expired=False)
     finally:
         prepared.cleanup()
     evidence = _submission_evidence(
@@ -282,6 +323,7 @@ def hpc_validate_job(
         now=issued_at,
     )
     return result | {
+        "allowed": True,
         "resource_shape": shape,
         "validation_evidence": evidence,
         "output_directory": prepared.output_directory,
@@ -360,17 +402,20 @@ def hpc_submit_job(
         cpus_per_task=cpus_per_task,
     )
     runtime = delegation.current_runtime()
-    prepared = _prepare_request(
-        runtime,
-        resolved=resolved,
-        jobscript=jobscript,
-        directory=directory,
-        container=container,
-        idempotency_key=idempotency_key,
-        normalized=normalized,
-        stage=False,
-        temporary=False,
-    )
+    try:
+        prepared = _prepare_request(
+            runtime,
+            resolved=resolved,
+            jobscript=jobscript,
+            directory=directory,
+            container=container,
+            idempotency_key=idempotency_key,
+            normalized=normalized,
+            stage=False,
+            temporary=False,
+        )
+    except delegation.SubmissionDenied as denial:
+        return _submission_denial("submission", denial)
     shape = prepared.shape
     command = slurm.submit_command(
         prepared.jobscript,
@@ -381,30 +426,40 @@ def hpc_submit_job(
     plan = execution_plan(resolved, command)
     budget = _credit_budget(runtime)
     checked_at = _utc_now()
-    checked_quote = _require_evidence(
-        "quote",
-        quote_evidence,
-        shape,
-        executor=plan.executor,
-        now=checked_at,
-        credit_unit=budget.unit if budget is not None else None,
-        credit_scale=budget.scale if budget is not None else None,
-        quote_ttl_seconds=(
-            budget.quote_ttl_seconds if budget is not None else None
-        ),
-    )
-    _require_evidence(
-        "validation",
-        validation_evidence,
-        shape,
-        executor=plan.executor,
-        now=checked_at,
-        expected_quote_evidence_token=(
-            checked_quote.evidence_token if budget is not None else None
-        ),
-        not_before=(checked_quote.timestamp if budget is not None else None),
-    )
+    try:
+        checked_quote = _require_evidence(
+            "quote",
+            quote_evidence,
+            shape,
+            executor=plan.executor,
+            now=checked_at,
+            credit_unit=budget.unit if budget is not None else None,
+            credit_scale=budget.scale if budget is not None else None,
+            quote_ttl_seconds=(
+                budget.quote_ttl_seconds if budget is not None else None
+            ),
+        )
+        _require_evidence(
+            "validation",
+            validation_evidence,
+            shape,
+            executor=plan.executor,
+            now=checked_at,
+            expected_quote_evidence_token=(
+                checked_quote.evidence_token if budget is not None else None
+            ),
+            not_before=(checked_quote.timestamp if budget is not None else None),
+        )
+    except slurm_contracts.QuoteEvidenceExpiredError:
+        if budget is not None:
+            return _quote_evidence_denial("submission", expired=True)
+        raise
+    except ConfigError:
+        if budget is not None:
+            return _quote_evidence_denial("submission", expired=False)
+        raise
     preview = {
+        "allowed": True,
         "profile": resolved.name,
         "command": command,
         **plan.metadata(),
@@ -431,12 +486,15 @@ def hpc_submit_job(
             )
         quoted_credit = _quoted_credit_reservation(checked_quote, budget)
         ledger = delegation.DelegationLedger(runtime.ledger_path)
-        reservation = ledger.reserve_submission(
-            runtime.manifest,
-            idempotency_key=idempotency_key,
-            shape=shape,
-            quoted_credit=quoted_credit,
-        )
+        try:
+            reservation = ledger.reserve_submission(
+                runtime.manifest,
+                idempotency_key=idempotency_key,
+                shape=shape,
+                quoted_credit=quoted_credit,
+            )
+        except delegation.SubmissionDenied as denial:
+            return _submission_denial("submission", denial)
         if reservation["status"] == "submitted":
             return preview | {
                 "confirm_required": False,
@@ -750,3 +808,29 @@ def _require_quote_dimensions(
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _submission_denial(
+    stage: str,
+    denial: delegation.SubmissionDenied,
+) -> dict[str, Any]:
+    return {
+        "allowed": False,
+        "stage": stage,
+        "denial": denial.public_summary(),
+        "executed": False,
+    }
+
+
+def _quote_evidence_denial(stage: str, *, expired: bool) -> dict[str, Any]:
+    code = (
+        delegation.SubmissionDenialCode.QUOTE_EXPIRED
+        if expired
+        else delegation.SubmissionDenialCode.QUOTE_FORMAT
+    )
+    reason = (
+        "the credit quote has expired; quote and validate again"
+        if expired
+        else "the quote and validation evidence is invalid"
+    )
+    return _submission_denial(stage, delegation.SubmissionDenied(code, reason))

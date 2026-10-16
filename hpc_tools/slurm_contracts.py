@@ -15,6 +15,10 @@ from hpc_tools.credit_quotes import CreditAmount, CreditQuoteError, parse_credit
 _EVIDENCE_SECRET: bytes | None = None
 
 
+class QuoteEvidenceExpiredError(ConfigError):
+    """Raised when otherwise checked quote evidence is no longer current."""
+
+
 @dataclass(frozen=True)
 class SubmitOverrides:
     values: Mapping[str, str | None]
@@ -362,7 +366,9 @@ def validate_evidence(
         if expires_at != expected_expiry:
             raise ConfigError("quote evidence expiry does not match the configured TTL")
         if checked_at >= expires_at:
-            raise ConfigError("quote evidence has expired; quote and validate again")
+            raise QuoteEvidenceExpiredError(
+                "quote evidence has expired; quote and validate again"
+            )
     elif "quoted_cost" in evidence or "expires_at" in evidence:
         raise ConfigError("unexpected credit fields in non-credit evidence")
 

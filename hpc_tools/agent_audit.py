@@ -15,7 +15,7 @@ from urllib.parse import quote
 from hpc_tools import delegation, submissions
 from hpc_tools.config import ConfigError
 
-REPORT_FORMAT_VERSION = 1
+REPORT_FORMAT_VERSION = 2
 
 
 def build_report(
@@ -109,13 +109,30 @@ def format_report(report: dict[str, Any]) -> str:
             lines.append("    -")
         lines.append("  submissions:")
         for operation in item["submission_operations"]:
+            quoted = operation["quote"]
+            quoted_text = (
+                _format_credit(quoted["quoted_maximum"])
+                if quoted is not None
+                else "-"
+            )
             lines.append(
                 f"    key={operation['idempotency_key']} status={operation['status']} "
                 f"job={operation['job_id'] or '-'} cluster={operation['cluster'] or '-'} "
+                f"quoted_maximum={quoted_text} "
                 f"output={operation['output_directory'] or '-'}"
             )
         if not item["submission_operations"]:
             lines.append("    -")
+        quote_summary = item["quoted_credit"]
+        if quote_summary["configured"]:
+            lines.append(
+                "  consumed_quoted_maximum: "
+                + _format_credit(quote_summary["consumed_quoted_maximum"])
+            )
+            lines.append(
+                "  remaining_quoted_maximum: "
+                + _format_credit(quote_summary["remaining_quoted_maximum"])
+            )
         lines.append(f"  audit_events: {len(item['audit_events'])}")
     return "\n".join(lines)
 
@@ -238,7 +255,9 @@ def _delegation_report(
     submission_operations = []
     for operation in database.execute(
         """SELECT idempotency_key,request_sha256,status,resource_json,job_id,
-                  cluster,error,created_at,updated_at
+                  cluster,error,quoted_cost_value,quoted_cost_scale,
+                  quoted_cost_unit,quote_evidence_token,quote_expires_at,
+                  created_at,updated_at
            FROM submission_operations WHERE delegation_id=? ORDER BY created_at""",
         (identifier,),
     ):
@@ -260,6 +279,7 @@ def _delegation_report(
                 "job_id": operation["job_id"],
                 "cluster": operation["cluster"],
                 "error": operation["error"],
+                "quote": _operation_quote(operation),
                 "created_at": operation["created_at"],
                 "updated_at": operation["updated_at"],
                 "output_directory": output_directory,
@@ -300,6 +320,7 @@ def _delegation_report(
         (identifier,),
     ).fetchone()
     cleanup = dict(cleanup_row) if cleanup_row else None
+    manifest = _decode_json(row["manifest_json"])
     return {
         "delegation_id": identifier,
         "manifest_sha256": row["manifest_sha256"],
@@ -308,16 +329,76 @@ def _delegation_report(
         "parent_job_id": row["parent_job_id"],
         "issued_at": row["issued_at"],
         "expires_at": row["expires_at"],
-        "manifest": _decode_json(row["manifest_json"]),
+        "manifest": manifest,
         "revoked_at": row["revoked_at"],
         "revocation_reason": row["revocation_reason"],
         "controller_attempts": controller_attempts,
         "cleanup": cleanup,
         "submission_operations": submission_operations,
+        "quoted_credit": _quoted_credit_summary(manifest, submission_operations),
         "job_ownership": ownership,
         "lifecycle_operations": lifecycle_operations,
         "audit_events": audit_events,
     }
+
+
+def _operation_quote(operation: sqlite3.Row) -> dict[str, Any] | None:
+    value = operation["quoted_cost_value"]
+    if value is None:
+        return None
+    return {
+        "quoted_maximum": {
+            "value": value,
+            "scale": operation["quoted_cost_scale"],
+            "unit": operation["quoted_cost_unit"],
+        },
+        "evidence_token": operation["quote_evidence_token"],
+        "expires_at": operation["quote_expires_at"],
+    }
+
+
+def _quoted_credit_summary(
+    manifest: Any,
+    operations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not isinstance(manifest, dict):
+        return {"configured": False}
+    budget = manifest.get("credit_budget")
+    if not isinstance(budget, dict) or budget.get("configured") is False:
+        return {"configured": False}
+    unit = budget.get("unit")
+    scale = budget.get("scale")
+    maximum_total = budget.get("maximum_total")
+    if (
+        not isinstance(unit, str)
+        or type(scale) is not int
+        or type(maximum_total) is not int
+    ):
+        raise ConfigError("delegation manifest contains malformed credit_budget")
+    consumed = sum(
+        operation["quote"]["quoted_maximum"]["value"]
+        for operation in operations
+        if operation["quote"] is not None and operation["status"] != "failed"
+    )
+    released = sum(
+        operation["quote"]["quoted_maximum"]["value"]
+        for operation in operations
+        if operation["quote"] is not None and operation["status"] == "failed"
+    )
+
+    def amount(value: int) -> dict[str, int | str]:
+        return {"value": value, "scale": scale, "unit": unit}
+
+    return {
+        "configured": True,
+        "consumed_quoted_maximum": amount(consumed),
+        "released_quoted_maximum": amount(released),
+        "remaining_quoted_maximum": amount(max(0, maximum_total - consumed)),
+    }
+
+
+def _format_credit(amount: dict[str, Any]) -> str:
+    return f"{amount['value']}e-{amount['scale']} {amount['unit']}"
 
 
 def _submission_events_by_job(

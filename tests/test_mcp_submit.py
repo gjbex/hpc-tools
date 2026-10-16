@@ -512,6 +512,22 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "nodes": "1",
             }
             with delegation.delegation_scope(runtime):
+                malformed_quote_result = mock.Mock(
+                    returncode=0,
+                    stdout="not structured JSON\n",
+                    stderr="private helper diagnostic\n",
+                )
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=malformed_quote_result,
+                ):
+                    malformed = mcp_server.hpc_quote_job(**arguments)
+                self.assertFalse(malformed["allowed"])
+                self.assertEqual("quote", malformed["stage"])
+                self.assertEqual("quote.format", malformed["denial"]["code"])
+                self.assertNotIn("private helper diagnostic", str(malformed))
+                self.assertNotIn(str(runtime.ledger_path), str(malformed))
+
                 with mock.patch(
                     "hpc_tools.mcp.common.run_command_capture",
                     side_effect=[quote_result, validation_result],
@@ -534,9 +550,8 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     mock.patch(
                         "hpc_tools.mcp.submit.run_command_capture"
                     ) as expired_submit,
-                    self.assertRaisesRegex(ValueError, "has expired"),
                 ):
-                    mcp_server.hpc_submit_job(
+                    expired = mcp_server.hpc_submit_job(
                         **(
                             arguments
                             | {
@@ -548,8 +563,54 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                             }
                         )
                     )
+                self.assertFalse(expired["allowed"])
+                self.assertEqual("submission", expired["stage"])
+                self.assertEqual("quote.expired", expired["denial"]["code"])
+                self.assertNotIn(str(runtime.ledger_path), str(expired))
+                self.assertNotIn("sbatch", str(expired))
                 expired_ledger.assert_not_called()
                 expired_submit.assert_not_called()
+                for code in (
+                    delegation.SubmissionDenialCode.PER_JOB_CREDIT,
+                    delegation.SubmissionDenialCode.TOTAL_CREDITS,
+                    delegation.SubmissionDenialCode.SUBMISSION_COUNT,
+                    delegation.SubmissionDenialCode.ACTIVE_JOBS,
+                    delegation.SubmissionDenialCode.RESOURCES,
+                ):
+                    with self.subTest(denial_code=code.value), mock.patch(
+                        "hpc_tools.mcp.submit.delegation.DelegationLedger"
+                    ) as denied_ledger, mock.patch(
+                        "hpc_tools.mcp.submit.run_command_capture"
+                    ) as denied_submit:
+                        denied_ledger.return_value.reserve_submission.side_effect = (
+                            delegation.SubmissionDenied(
+                                code,
+                                "submission denied by the delegated budget",
+                                resource=(
+                                    "nodes"
+                                    if code
+                                    is delegation.SubmissionDenialCode.RESOURCES
+                                    else None
+                                ),
+                            )
+                        )
+                        denied = mcp_server.hpc_submit_job(
+                            **(
+                                arguments
+                                | {
+                                    "quote_evidence": quote["quote_evidence"],
+                                    "validation_evidence": validation[
+                                        "validation_evidence"
+                                    ],
+                                    "dry_run": False,
+                                }
+                            )
+                        )
+                    self.assertFalse(denied["allowed"])
+                    self.assertEqual(code.value, denied["denial"]["code"])
+                    self.assertNotIn(str(runtime.ledger_path), str(denied))
+                    self.assertNotIn("sbatch", str(denied))
+                    denied_submit.assert_not_called()
                 with mock.patch(
                     "hpc_tools.mcp.submit.run_command_capture",
                     return_value=submission_result,
@@ -602,6 +663,45 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                             }
                         )
                     )
+
+                exhausted_arguments = arguments | {"idempotency_key": "request-3"}
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    side_effect=[quote_result, validation_result],
+                ):
+                    exhausted_quote = mcp_server.hpc_quote_job(
+                        **exhausted_arguments
+                    )
+                    exhausted_validation = mcp_server.hpc_validate_job(
+                        **(
+                            exhausted_arguments
+                            | {
+                                "quote_evidence": exhausted_quote[
+                                    "quote_evidence"
+                                ]
+                            }
+                        )
+                    )
+                with mock.patch(
+                    "hpc_tools.mcp.submit.run_command_capture"
+                ) as exhausted_submit:
+                    exhausted = mcp_server.hpc_submit_job(
+                        **(
+                            exhausted_arguments
+                            | {
+                                "quote_evidence": exhausted_quote["quote_evidence"],
+                                "validation_evidence": exhausted_validation[
+                                    "validation_evidence"
+                                ],
+                                "dry_run": False,
+                            }
+                        )
+                    )
+                self.assertFalse(exhausted["allowed"])
+                self.assertEqual(
+                    "budget.submission_count", exhausted["denial"]["code"]
+                )
+                exhausted_submit.assert_not_called()
 
             self.assertTrue(result["ledger_recorded"])
             self.assertEqual(

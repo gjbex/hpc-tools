@@ -1,6 +1,6 @@
 # Delegated MCP credit-budget implementation plan
 
-Status: WP1--WP3 implemented on 2026-10-16; WP4--WP8 are proposed and not yet
+Status: WP1--WP6 implemented on 2026-10-16; WP7--WP8 are proposed and not yet
 implemented.
 
 This plan adds server-owned quoted-credit enforcement to the restricted
@@ -225,9 +225,12 @@ WP3 bumps the manifest to version 3, accepts the optional strict
 `[credit_budget]` contract, rejects version 2 without migration, and requires a
 compatible quote command and format before a credit-bearing controller starts.
 The protected controller-authority record captures the policy, configuration
-digest, and quote-format identifier. Ledger, expiry, and
-controller-generation evidence behavior remain at the WP1 baseline until
-their owning packages.
+digest, quote-format identifier, and credit policy. WP4 binds typed cost,
+expiry, quote identity, exact shape, and controller generation into signed
+evidence. WP5 persists that authority and enforces every configured budget in
+one reservation transaction. WP6 exposes only stable denial reasons and
+read-only quoted-maximum summaries to the harness, while adding detailed quote
+data to the operator-only audit export.
 
 The synchronized work-package fixture is
 `tests/fixtures/delegated_credit_budget_baseline.json`; its regression tests are
@@ -370,6 +373,8 @@ Validation record:
 
 ## WP4: Cost-bearing and expiring evidence
 
+Status: implemented on 2026-10-16.
+
 Extend quote evidence with typed cost, server timestamps, expiry, quote identity,
 and validation-chain binding. Retain `controller_generation` in canonical shape
 normalization. Use an injectable clock and require
@@ -414,6 +419,8 @@ Validation record:
   remains owned by WP5.
 
 ## WP5: Ledger schema and atomic credit reservation
+
+Status: implemented on 2026-10-16.
 
 Bump the ledger schema without silently migrating protected ledgers. Store
 fixed-point quote cost, evidence identity, expiry, and reservation state with
@@ -471,6 +478,8 @@ Validation record:
 
 ## WP6: MCP, runtime, launcher, and audit integration
 
+Status: implemented on 2026-10-16.
+
 Preserve the seven-tool `slurm-job` surface and the ordered quote -> validate ->
 submit chain. Return structured denials distinguishing format, expiry, per-job
 cost, total credits, submission count, active jobs, and resources without
@@ -481,6 +490,43 @@ scope.
 
 Exit criteria: the harness can make deterministic stopping decisions from
 read-only public state, while only the host process can mutate authority.
+
+Implementation artifacts:
+
+- `hpc_tools/delegation.py` defines stable public denial codes for quote
+  format, quote expiry, per-job credits, total credits, logical submission
+  count, active jobs, and requested resources. The typed exception retains the
+  existing internal error text while exposing only a safe public summary;
+- `hpc_tools/mcp/submit.py` returns those structured denials at the quote,
+  validation, or submission stage with `allowed = false` and no command,
+  protected path, or job-submission effect. Successful quote, validation,
+  preview, and submission responses carry `allowed = true`;
+- `DelegationLedger.summary()` adds consumed and remaining fixed-point quoted
+  maxima. `hpc://runtime` exposes that read-only summary through the existing
+  resource and introduces no tool or authority mutation;
+- `hpc_tools/agent_audit.py` advances the operator report to format version 2,
+  exports each operation's quoted maximum, evidence identity, and expiry, and
+  aggregates consumed, released, and remaining quoted maxima. Human output
+  labels the values as quoted maxima, never balance or actual charge; and
+- the synchronized delegated-credit fixture records the stable denial-code and
+  audit-format contracts. Focused tests cover every public denial code, safe
+  denial serialization, runtime summaries, read-only audit behavior, and
+  resource-only compatibility while retaining the seven-tool `slurm-job`
+  surface and ordered evidence chain.
+
+Validation record:
+
+- The complete locked suite passes 474 tests outside the restricted command
+  sandbox. The in-sandbox run reached the same suite and was denied only the
+  loopback HTTP and Unix-socket binds used by two acceptance cases.
+- Locked dependency checking and synchronization, plugin and skill validation,
+  Python compilation, focused tests, strict MkDocs construction, and
+  `git diff --check` pass.
+- `tools/check_repo_hygiene.py` remains blocked by the pre-existing ignored
+  caches, build output, and egg-info already recorded by earlier work packages;
+  those unrelated generated artifacts were preserved.
+- No live quote helper, cluster, scheduler submission, or site-accounting
+  service was used. Actual balance and actual charge remain out of scope.
 
 ## WP7: Documentation, examples, image skill, and packaging
 

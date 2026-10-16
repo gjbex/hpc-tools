@@ -707,8 +707,23 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                         roots = ["/work/delegate-1"]
                         [budget]
                         max_submissions = 2
+
+                        [credit_budget]
+                        unit = "credits"
+                        scale = 0
+                        maximum_total = 10000
+                        maximum_per_job = 5000
+                        quote_ttl_seconds = 300
                         """
                     ).strip() + "\n",
+                    encoding="utf-8",
+                )
+                config_path.write_text(
+                    config_path.read_text(encoding="utf-8").replace(
+                        'sam_quote_command = "sam-quote"',
+                        'sam_quote_command = "sam-quote"\n'
+                        'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                    ),
                     encoding="utf-8",
                 )
                 environment = {
@@ -731,6 +746,18 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     self.assertEqual(
                         2,
                         data["delegation"]["usage"]["remaining"]["max_submissions"],
+                    )
+                    self.assertEqual(
+                        {"value": 0, "scale": 0, "unit": "credits"},
+                        data["delegation"]["usage"]["quoted_credit"][
+                            "consumed_quoted_maximum"
+                        ],
+                    )
+                    self.assertEqual(
+                        {"value": 10000, "scale": 0, "unit": "credits"},
+                        data["delegation"]["usage"]["quoted_credit"][
+                            "remaining_quoted_maximum"
+                        ],
                     )
 
                 with mock.patch.dict(
