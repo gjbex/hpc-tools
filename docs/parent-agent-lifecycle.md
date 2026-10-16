@@ -45,7 +45,7 @@ observe, reconcile, and cancel surviving jobs.
 
 ## Manifest policy
 
-Manifest format version 2 accepts this optional policy table and uses these
+Manifest format version 3 accepts this optional policy table and uses these
 values as its defaults:
 
 ```toml
@@ -219,7 +219,7 @@ separately from the delegation's compute-job budget.
 
 ## Ledger implementation
 
-Manifest format version 2 and ledger schema version 3 provide:
+Manifest format version 3 and ledger schema version 3 provide:
 
 - lifecycle policy in `DelegationManifest` and its public runtime summary;
 - a `controller_attempts` table containing generation, parent job ID, state,

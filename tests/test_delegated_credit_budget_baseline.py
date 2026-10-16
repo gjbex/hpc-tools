@@ -27,7 +27,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 """
-                format_version = 2
+                format_version = 3
                 id = "credit-baseline"
                 issuer = "operator"
                 profile = "genius"
@@ -126,7 +126,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
         self.assertNotIn("quoted_cost", evidence)
         self.assertNotIn("expires_at", evidence)
 
-    def test_manifest_v2_rejects_credit_budget_as_an_unknown_authority(self) -> None:
+    def test_manifest_v3_accepts_the_frozen_credit_budget_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             path = self._write_manifest(root)
@@ -140,10 +140,11 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(delegation.DelegationError, "credit_budget"):
-                delegation.load_manifest(path, expected_profile="genius")
+            manifest = delegation.load_manifest(path, expected_profile="genius")
 
-        self.assertFalse(self.baseline["credit_budget_manifest_supported"])
+        self.assertTrue(self.baseline["credit_budget_manifest_supported"])
+        self.assertEqual(20000, manifest.credit_budget.maximum_total)
+        self.assertEqual(300, manifest.credit_budget.quote_ttl_seconds)
 
     def test_submission_count_is_per_logical_job_and_released_failure_is_refunded(
         self,

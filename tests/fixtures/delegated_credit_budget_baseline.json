@@ -2,10 +2,10 @@
   "purpose": "Synchronized delegated-credit work-package state; this is a change detector, not a compatibility promise.",
   "current": {
     "array_submission_count_unit": "logical-submission",
-    "credit_budget_manifest_supported": false,
+    "credit_budget_manifest_supported": true,
     "controller_generation_bound_to_evidence": false,
     "ledger_schema_version": 3,
-    "manifest_version": 2,
+    "manifest_version": 3,
     "profile_quote_fields": [
       "sam_quote_command",
       "sam_quote_format"

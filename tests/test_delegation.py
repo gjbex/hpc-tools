@@ -17,6 +17,7 @@ from hpc_tools.capabilities import (
     CapabilityPolicy,
     RemoteRootGrants,
 )
+from hpc_tools.credit_quotes import STRUCTURED_QUOTE_FORMAT_V1
 
 
 class DelegationTests(unittest.TestCase):
@@ -44,7 +45,7 @@ class DelegationTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 2
+                format_version = 3
                 id = "{values['id']}"
                 issuer = "operator@example.org"
                 profile = "{values['profile']}"
@@ -96,6 +97,23 @@ class DelegationTests(unittest.TestCase):
             "shape_token": "test-token",
         }
 
+    @staticmethod
+    def _add_credit_budget(path: Path, table: str | None = None) -> None:
+        content = table or """
+            [credit_budget]
+            unit = "credits"
+            scale = 0
+            maximum_total = 20000
+            maximum_per_job = 5000
+            quote_ttl_seconds = 300
+        """
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + textwrap.dedent(content).strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
     def test_manifest_binds_profile_parent_expiry_and_permissions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -116,6 +134,223 @@ class DelegationTests(unittest.TestCase):
             path.chmod(0o666)
             with self.assertRaisesRegex(delegation.DelegationError, "writable"):
                 delegation.load_manifest(path, expected_profile="genius")
+
+    def test_manifest_v3_parses_optional_fixed_point_credit_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            without_credit = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            self.assertIsNone(without_credit.credit_budget)
+            self.assertEqual(
+                {"configured": False},
+                without_credit.public_summary()["credit_budget"],
+            )
+
+            path = self._manifest(root)
+            self._add_credit_budget(path)
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+
+        self.assertEqual(
+            {
+                "unit": "credits",
+                "scale": 0,
+                "maximum_total": 20000,
+                "maximum_per_job": 5000,
+                "quote_ttl_seconds": 300,
+            },
+            manifest.credit_budget.public_summary(),
+        )
+
+    def test_credit_budget_inclusive_numeric_boundaries_are_valid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory))
+            self._add_credit_budget(
+                path,
+                """
+                [credit_budget]
+                unit = "credit.minor"
+                scale = 9
+                maximum_total = 9223372036854775807
+                maximum_per_job = 9223372036854775807
+                quote_ttl_seconds = 86400
+                """,
+            )
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+
+        self.assertEqual(9, manifest.credit_budget.scale)
+        self.assertEqual(2**63 - 1, manifest.credit_budget.maximum_total)
+        self.assertEqual(86400, manifest.credit_budget.quote_ttl_seconds)
+
+    def test_credit_budget_rejects_invalid_or_inconsistent_policy(self) -> None:
+        cases = {
+            "missing field": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 20000
+                """,
+                "missing field.*quote_ttl_seconds",
+            ),
+            "unknown field": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 20000
+                quote_ttl_seconds = 300
+                reset_seconds = 60
+                """,
+                "unsupported credit_budget.*reset_seconds",
+            ),
+            "boolean total": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = true
+                quote_ttl_seconds = 300
+                """,
+                "maximum_total must be an integer",
+            ),
+            "invalid unit": (
+                """
+                [credit_budget]
+                unit = "Credits"
+                scale = 0
+                maximum_total = 20000
+                quote_ttl_seconds = 300
+                """,
+                "normalized lowercase ASCII",
+            ),
+            "scale overflow": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 10
+                maximum_total = 20000
+                quote_ttl_seconds = 300
+                """,
+                "credit_budget.scale",
+            ),
+            "zero total": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 0
+                quote_ttl_seconds = 300
+                """,
+                "credit_budget.maximum_total",
+            ),
+            "total overflow": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 9223372036854775808
+                quote_ttl_seconds = 300
+                """,
+                "credit_budget.maximum_total",
+            ),
+            "per job exceeds total": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 100
+                maximum_per_job = 101
+                quote_ttl_seconds = 300
+                """,
+                "maximum_per_job must not exceed maximum_total",
+            ),
+            "ttl overflow": (
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 20000
+                quote_ttl_seconds = 86401
+                """,
+                "credit_budget.quote_ttl_seconds",
+            ),
+        }
+        for name, (table, message) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = self._manifest(Path(directory))
+                self._add_credit_budget(path, table)
+                with self.assertRaisesRegex(delegation.DelegationError, message):
+                    delegation.load_manifest(path, expected_profile="genius")
+
+    def test_manifest_v2_is_rejected_without_implicit_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._manifest(Path(directory))
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    "format_version = 3", "format_version = 2"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "version 2.*expected 3"
+            ):
+                delegation.load_manifest(path, expected_profile="genius")
+
+    def test_credit_controller_startup_requires_and_captures_quote_contract(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = self._manifest(root)
+            self._add_credit_budget(manifest_path)
+            config_path = root / "config.toml"
+            config_path.write_text("# credit fixture\n", encoding="utf-8")
+            ledger_path = root / "ledger.sqlite3"
+            arguments = {
+                "manifest_path": manifest_path,
+                "profile": "genius",
+                "ledger_path": ledger_path,
+                "parent_job_id": "9001",
+                "profile_policy": self._capability_policy(
+                    CapabilityLevel.JOB_LIFECYCLE
+                ),
+                "config_path": config_path,
+                "config_sha256": "a" * 64,
+            }
+
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "requires profile sam_quote_command"
+            ):
+                delegation.load_runtime(**arguments)
+            self.assertFalse(ledger_path.exists())
+
+            arguments["sam_quote_command"] = "site-quote"
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "requires profile sam_quote_format"
+            ):
+                delegation.load_runtime(**arguments)
+            self.assertFalse(ledger_path.exists())
+
+            arguments["sam_quote_format"] = STRUCTURED_QUOTE_FORMAT_V1
+            runtime = delegation.load_runtime(**arguments)
+
+        self.assertEqual(
+            runtime.manifest.credit_budget,
+            runtime.controller_authority.credit_budget,
+        )
+        self.assertEqual(
+            STRUCTURED_QUOTE_FORMAT_V1,
+            runtime.controller_authority.quote_format,
+        )
+        self.assertEqual("a" * 64, runtime.controller_authority.config_sha256)
+        authority_summary = runtime.controller_authority.public_summary()
+        self.assertNotIn("config_path", authority_summary)
+        self.assertNotIn("sam_quote_command", authority_summary)
+        self.assertEqual(
+            20000,
+            authority_summary["credit_budget"]["maximum_total"],
+        )
 
     def test_controller_start_requires_job_lifecycle_capability(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

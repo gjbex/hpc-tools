@@ -25,7 +25,7 @@ from hpc_tools.capabilities import (
     RemoteRootGrants,
 )
 from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
-from hpc_tools.config import Profile
+from hpc_tools.config import ConfigError, Profile
 from hpc_tools.mcp import server as mcp_registry
 
 
@@ -52,7 +52,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
         manifest_path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 2
+                format_version = 3
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "cluster"
@@ -521,6 +521,43 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertIn("--containall", rendered)
             self.assertNotIn(str(paths["state"]), rendered)
             self.assertNotIn(str(runtime.ledger_path), rendered)
+
+    def test_launcher_rejects_credit_budget_before_preparing_container(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, paths = self._fixture(root)
+            paths["manifest"].write_text(
+                paths["manifest"].read_text(encoding="utf-8")
+                + textwrap.dedent(
+                    """
+                    [credit_budget]
+                    unit = "credits"
+                    scale = 0
+                    maximum_total = 20000
+                    quote_ttl_seconds = 300
+                    """
+                ),
+                encoding="utf-8",
+            )
+            with (
+                mock.patch.dict(os.environ, {"SLURM_JOB_ID": "9001"}, clear=True),
+                mock.patch(
+                    "hpc_tools.restricted_launch._prepare_policy_paths"
+                ) as prepare_paths,
+                self.assertRaisesRegex(ConfigError, "sam_quote_format"),
+            ):
+                restricted_launch.launch(
+                    manifest_path=paths["manifest"],
+                    ledger_path=runtime.ledger_path,
+                    profile="cluster",
+                    agent_image=paths["container"],
+                    agent_command=["agent", "--batch"],
+                    runtime_base=root / "runtime",
+                    config_path=paths["config"],
+                    dry_run=True,
+                )
+
+            prepare_paths.assert_not_called()
 
     def test_launcher_registers_one_host_cleanup_job(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

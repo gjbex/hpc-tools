@@ -1,6 +1,6 @@
 # Delegated MCP credit-budget implementation plan
 
-Status: WP1--WP2 implemented on 2026-10-16; WP3--WP8 are proposed and not yet
+Status: WP1--WP3 implemented on 2026-10-16; WP4--WP8 are proposed and not yet
 implemented.
 
 This plan adds server-owned quoted-credit enforcement to the restricted
@@ -220,8 +220,14 @@ WP1 characterized the following state before credit implementation:
 WP2 adds the strict format selector and pure structured parser. A successful
 real `hpc_quote_job` now returns `structured_quote` when the selector is set;
 that convenience field is not yet signed evidence or submission authority.
-Manifest, ledger, expiry, and controller-generation behavior remain at the WP1
-baseline until their owning packages.
+
+WP3 bumps the manifest to version 3, accepts the optional strict
+`[credit_budget]` contract, rejects version 2 without migration, and requires a
+compatible quote command and format before a credit-bearing controller starts.
+The protected controller-authority record captures the policy, configuration
+digest, and quote-format identifier. Ledger, expiry, and
+controller-generation evidence behavior remain at the WP1 baseline until
+their owning packages.
 
 The synchronized work-package fixture is
 `tests/fixtures/delegated_credit_budget_baseline.json`; its regression tests are
@@ -325,6 +331,8 @@ Validation record:
 
 ## WP3: Manifest v3 and startup admission
 
+Status: implemented on 2026-10-16.
+
 Parse `[credit_budget]` with the frozen bounds and reject unknown or
 inconsistent fields. At restricted-server startup, require a compatible quote
 command and format when credit policy is present. Capture the credit policy,
@@ -334,6 +342,31 @@ credit accounting.
 
 Exit criteria: incompatible setups fail before the harness or any scheduler
 effect starts, without widening tools, mounts, or capabilities.
+
+Implementation artifacts:
+
+- `hpc_tools/delegation.py` defines the immutable credit policy, strict bounds,
+  manifest-v3 parsing, compatibility admission, and protected authority fields;
+- `hpc_tools/restricted_launch.py` and `hpc_tools/mcp/server.py` pass the bound
+  profile quote contract into admission before controller startup;
+- all active delegation fixtures now use version 3, while a regression test
+  proves version 2 fails without implicit migration;
+- focused manifest, startup, authority, and restricted-launch tests cover
+  absent and valid policy, missing quote configuration, unknown and missing
+  fields, Boolean/range/overflow errors, unit normalization, and inconsistent
+  per-job totals.
+
+Validation record:
+
+- The complete supported suite passes 465 tests. Its loopback and Unix-socket
+  cases were rerun outside the restricted command sandbox after the sandbox
+  denied local socket creation; the unrestricted locked run passed.
+- Locked dependency checking and synchronization, plugin and skill validation,
+  Python compilation, focused Ruff checks, and strict MkDocs construction pass.
+- `tools/check_repo_hygiene.py` remains blocked by the pre-existing ignored
+  caches, build output, and egg-info recorded under WP1; they were preserved.
+- No live quote helper, cluster, scheduler operation, ledger credit
+  reservation, or submission-evidence change was used or introduced.
 
 ## WP4: Cost-bearing and expiring evidence
 

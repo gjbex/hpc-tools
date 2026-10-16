@@ -424,7 +424,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             manifest_path.write_text(
                 textwrap.dedent(
                     f"""
-                    format_version = 2
+                    format_version = 3
                     id = "delegate-1"
                     issuer = "operator"
                     profile = "genius"

@@ -10,7 +10,7 @@ SUPPORTED_STRUCTURED_QUOTE_FORMATS = frozenset({STRUCTURED_QUOTE_FORMAT_V1})
 MAX_STRUCTURED_QUOTE_BYTES = 4096
 MAX_CREDIT_VALUE = 2**63 - 1
 MAX_CREDIT_SCALE = 9
-_UNIT_PATTERN = re.compile(r"[a-z][a-z0-9._-]{0,31}")
+CREDIT_UNIT_PATTERN = re.compile(r"[a-z][a-z0-9._-]{0,31}")
 
 
 class CreditQuoteError(ValueError):
@@ -92,7 +92,7 @@ def parse_structured_quote(
             f"maximum_cost.scale must be between 0 and {MAX_CREDIT_SCALE}"
         )
     unit = cost["unit"]
-    if not isinstance(unit, str) or not _UNIT_PATTERN.fullmatch(unit):
+    if not isinstance(unit, str) or not CREDIT_UNIT_PATTERN.fullmatch(unit):
         raise CreditQuoteError(
             "maximum_cost.unit must be a normalized lowercase ASCII identifier"
         )

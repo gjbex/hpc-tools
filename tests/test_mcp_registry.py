@@ -567,6 +567,57 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 )
 
     @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_slurm_job_credit_start_requires_structured_quote_config(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            manifest_path = self._write_delegation_manifest(root)
+            manifest_path.write_text(
+                manifest_path.read_text(encoding="utf-8")
+                + textwrap.dedent(
+                    """
+                    [credit_budget]
+                    unit = "credits"
+                    scale = 0
+                    maximum_total = 20000
+                    quote_ttl_seconds = 300
+                    """
+                ),
+                encoding="utf-8",
+            )
+            ledger_path = root / "ledger.sqlite3"
+            arguments = {
+                "preset": "slurm-job",
+                "profile": "genius",
+                "delegation_manifest": str(manifest_path),
+                "ledger": str(ledger_path),
+                "config": str(config_path),
+            }
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_PARENT_JOB_ID": "9001"},
+                clear=False,
+            ):
+                with self.assertRaisesRegex(
+                    mcp_server.ConfigError, "sam_quote_format"
+                ):
+                    mcp_server.create_server(**arguments)
+                self.assertFalse(ledger_path.exists())
+
+                config_path.write_text(
+                    config_path.read_text(encoding="utf-8").replace(
+                        'sam_quote_command = "sam-quote"',
+                        'sam_quote_command = "sam-quote"\n'
+                        'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                    ),
+                    encoding="utf-8",
+                )
+                server = mcp_server.create_server(**arguments)
+
+            self.assertIsNotNone(server)
+            self.assertTrue(ledger_path.exists())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
     def test_restarted_slurm_job_server_intersects_current_and_captured_policy(self) -> None:
         async def exercise_server() -> None:
             with tempfile.TemporaryDirectory() as directory:
@@ -637,7 +688,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 manifest_path.write_text(
                     textwrap.dedent(
                         """
-                        format_version = 2
+                        format_version = 3
                         id = "delegate-1"
                         issuer = "operator"
                         profile = "genius"

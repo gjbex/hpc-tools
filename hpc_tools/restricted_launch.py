@@ -121,6 +121,11 @@ def launch(
         load_config(str(selected_config_path)),
         profile,
     )
+    delegation.require_credit_configuration(
+        manifest,
+        sam_quote_command=selected_profile.sam_quote_command,
+        sam_quote_format=selected_profile.sam_quote_format,
+    )
     config_sha256 = hashlib.sha256(selected_config_path.read_bytes()).hexdigest()
     ledger_path = _absolute_literal(ledger_path, "ledger")
     ledger = delegation.DelegationLedger(ledger_path)
@@ -139,6 +144,7 @@ def launch(
                 policy=selected_profile.capabilities,
                 config_path=selected_config_path,
                 config_sha256=config_sha256,
+                quote_format=selected_profile.sam_quote_format,
             )
         delegation.require_controller_authority(
             authority.policy,

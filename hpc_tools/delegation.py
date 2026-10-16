@@ -27,8 +27,14 @@ from hpc_tools.capabilities import (
     parse_capability_policy,
 )
 from hpc_tools.config import ConfigError, default_config_dir
+from hpc_tools.credit_quotes import (
+    CREDIT_UNIT_PATTERN,
+    MAX_CREDIT_SCALE,
+    MAX_CREDIT_VALUE,
+    STRUCTURED_QUOTE_FORMAT_V1,
+)
 
-MANIFEST_VERSION = 2
+MANIFEST_VERSION = 3
 LEDGER_SCHEMA_VERSION = 3
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
@@ -89,6 +95,26 @@ class LifecyclePolicy:
 
 
 @dataclass(frozen=True)
+class CreditBudget:
+    """Issuer-selected fixed-point quoted-credit limits."""
+
+    unit: str
+    scale: int
+    maximum_total: int
+    maximum_per_job: int | None
+    quote_ttl_seconds: int
+
+    def public_summary(self) -> dict[str, int | str | None]:
+        return {
+            "unit": self.unit,
+            "scale": self.scale,
+            "maximum_total": self.maximum_total,
+            "maximum_per_job": self.maximum_per_job,
+            "quote_ttl_seconds": self.quote_ttl_seconds,
+        }
+
+
+@dataclass(frozen=True)
 class DelegationManifest:
     identifier: str
     issuer: str
@@ -99,6 +125,7 @@ class DelegationManifest:
     allowed: dict[str, tuple[str, ...]]
     per_job_limits: dict[str, int]
     budget: dict[str, int]
+    credit_budget: CreditBudget | None
     filesystem: FilesystemPolicy | None
     lifecycle: LifecyclePolicy
     source_path: Path
@@ -116,6 +143,11 @@ class DelegationManifest:
             "allowed": {key: list(value) for key, value in self.allowed.items()},
             "per_job_limits": self.per_job_limits,
             "budget": self.budget,
+            "credit_budget": (
+                self.credit_budget.public_summary()
+                if self.credit_budget is not None
+                else {"configured": False}
+            ),
             "lifecycle": self.lifecycle.public_summary(),
             "filesystem": (
                 self.filesystem.public_summary()
@@ -140,6 +172,8 @@ class ControllerAuthority:
     policy_sha256: str
     config_path: str
     config_sha256: str
+    credit_budget: CreditBudget | None
+    quote_format: str | None
     captured_at: str
 
     def public_summary(self, *, include_config_path: bool = False) -> dict[str, Any]:
@@ -147,6 +181,12 @@ class ControllerAuthority:
             "policy": self.policy.public_summary(),
             "policy_sha256": self.policy_sha256,
             "config_sha256": self.config_sha256,
+            "credit_budget": (
+                self.credit_budget.public_summary()
+                if self.credit_budget is not None
+                else {"configured": False}
+            ),
+            "quote_format": self.quote_format,
             "captured_at": self.captured_at,
         }
         if include_config_path:
@@ -173,11 +213,18 @@ def load_runtime(
     profile_policy: CapabilityPolicy,
     config_path: str | Path,
     config_sha256: str,
+    sam_quote_command: str | None = None,
+    sam_quote_format: str | None = None,
 ) -> DelegationRuntime:
     manifest = load_manifest(
         Path(manifest_path),
         expected_profile=profile,
         expected_parent_job_id=parent_job_id,
+    )
+    require_credit_configuration(
+        manifest,
+        sam_quote_command=sam_quote_command,
+        sam_quote_format=sam_quote_format,
     )
     selected = Path(
         ledger_path or os.environ.get(LEDGER_ENV_VAR) or default_ledger_path()
@@ -192,6 +239,7 @@ def load_runtime(
             policy=profile_policy,
             config_path=config_path,
             config_sha256=config_sha256,
+            quote_format=sam_quote_format,
         )
     else:
         require_controller_authority(
@@ -200,6 +248,26 @@ def load_runtime(
         )
     ledger.begin_controller(manifest, restart_count=_controller_restart_count())
     return DelegationRuntime(manifest, selected, authority)
+
+
+def require_credit_configuration(
+    manifest: DelegationManifest,
+    *,
+    sam_quote_command: str | None,
+    sam_quote_format: str | None,
+) -> None:
+    """Fail before controller startup when credit enforcement cannot quote."""
+    if manifest.credit_budget is None:
+        return
+    if not sam_quote_command:
+        raise DelegationError(
+            "delegation credit_budget requires profile sam_quote_command"
+        )
+    if sam_quote_format != STRUCTURED_QUOTE_FORMAT_V1:
+        raise DelegationError(
+            "delegation credit_budget requires profile sam_quote_format "
+            f"{STRUCTURED_QUOTE_FORMAT_V1!r}"
+        )
 
 
 def require_controller_authority(
@@ -262,7 +330,7 @@ def load_manifest(
         {
             "format_version", "id", "issuer", "profile", "parent_job_id",
             "issued_at", "expires_at", "allowed", "per_job_limits", "budget",
-            "filesystem", "lifecycle",
+            "credit_budget", "filesystem", "lifecycle",
         },
         "delegation manifest",
     )
@@ -333,6 +401,7 @@ def load_manifest(
             "max_total_memory_per_cpu_mib",
         },
     )
+    credit_budget = _credit_budget(raw.get("credit_budget"))
     lifecycle = _lifecycle_policy(raw.get("lifecycle"))
 
     return DelegationManifest(
@@ -345,6 +414,7 @@ def load_manifest(
         allowed=allowed,
         per_job_limits=per_job_limits,
         budget=budget,
+        credit_budget=credit_budget,
         filesystem=filesystem,
         lifecycle=lifecycle,
         source_path=path,
@@ -490,6 +560,7 @@ class DelegationLedger:
         policy: CapabilityPolicy,
         config_path: str | Path,
         config_sha256: str,
+        quote_format: str | None = None,
     ) -> ControllerAuthority:
         """Capture the first authorized profile policy; never widen it later."""
         require_controller_authority(policy, operation="agent.controller.start")
@@ -509,6 +580,12 @@ class DelegationLedger:
             "policy_sha256": policy_sha256,
             "config_path": str(Path(config_path).expanduser()),
             "config_sha256": config_sha256,
+            "credit_budget": (
+                manifest.credit_budget.public_summary()
+                if manifest.credit_budget is not None
+                else None
+            ),
+            "quote_format": quote_format,
         }
         with self._transaction() as db:
             self._registered(db, manifest)
@@ -527,11 +604,11 @@ class DelegationLedger:
                         json.dumps(detail, sort_keys=True, separators=(",", ":")),
                     ),
                 )
-                return _controller_authority(detail, captured_at, manifest.profile)
+                return _controller_authority(detail, captured_at, manifest)
             return _controller_authority(
                 json.loads(existing[1]),
                 existing[0],
-                manifest.profile,
+                manifest,
             )
 
     def controller_authority_or_none(
@@ -547,7 +624,7 @@ class DelegationLedger:
             detail = json.loads(row[1])
         except (TypeError, json.JSONDecodeError) as error:
             raise DelegationError("captured controller authority is malformed") from error
-        return _controller_authority(detail, row[0], manifest.profile)
+        return _controller_authority(detail, row[0], manifest)
 
     def controller_authority(
         self,
@@ -1748,7 +1825,7 @@ def _execute_schema(db: sqlite3.Connection, script: str) -> None:
 def _controller_authority(
     detail: object,
     captured_at: str,
-    profile: str,
+    manifest: DelegationManifest,
 ) -> ControllerAuthority:
     if not isinstance(detail, dict):
         raise DelegationError("captured controller authority is not an object")
@@ -1756,7 +1833,7 @@ def _controller_authority(
     try:
         policy = parse_capability_policy(
             policy_value,
-            profile=f"captured controller {profile}",
+            profile=f"captured controller {manifest.profile}",
         )
     except ValueError as error:
         raise DelegationError(
@@ -1771,6 +1848,8 @@ def _controller_authority(
     policy_sha256 = detail.get("policy_sha256")
     config_path = detail.get("config_path")
     config_sha256 = detail.get("config_sha256")
+    captured_credit_budget = _credit_budget(detail.get("credit_budget"))
+    quote_format = detail.get("quote_format")
     if calculated != policy_sha256:
         raise DelegationError("captured controller policy digest does not match")
     if not isinstance(config_path, str) or not config_path:
@@ -1779,13 +1858,103 @@ def _controller_authority(
         r"[0-9a-f]{64}", config_sha256
     ):
         raise DelegationError("captured controller config digest is invalid")
+    if captured_credit_budget != manifest.credit_budget:
+        raise DelegationError(
+            "captured controller credit budget does not match the delegation"
+        )
+    if quote_format is not None and quote_format != STRUCTURED_QUOTE_FORMAT_V1:
+        raise DelegationError("captured controller quote format is invalid")
+    if manifest.credit_budget is not None and quote_format is None:
+        raise DelegationError("captured controller quote format is missing")
     return ControllerAuthority(
         policy=policy,
         policy_sha256=policy_sha256,
         config_path=config_path,
         config_sha256=config_sha256,
+        credit_budget=captured_credit_budget,
+        quote_format=quote_format,
         captured_at=captured_at,
     )
+
+
+def _credit_budget(value: Any) -> CreditBudget | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise DelegationError("credit_budget must be a table")
+    known = {
+        "unit",
+        "scale",
+        "maximum_total",
+        "maximum_per_job",
+        "quote_ttl_seconds",
+    }
+    _reject_unknown_keys(value, known, "credit_budget")
+    required = {"unit", "scale", "maximum_total", "quote_ttl_seconds"}
+    missing = sorted(required - set(value))
+    if missing:
+        raise DelegationError(
+            f"credit_budget is missing field(s): {', '.join(missing)}"
+        )
+
+    unit = value["unit"]
+    if not isinstance(unit, str) or not CREDIT_UNIT_PATTERN.fullmatch(unit):
+        raise DelegationError(
+            "credit_budget.unit must be a normalized lowercase ASCII identifier"
+        )
+
+    scale = _bounded_integer(
+        value["scale"],
+        "credit_budget.scale",
+        minimum=0,
+        maximum=MAX_CREDIT_SCALE,
+    )
+    maximum_total = _bounded_integer(
+        value["maximum_total"],
+        "credit_budget.maximum_total",
+        minimum=1,
+        maximum=MAX_CREDIT_VALUE,
+    )
+    maximum_per_job_value = value.get("maximum_per_job")
+    maximum_per_job = None
+    if maximum_per_job_value is not None:
+        maximum_per_job = _bounded_integer(
+            maximum_per_job_value,
+            "credit_budget.maximum_per_job",
+            minimum=1,
+            maximum=MAX_CREDIT_VALUE,
+        )
+        if maximum_per_job > maximum_total:
+            raise DelegationError(
+                "credit_budget.maximum_per_job must not exceed maximum_total"
+            )
+    quote_ttl_seconds = _bounded_integer(
+        value["quote_ttl_seconds"],
+        "credit_budget.quote_ttl_seconds",
+        minimum=1,
+        maximum=86400,
+    )
+    return CreditBudget(
+        unit=unit,
+        scale=scale,
+        maximum_total=maximum_total,
+        maximum_per_job=maximum_per_job,
+        quote_ttl_seconds=quote_ttl_seconds,
+    )
+
+
+def _bounded_integer(
+    value: Any,
+    name: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise DelegationError(
+            f"{name} must be an integer from {minimum} to {maximum}"
+        )
+    return value
 
 def _string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)
