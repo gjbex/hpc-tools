@@ -5679,6 +5679,13 @@
         "required": false
       },
       {
+        "annotation": "dict[str, Any] | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "quote_evidence",
+        "required": false
+      },
+      {
         "annotation": "str | None",
         "default": null,
         "kind": "POSITIONAL_OR_KEYWORD",
@@ -6438,6 +6445,13 @@
         "default": ".",
         "kind": "POSITIONAL_OR_KEYWORD",
         "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "dict[str, Any] | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "quote_evidence",
         "required": false
       },
       {

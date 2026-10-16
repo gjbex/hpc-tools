@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 
 from test_mcp_fixtures import *
 
@@ -404,6 +405,14 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = self._write_config(root)
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
             state_root = root / "state"
             work_root = root / "work"
             output_root = root / "output"
@@ -451,6 +460,12 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     [budget]
                     max_submissions = 2
                     max_active_jobs = 2
+                    [credit_budget]
+                    unit = "credits"
+                    scale = 0
+                    maximum_total = 10000
+                    maximum_per_job = 5000
+                    quote_ttl_seconds = 300
                     """
                 ).strip() + "\n",
                 encoding="utf-8",
@@ -466,8 +481,17 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 ).capabilities,
                 config_path=config_path,
                 config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
+                sam_quote_command="sam-quote",
+                sam_quote_format="hpc-tools-credit-quote-v1",
             )
-            quote_result = mock.Mock(returncode=0, stdout="2730\n", stderr="")
+            quote_result = mock.Mock(
+                returncode=0,
+                stdout=(
+                    '{"format_version":1,"maximum_cost":'
+                    '{"value":2730,"scale":0,"unit":"credits"}}\n'
+                ),
+                stderr="",
+            )
             validation_result = mock.Mock(returncode=0, stdout="sbatch: ok\n", stderr="")
             submission_result = mock.Mock(
                 returncode=0,
@@ -491,7 +515,39 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     side_effect=[quote_result, validation_result],
                 ):
                     quote = mcp_server.hpc_quote_job(**arguments)
-                    validation = mcp_server.hpc_validate_job(**arguments)
+                    validation = mcp_server.hpc_validate_job(
+                        **(arguments | {"quote_evidence": quote["quote_evidence"]})
+                    )
+                expired_at = datetime.fromisoformat(
+                    quote["quote_evidence"]["expires_at"]
+                )
+                with (
+                    mock.patch(
+                        "hpc_tools.mcp.submit._utc_now",
+                        return_value=expired_at,
+                    ),
+                    mock.patch(
+                        "hpc_tools.mcp.submit.delegation.DelegationLedger"
+                    ) as expired_ledger,
+                    mock.patch(
+                        "hpc_tools.mcp.submit.run_command_capture"
+                    ) as expired_submit,
+                    self.assertRaisesRegex(ValueError, "has expired"),
+                ):
+                    mcp_server.hpc_submit_job(
+                        **(
+                            arguments
+                            | {
+                                "quote_evidence": quote["quote_evidence"],
+                                "validation_evidence": validation[
+                                    "validation_evidence"
+                                ],
+                                "dry_run": False,
+                            }
+                        )
+                    )
+                expired_ledger.assert_not_called()
+                expired_submit.assert_not_called()
                 with mock.patch(
                     "hpc_tools.mcp.submit.run_command_capture",
                     return_value=submission_result,
@@ -514,7 +570,10 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 ):
                     uncertain_quote = mcp_server.hpc_quote_job(**uncertain_arguments)
                     uncertain_validation = mcp_server.hpc_validate_job(
-                        **uncertain_arguments
+                        **(
+                            uncertain_arguments
+                            | {"quote_evidence": uncertain_quote["quote_evidence"]}
+                        )
                     )
                 uncertain_scheduler_result = mock.Mock(
                     returncode=0,
@@ -543,6 +602,15 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     )
 
             self.assertTrue(result["ledger_recorded"])
+            self.assertEqual(
+                {"value": 2730, "scale": 0, "unit": "credits"},
+                quote["quote_evidence"]["quoted_cost"],
+            )
+            self.assertIn("expires_at", quote["quote_evidence"])
+            self.assertEqual(
+                quote["quote_evidence"]["evidence_token"],
+                validation["validation_evidence"]["quote_evidence_token"],
+            )
             self.assertFalse(result["logged"])
             self.assertEqual("history unavailable", result["database_error"])
             self.assertTrue(replay["idempotent_replay"])

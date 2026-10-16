@@ -128,6 +128,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             "hpc_validate_job": [
                 "jobscript",
                 "directory",
+                "quote_evidence",
                 "account",
                 "array",
                 "cluster",

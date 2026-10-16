@@ -162,6 +162,7 @@ class DelegationRuntime:
     manifest: DelegationManifest
     ledger_path: Path
     controller_authority: ControllerAuthority
+    controller_generation: int
 
 
 @dataclass(frozen=True)
@@ -246,8 +247,16 @@ def load_runtime(
             authority.policy,
             operation="agent.controller.continue",
         )
-    ledger.begin_controller(manifest, restart_count=_controller_restart_count())
-    return DelegationRuntime(manifest, selected, authority)
+    controller = ledger.begin_controller(
+        manifest,
+        restart_count=_controller_restart_count(),
+    )
+    return DelegationRuntime(
+        manifest,
+        selected,
+        authority,
+        int(controller["generation"]),
+    )
 
 
 def require_credit_configuration(

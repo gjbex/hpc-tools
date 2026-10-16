@@ -380,6 +380,39 @@ expired evidence before ledger access.
 Exit criteria: cost evidence is authoritative only for the exact current
 payload, shape, executor, idempotency key, and controller generation.
 
+Implementation artifacts:
+
+- `hpc_tools/slurm_contracts.py` signs strict fixed-point cost, server-issued
+  and expiry timestamps, controller generation, and quote identity, and returns
+  typed validated evidence for later reservation work;
+- `hpc_tools/mcp/submit.py` requires a live credit quote before validation,
+  binds validation evidence to that quote, and checks the complete chain at one
+  injected server time before submission can construct a ledger or invoke the
+  scheduler;
+- `hpc_tools/delegation.py` retains the controller generation established at
+  startup, while `hpc_tools/restricted_jobs.py` uses that immutable runtime
+  value instead of rereading protected ledger state during request shaping;
+- the synchronized capability and credit baselines record the additional
+  validation input and signed evidence fields without changing the seven-tool
+  restricted MCP surface; and
+- focused contract and MCP tests cover exact chaining, future and expired
+  timestamps, TTL mismatch, unit and scale mismatch, tampering, process-secret
+  restart, generation change, and rejection before ledger or scheduler access.
+
+Validation record:
+
+- The complete locked suite passes 467 tests outside the restricted command
+  sandbox. The in-sandbox run passed all other tests and was denied only the
+  loopback HTTP and Unix-socket binds used by two acceptance cases.
+- Locked dependency checking and synchronization, plugin and skill validation,
+  Python compilation, focused Ruff checks, strict MkDocs construction, and
+  `git diff --check` pass.
+- `tools/check_repo_hygiene.py` remains blocked by the pre-existing ignored
+  caches, build output, and egg-info already recorded by earlier work
+  packages; those unrelated generated artifacts were preserved.
+- WP4 does not alter the ledger schema or reserve credits; atomic enforcement
+  remains owned by WP5.
+
 ## WP5: Ledger schema and atomic credit reservation
 
 Bump the ledger schema without silently migrating protected ledgers. Store

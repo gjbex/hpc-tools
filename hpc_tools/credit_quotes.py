@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,6 +30,34 @@ class CreditAmount:
             "scale": self.scale,
             "unit": self.unit,
         }
+
+
+def parse_credit_amount(
+    value: object,
+    *,
+    label: str = "credit amount",
+) -> CreditAmount:
+    """Parse one strict fixed-point credit amount from an object."""
+    if not isinstance(value, Mapping):
+        raise CreditQuoteError(f"{label} must be a JSON object")
+    amount = dict(value)
+    _require_exact_keys(amount, {"value", "scale", "unit"}, label)
+    integer_value = _integer(amount["value"], f"{label}.value")
+    if integer_value < 0 or integer_value > MAX_CREDIT_VALUE:
+        raise CreditQuoteError(
+            f"{label}.value must be between 0 and {MAX_CREDIT_VALUE}"
+        )
+    scale = _integer(amount["scale"], f"{label}.scale")
+    if scale < 0 or scale > MAX_CREDIT_SCALE:
+        raise CreditQuoteError(
+            f"{label}.scale must be between 0 and {MAX_CREDIT_SCALE}"
+        )
+    unit = amount["unit"]
+    if not isinstance(unit, str) or not CREDIT_UNIT_PATTERN.fullmatch(unit):
+        raise CreditQuoteError(
+            f"{label}.unit must be a normalized lowercase ASCII identifier"
+        )
+    return CreditAmount(value=integer_value, scale=scale, unit=unit)
 
 
 @dataclass(frozen=True)
@@ -79,27 +108,11 @@ def parse_structured_quote(
             f"unsupported structured quote format_version {version}; expected 1"
         )
 
-    cost = _object(quote["maximum_cost"], "maximum_cost")
-    _require_exact_keys(cost, {"value", "scale", "unit"}, "maximum_cost")
-    value = _integer(cost["value"], "maximum_cost.value")
-    if value < 0 or value > MAX_CREDIT_VALUE:
-        raise CreditQuoteError(
-            f"maximum_cost.value must be between 0 and {MAX_CREDIT_VALUE}"
-        )
-    scale = _integer(cost["scale"], "maximum_cost.scale")
-    if scale < 0 or scale > MAX_CREDIT_SCALE:
-        raise CreditQuoteError(
-            f"maximum_cost.scale must be between 0 and {MAX_CREDIT_SCALE}"
-        )
-    unit = cost["unit"]
-    if not isinstance(unit, str) or not CREDIT_UNIT_PATTERN.fullmatch(unit):
-        raise CreditQuoteError(
-            "maximum_cost.unit must be a normalized lowercase ASCII identifier"
-        )
+    cost = parse_credit_amount(quote["maximum_cost"], label="maximum_cost")
 
     return StructuredCreditQuote(
         format_version=version,
-        maximum_cost=CreditAmount(value=value, scale=scale, unit=unit),
+        maximum_cost=cost,
     )
 
 

@@ -14,17 +14,18 @@ import textwrap
 import threading
 import time
 import unittest
+from dataclasses import replace
 from importlib import resources
 from pathlib import Path
 from unittest import mock
 
+from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
 from hpc_tools.capabilities import (
     POLICY_VERSION,
     CapabilityLevel,
     CapabilityPolicy,
     RemoteRootGrants,
 )
-from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.mcp import server as mcp_registry
 
@@ -270,8 +271,14 @@ class RestrictedBoundaryTests(unittest.TestCase):
             ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
             ledger.request_requeue(runtime.manifest)
             ledger.record_requeue_result(runtime.manifest, accepted=True)
-            ledger.begin_controller(runtime.manifest, restart_count=1)
-            after = restricted_jobs.prepare_job(**arguments)
+            restarted = ledger.begin_controller(runtime.manifest, restart_count=1)
+            restarted_runtime = replace(
+                runtime,
+                controller_generation=int(restarted["generation"]),
+            )
+            after = restricted_jobs.prepare_job(
+                **(arguments | {"runtime": restarted_runtime})
+            )
 
             self.assertEqual(1, before.shape["controller_generation"])
             self.assertEqual(2, after.shape["controller_generation"])

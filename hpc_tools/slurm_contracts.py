@@ -5,11 +5,12 @@ import hmac
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from hpc_tools import slurm
 from hpc_tools.config import ConfigError, Profile
+from hpc_tools.credit_quotes import CreditAmount, CreditQuoteError, parse_credit_amount
 
 _EVIDENCE_SECRET: bytes | None = None
 
@@ -72,6 +73,7 @@ class SubmissionShape:
     directory: str
     overrides: Mapping[str, str]
     boundary: Mapping[str, Any] | None = None
+    controller_generation: int | None = None
 
     @classmethod
     def from_submit(
@@ -94,6 +96,7 @@ class SubmissionShape:
                 if value is not None
             },
             boundary=None,
+            controller_generation=None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -106,6 +109,8 @@ class SubmissionShape:
         }
         if self.boundary is not None:
             shape["boundary"] = dict(self.boundary)
+        if self.controller_generation is not None:
+            shape["controller_generation"] = self.controller_generation
         shape["shape_token"] = shape_token(shape)
         return shape
 
@@ -122,6 +127,10 @@ class SubmissionEvidence:
     stdout: str
     stderr: str
     dry_run: bool
+    quoted_cost: CreditAmount | None = None
+    quote_ttl_seconds: int | None = None
+    quote_evidence_token: str | None = None
+    issued_at: datetime | None = None
 
     @classmethod
     def from_remote_result(
@@ -151,9 +160,10 @@ class SubmissionEvidence:
 
     def to_dict(self) -> dict[str, Any]:
         shape = self.shape.to_dict()
+        issued_at = _normalize_now(self.issued_at).replace(microsecond=0)
         evidence = {
             "type": self.evidence_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "timestamp": issued_at.isoformat(timespec="seconds"),
             "profile": shape["profile"],
             "account": shape["account"],
             "jobscript": shape["jobscript"],
@@ -169,9 +179,36 @@ class SubmissionEvidence:
             "stderr": self.stderr,
             "dry_run": self.dry_run,
         }
+        if self.quoted_cost is not None:
+            if self.evidence_type != "quote":
+                raise ConfigError("only quote evidence may contain quoted cost")
+            if type(self.quote_ttl_seconds) is not int or self.quote_ttl_seconds <= 0:
+                raise ConfigError("cost-bearing quote evidence requires a positive TTL")
+            evidence["quoted_cost"] = self.quoted_cost.to_dict()
+            evidence["expires_at"] = (
+                issued_at + timedelta(seconds=self.quote_ttl_seconds)
+            ).isoformat(timespec="seconds")
+        elif self.quote_ttl_seconds is not None:
+            raise ConfigError("quote evidence TTL requires a quoted cost")
+        if self.quote_evidence_token is not None:
+            if self.evidence_type != "validation":
+                raise ConfigError(
+                    "only validation evidence may bind a quote evidence token"
+                )
+            evidence["quote_evidence_token"] = self.quote_evidence_token
         evidence["ok"] = evidence["returncode"] == 0
         evidence["evidence_token"] = evidence_token(evidence)
         return evidence
+
+
+@dataclass(frozen=True)
+class ValidatedEvidence:
+    evidence_type: str
+    timestamp: datetime
+    evidence_token: str
+    quoted_cost: CreditAmount | None
+    expires_at: datetime | None
+    quote_evidence_token: str | None
 
 
 def normalize_submit_overrides(
@@ -210,8 +247,29 @@ def submission_evidence(
     evidence_type: str,
     shape: SubmissionShape | Mapping[str, Any],
     result: Mapping[str, Any],
+    *,
+    quoted_cost: CreditAmount | None = None,
+    quote_ttl_seconds: int | None = None,
+    quote_evidence_token: str | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
-    return SubmissionEvidence.from_remote_result(evidence_type, shape, result).to_dict()
+    base = SubmissionEvidence.from_remote_result(evidence_type, shape, result)
+    return SubmissionEvidence(
+        evidence_type=base.evidence_type,
+        shape=base.shape,
+        command=base.command,
+        executor=base.executor,
+        execution_command=base.execution_command,
+        ssh_command=base.ssh_command,
+        returncode=base.returncode,
+        stdout=base.stdout,
+        stderr=base.stderr,
+        dry_run=base.dry_run,
+        quoted_cost=quoted_cost,
+        quote_ttl_seconds=quote_ttl_seconds,
+        quote_evidence_token=quote_evidence_token,
+        issued_at=now,
+    ).to_dict()
 
 
 def validate_evidence(
@@ -220,12 +278,27 @@ def validate_evidence(
     shape: SubmissionShape | Mapping[str, Any],
     *,
     executor: str | None = None,
-) -> None:
+    now: datetime | None = None,
+    credit_unit: str | None = None,
+    credit_scale: int | None = None,
+    quote_ttl_seconds: int | None = None,
+    expected_quote_evidence_token: str | None = None,
+    not_before: datetime | None = None,
+) -> ValidatedEvidence:
     shape_dict = _coerce_shape(shape).to_dict()
     if not isinstance(evidence, Mapping):
         raise ConfigError(f"{evidence_type} evidence must be an object")
     if evidence.get("type") != evidence_type:
         raise ConfigError(f"expected {evidence_type} evidence")
+    supplied_token = evidence.get("evidence_token")
+    if not isinstance(supplied_token, str):
+        raise ConfigError(f"{evidence_type} evidence token is invalid")
+    try:
+        expected_token = evidence_token(evidence)
+    except (TypeError, ValueError):
+        raise ConfigError(f"{evidence_type} evidence token is invalid") from None
+    if not hmac.compare_digest(supplied_token, expected_token):
+        raise ConfigError(f"{evidence_type} evidence token is invalid")
     if evidence.get("shape_token") != shape_dict["shape_token"]:
         raise ConfigError(
             f"{evidence_type} evidence is stale for this resource shape; quote and validate again"
@@ -240,8 +313,85 @@ def validate_evidence(
             f"{evidence_type} evidence used the {evidence_executor} executor, "
             f"not the current {executor} executor"
         )
-    if evidence.get("evidence_token") != evidence_token(evidence):
-        raise ConfigError(f"{evidence_type} evidence token is invalid")
+    checked_at = _normalize_now(now)
+    timestamp = _parse_timestamp(
+        evidence.get("timestamp"),
+        f"{evidence_type} evidence timestamp",
+    )
+    if timestamp > checked_at:
+        raise ConfigError(f"{evidence_type} evidence timestamp is in the future")
+
+    quoted_cost = None
+    expires_at = None
+    credit_requested = any(
+        value is not None
+        for value in (credit_unit, credit_scale, quote_ttl_seconds)
+    )
+    if credit_requested:
+        if evidence_type != "quote":
+            raise ConfigError("credit dimensions apply only to quote evidence")
+        if (
+            not isinstance(credit_unit, str)
+            or type(credit_scale) is not int
+            or type(quote_ttl_seconds) is not int
+            or quote_ttl_seconds <= 0
+        ):
+            raise ConfigError("complete credit quote dimensions are required")
+        try:
+            quoted_cost = parse_credit_amount(
+                evidence.get("quoted_cost"),
+                label="quote evidence quoted_cost",
+            )
+        except CreditQuoteError as error:
+            raise ConfigError(str(error)) from error
+        if quoted_cost.unit != credit_unit:
+            raise ConfigError(
+                f"quote evidence credit unit {quoted_cost.unit!r} does not match "
+                f"the configured unit {credit_unit!r}"
+            )
+        if quoted_cost.scale != credit_scale:
+            raise ConfigError(
+                f"quote evidence credit scale {quoted_cost.scale} does not match "
+                f"the configured scale {credit_scale}"
+            )
+        expires_at = _parse_timestamp(
+            evidence.get("expires_at"),
+            "quote evidence expiry",
+        )
+        expected_expiry = timestamp + timedelta(seconds=quote_ttl_seconds)
+        if expires_at != expected_expiry:
+            raise ConfigError("quote evidence expiry does not match the configured TTL")
+        if checked_at >= expires_at:
+            raise ConfigError("quote evidence has expired; quote and validate again")
+    elif "quoted_cost" in evidence or "expires_at" in evidence:
+        raise ConfigError("unexpected credit fields in non-credit evidence")
+
+    bound_quote_token = evidence.get("quote_evidence_token")
+    if expected_quote_evidence_token is not None:
+        if evidence_type != "validation":
+            raise ConfigError("quote identity applies only to validation evidence")
+        if not isinstance(bound_quote_token, str) or not hmac.compare_digest(
+            bound_quote_token,
+            expected_quote_evidence_token,
+        ):
+            raise ConfigError("validation evidence is not bound to the current quote")
+        if not_before is None:
+            raise ConfigError("bound validation evidence requires the quote timestamp")
+        if timestamp < _normalize_now(not_before):
+            raise ConfigError("validation evidence predates its bound quote")
+    elif bound_quote_token is not None:
+        raise ConfigError("unexpected quote binding in validation evidence")
+
+    return ValidatedEvidence(
+        evidence_type=evidence_type,
+        timestamp=timestamp,
+        evidence_token=supplied_token,
+        quoted_cost=quoted_cost,
+        expires_at=expires_at,
+        quote_evidence_token=(
+            bound_quote_token if isinstance(bound_quote_token, str) else None
+        ),
+    )
 
 
 def shape_token(shape: Mapping[str, Any]) -> str:
@@ -272,6 +422,11 @@ def _coerce_shape(shape: SubmissionShape | Mapping[str, Any]) -> SubmissionShape
     overrides = shape.get("overrides", {})
     if not isinstance(overrides, Mapping):
         raise ConfigError("resource shape overrides must be an object")
+    controller_generation = shape.get("controller_generation")
+    if controller_generation is not None and (
+        type(controller_generation) is not int or controller_generation < 1
+    ):
+        raise ConfigError("resource shape controller_generation must be a positive integer")
     return SubmissionShape(
         profile=str(shape["profile"]),
         account=shape.get("account") if isinstance(shape.get("account"), str) else None,
@@ -286,7 +441,27 @@ def _coerce_shape(shape: SubmissionShape | Mapping[str, Any]) -> SubmissionShape
             if isinstance(shape.get("boundary"), Mapping)
             else None
         ),
+        controller_generation=controller_generation,
     )
+
+
+def _normalize_now(value: datetime | None) -> datetime:
+    selected = value if value is not None else datetime.now(UTC)
+    if selected.tzinfo is None or selected.utcoffset() is None:
+        raise ConfigError("evidence clock must be timezone-aware")
+    return selected.astimezone(UTC)
+
+
+def _parse_timestamp(value: object, label: str) -> datetime:
+    if not isinstance(value, str):
+        raise ConfigError(f"{label} must be an ISO 8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise ConfigError(f"{label} must be an ISO 8601 timestamp") from error
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ConfigError(f"{label} must include a UTC offset")
+    return parsed.astimezone(UTC)
 
 
 def _evidence_secret() -> bytes:

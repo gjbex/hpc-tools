@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -113,26 +114,48 @@ def hpc_quote_job(
         result = _remote_read_result(resolved, command, dry_run=dry_run)
     finally:
         prepared.cleanup()
-    evidence = _submission_evidence("quote", shape, result)
-    response = result | {
-        "resource_shape": shape,
-        "quote_evidence": evidence,
-        "output_directory": prepared.output_directory,
-    }
+    structured_quote = None
     if (
         resolved.sam_quote_format is not None
         and not result["dry_run"]
         and result["returncode"] == 0
     ):
-        response["structured_quote"] = credit_quotes.parse_structured_quote(
+        structured_quote = credit_quotes.parse_structured_quote(
             result["stdout"],
             format_name=resolved.sam_quote_format,
-        ).to_dict()
+        )
+    budget = _credit_budget(runtime)
+    if budget is not None and structured_quote is not None:
+        _require_quote_dimensions(structured_quote.maximum_cost, budget)
+    evidence = _submission_evidence(
+        "quote",
+        shape,
+        result,
+        quoted_cost=(
+            structured_quote.maximum_cost
+            if budget is not None and structured_quote is not None
+            else None
+        ),
+        quote_ttl_seconds=(
+            budget.quote_ttl_seconds
+            if budget is not None and structured_quote is not None
+            else None
+        ),
+        now=_utc_now(),
+    )
+    response = result | {
+        "resource_shape": shape,
+        "quote_evidence": evidence,
+        "output_directory": prepared.output_directory,
+    }
+    if structured_quote is not None:
+        response["structured_quote"] = structured_quote.to_dict()
     return response
 
 def hpc_validate_job(
     jobscript: str,
     directory: str = ".",
+    quote_evidence: dict[str, Any] | None = None,
     account: str | None = None,
     array: str | None = None,
     cluster: str | None = None,
@@ -166,6 +189,7 @@ def hpc_validate_job(
     _authorize_mcp(resolved, "job.validate", {
         "jobscript": jobscript,
         "directory": directory,
+        "quote_evidence": quote_evidence,
         "container": container,
         "idempotency_key": idempotency_key,
         "profile": profile,
@@ -215,11 +239,48 @@ def hpc_validate_job(
         test_only=True,
         overrides=prepared.overrides,
     )
+    budget = _credit_budget(runtime)
+    checked_quote = None
     try:
+        if budget is not None:
+            if quote_evidence is None:
+                raise ConfigError(
+                    "credit-budget validation requires current quote evidence"
+                )
+            checked_quote = _require_evidence(
+                "quote",
+                quote_evidence,
+                shape,
+                executor=execution_plan(resolved, command).executor,
+                now=_utc_now(),
+                credit_unit=budget.unit,
+                credit_scale=budget.scale,
+                quote_ttl_seconds=budget.quote_ttl_seconds,
+            )
         result = _remote_read_result(resolved, command, dry_run=dry_run)
+        issued_at = _utc_now()
+        if budget is not None and quote_evidence is not None:
+            checked_quote = _require_evidence(
+                "quote",
+                quote_evidence,
+                shape,
+                executor=execution_plan(resolved, command).executor,
+                now=issued_at,
+                credit_unit=budget.unit,
+                credit_scale=budget.scale,
+                quote_ttl_seconds=budget.quote_ttl_seconds,
+            )
     finally:
         prepared.cleanup()
-    evidence = _submission_evidence("validation", shape, result)
+    evidence = _submission_evidence(
+        "validation",
+        shape,
+        result,
+        quote_evidence_token=(
+            checked_quote.evidence_token if checked_quote is not None else None
+        ),
+        now=issued_at,
+    )
     return result | {
         "resource_shape": shape,
         "validation_evidence": evidence,
@@ -318,12 +379,30 @@ def hpc_submit_job(
         overrides=prepared.overrides,
     )
     plan = execution_plan(resolved, command)
-    _require_evidence("quote", quote_evidence, shape, executor=plan.executor)
+    budget = _credit_budget(runtime)
+    checked_at = _utc_now()
+    checked_quote = _require_evidence(
+        "quote",
+        quote_evidence,
+        shape,
+        executor=plan.executor,
+        now=checked_at,
+        credit_unit=budget.unit if budget is not None else None,
+        credit_scale=budget.scale if budget is not None else None,
+        quote_ttl_seconds=(
+            budget.quote_ttl_seconds if budget is not None else None
+        ),
+    )
     _require_evidence(
         "validation",
         validation_evidence,
         shape,
         executor=plan.executor,
+        now=checked_at,
+        expected_quote_evidence_token=(
+            checked_quote.evidence_token if budget is not None else None
+        ),
+        not_before=(checked_quote.timestamp if budget is not None else None),
     )
     preview = {
         "profile": resolved.name,
@@ -582,8 +661,21 @@ def _submission_evidence(
     evidence_type: str,
     shape: dict[str, Any],
     result: dict[str, Any],
+    *,
+    quoted_cost: credit_quotes.CreditAmount | None = None,
+    quote_ttl_seconds: int | None = None,
+    quote_evidence_token: str | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
-    return slurm_contracts.submission_evidence(evidence_type, shape, result)
+    return slurm_contracts.submission_evidence(
+        evidence_type,
+        shape,
+        result,
+        quoted_cost=quoted_cost,
+        quote_ttl_seconds=quote_ttl_seconds,
+        quote_evidence_token=quote_evidence_token,
+        now=now,
+    )
 
 def _evidence_token(evidence: dict[str, Any]) -> str:
     return slurm_contracts.evidence_token(evidence)
@@ -594,10 +686,50 @@ def _require_evidence(
     shape: dict[str, Any],
     *,
     executor: str | None = None,
-) -> None:
-    slurm_contracts.validate_evidence(
+    now: datetime | None = None,
+    credit_unit: str | None = None,
+    credit_scale: int | None = None,
+    quote_ttl_seconds: int | None = None,
+    expected_quote_evidence_token: str | None = None,
+    not_before: datetime | None = None,
+) -> slurm_contracts.ValidatedEvidence:
+    return slurm_contracts.validate_evidence(
         evidence_type,
         evidence,
         shape,
         executor=executor,
+        now=now,
+        credit_unit=credit_unit,
+        credit_scale=credit_scale,
+        quote_ttl_seconds=quote_ttl_seconds,
+        expected_quote_evidence_token=expected_quote_evidence_token,
+        not_before=not_before,
     )
+
+
+def _credit_budget(
+    runtime: delegation.DelegationRuntime | None,
+) -> delegation.CreditBudget | None:
+    if runtime is None:
+        return None
+    return runtime.controller_authority.credit_budget
+
+
+def _require_quote_dimensions(
+    amount: credit_quotes.CreditAmount,
+    budget: delegation.CreditBudget,
+) -> None:
+    if amount.unit != budget.unit:
+        raise ConfigError(
+            f"structured quote credit unit {amount.unit!r} does not match "
+            f"the delegated unit {budget.unit!r}"
+        )
+    if amount.scale != budget.scale:
+        raise ConfigError(
+            f"structured quote credit scale {amount.scale} does not match "
+            f"the delegated scale {budget.scale}"
+        )
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)

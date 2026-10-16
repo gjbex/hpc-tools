@@ -3,7 +3,7 @@
   "current": {
     "array_submission_count_unit": "logical-submission",
     "credit_budget_manifest_supported": true,
-    "controller_generation_bound_to_evidence": false,
+    "controller_generation_bound_to_evidence": true,
     "ledger_schema_version": 3,
     "manifest_version": 3,
     "profile_quote_fields": [
@@ -18,10 +18,12 @@
       "evidence_token",
       "execution_command",
       "executor",
+      "expires_at",
       "jobscript",
       "ok",
       "overrides",
       "profile",
+      "quoted_cost",
       "returncode",
       "shape_token",
       "ssh_command",
@@ -30,7 +32,7 @@
       "timestamp",
       "type"
     ],
-    "quote_expiry_supported": false,
+    "quote_expiry_supported": true,
     "structured_quote_supported": true,
     "submission_operation_columns": [
       "delegation_id",
@@ -43,6 +45,7 @@
       "error",
       "created_at",
       "updated_at"
-    ]
+    ],
+    "validation_quote_binding_supported": true
   }
 }

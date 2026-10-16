@@ -6,10 +6,12 @@ import tempfile
 import textwrap
 import unittest
 from dataclasses import fields
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from hpc_tools import delegation, slurm_contracts
-from hpc_tools.config import Profile
+from hpc_tools.config import ConfigError, Profile
+from hpc_tools.credit_quotes import CreditAmount
 
 BASELINE_PATH = (
     Path(__file__).parent / "fixtures" / "delegated_credit_budget_baseline.json"
@@ -66,6 +68,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
             overrides["array"] = array
         shape: dict[str, object] = {
             "profile": "genius",
+            "account": "proj",
             "jobscript": "job.slurm",
             "directory": "/work/credit-baseline/run",
             "overrides": overrides,
@@ -102,8 +105,9 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
 
         self.assertEqual(self.baseline["submission_operation_columns"], columns)
 
-    def test_quote_evidence_remains_unexpired_and_has_no_typed_cost(self) -> None:
+    def test_quote_evidence_has_signed_typed_cost_and_expiry(self) -> None:
         shape = self._shape()
+        issued_at = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
         evidence = slurm_contracts.submission_evidence(
             "quote",
             shape,
@@ -117,14 +121,60 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
                 "stderr": "",
                 "dry_run": False,
             },
+            quoted_cost=CreditAmount(value=2730, scale=0, unit="credits"),
+            quote_ttl_seconds=300,
+            now=issued_at,
         )
 
         self.assertEqual(self.baseline["quote_evidence_fields"], sorted(evidence))
         self.assertEqual("Maximum charge: 2730 credits\n", evidence["stdout"])
         self.assertTrue(self.baseline["structured_quote_supported"])
-        self.assertFalse(self.baseline["quote_expiry_supported"])
-        self.assertNotIn("quoted_cost", evidence)
-        self.assertNotIn("expires_at", evidence)
+        self.assertTrue(self.baseline["quote_expiry_supported"])
+        self.assertEqual(
+            {"value": 2730, "scale": 0, "unit": "credits"},
+            evidence["quoted_cost"],
+        )
+        self.assertEqual("2026-10-16T12:05:00+00:00", evidence["expires_at"])
+        slurm_contracts.validate_evidence(
+            "quote",
+            evidence,
+            shape,
+            executor="local",
+            now=issued_at,
+            credit_unit="credits",
+            credit_scale=0,
+            quote_ttl_seconds=300,
+        )
+        validation = slurm_contracts.submission_evidence(
+            "validation",
+            shape,
+            {
+                "command": "sbatch --test-only job.slurm",
+                "executor": "local",
+                "execution_command": "sbatch --test-only job.slurm",
+                "ssh_command": None,
+                "returncode": 0,
+                "stdout": "sbatch: ok\n",
+                "stderr": "",
+                "dry_run": False,
+            },
+            quote_evidence_token=evidence["evidence_token"],
+            now=issued_at + timedelta(seconds=1),
+        )
+        self.assertTrue(self.baseline["validation_quote_binding_supported"])
+        self.assertEqual(
+            evidence["evidence_token"],
+            validation["quote_evidence_token"],
+        )
+        slurm_contracts.validate_evidence(
+            "validation",
+            validation,
+            shape,
+            executor="local",
+            now=issued_at + timedelta(seconds=2),
+            expected_quote_evidence_token=evidence["evidence_token"],
+            not_before=issued_at,
+        )
 
     def test_manifest_v3_accepts_the_frozen_credit_budget_contract(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -196,9 +246,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
         )
         self.assertEqual("reserved", replacement["status"])
 
-    def test_controller_generation_is_a_characterized_evidence_binding_gap(
-        self,
-    ) -> None:
+    def test_controller_generation_is_bound_to_evidence(self) -> None:
         first = self._shape()
         first.pop("shape_token")
         first["boundary"] = {
@@ -227,11 +275,12 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
         restarted["shape_token"] = slurm_contracts.shape_token(restarted)
 
         self.assertNotEqual(first["shape_token"], restarted["shape_token"])
-        self.assertNotEqual(first["shape_token"], evidence["shape_token"])
-        slurm_contracts.validate_evidence(
-            "quote", evidence, restarted, executor="local"
-        )
-        self.assertFalse(self.baseline["controller_generation_bound_to_evidence"])
+        self.assertEqual(first["shape_token"], evidence["shape_token"])
+        with self.assertRaisesRegex(ConfigError, "stale for this resource shape"):
+            slurm_contracts.validate_evidence(
+                "quote", evidence, restarted, executor="local"
+            )
+        self.assertTrue(self.baseline["controller_generation_bound_to_evidence"])
 
 
 if __name__ == "__main__":
