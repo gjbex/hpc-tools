@@ -689,7 +689,13 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             server = threading.Thread(target=run_server)
             server.start()
             deadline = time.monotonic() + 5
-            while not ready.exists() and not errors and time.monotonic() < deadline:
+            expected_pid = str(os.getpid())
+            while not errors and time.monotonic() < deadline:
+                try:
+                    if ready.read_text(encoding="ascii").strip() == expected_pid:
+                        break
+                except FileNotFoundError:
+                    pass
                 time.sleep(0.01)
             if errors:
                 server.join(timeout=1)
@@ -697,7 +703,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     self.skipTest("sandbox disallows Unix-domain socket binding")
                 raise errors[0]
             self.assertTrue(ready.exists(), "bridge did not publish readiness")
-            self.assertEqual(str(os.getpid()), ready.read_text(encoding="ascii").strip())
+            self.assertEqual(expected_pid, ready.read_text(encoding="ascii").strip())
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             client.connect(str(path))
             client.sendall(b"mcp bytes")
