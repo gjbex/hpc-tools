@@ -62,28 +62,30 @@ when recording collection, analysis, or closure.
 
 ## Commands
 
-The main user-facing commands are:
+All submission-history operations are bound to one selected profile. The main
+user-facing commands are:
 
 ```bash
-hpc submissions list
-hpc submissions list --all
+hpc --profile <profile> submissions list
+hpc --profile <profile> submissions list --all
 hpc --profile <profile> submissions observe
 hpc --profile <profile> cancel <job-id> --cluster <cluster>
-hpc submissions mark-collected <run-id> --path <results-path>
-hpc submissions mark-analysed <run-id> --path <report-path>
-hpc submissions close <run-id> --reason <reason>
+hpc --profile <profile> submissions mark-collected <run-id> --path <results-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path <report-path>
+hpc --profile <profile> submissions close <run-id> --reason <reason>
 ```
 
-The `submissions` commands that modify the workflow database are local operations
-and do not require the cluster profile. `observe` and `cancel` are different:
-they need `--profile` because they interact with Slurm on the associated
-cluster. `cancel` uses a Slurm job ID, not a local run ID.
+Listing is C2. Database mutations additionally require
+`submission-record.write`; observation also reads Slurm accounting. Every
+command selects only records attributed to the chosen profile. Unlabelled
+records and run IDs belonging to another profile are rejected. `cancel` uses a
+Slurm job ID, not a local run ID.
 
 Use a non-default database only when you have a deliberate reason to isolate a
 workflow:
 
 ```bash
-hpc submissions --database ./campaign-submissions.sqlite3 list
+hpc --profile <profile> submissions --database ./campaign-submissions.sqlite3 list
 hpc --profile <profile> submissions \
     --database ./campaign-submissions.sqlite3 observe
 hpc --profile <profile> cancel <job-id> \
@@ -164,10 +166,12 @@ terminal state deliberately rather than following `ACTION` mechanically.
 
 ## Default vs Full View
 
-`hpc submissions list` shows only active runs. A run is active if its derived
+`hpc --profile <profile> submissions list` shows only active runs for that
+profile. A run is active if its derived
 `ACTION` is not `closed`.
 
-`hpc submissions list --all` replays the full history and includes closed runs.
+`hpc --profile <profile> submissions list --all` replays that profile's full
+history and includes closed runs.
 
 So:
 
@@ -221,7 +225,7 @@ After a job reaches `COMPLETED`, verify the output before marking it collected.
 Then record the artifact location:
 
 ```bash
-hpc submissions mark-collected <run-id> \
+hpc --profile <profile> submissions mark-collected <run-id> \
     --path /remote/project/results/run-123456
 ```
 
@@ -233,7 +237,7 @@ with the allocation.
 After completing the interpretation or report, record that artifact too:
 
 ```bash
-hpc submissions mark-analysed <run-id> \
+hpc --profile <profile> submissions mark-analysed <run-id> \
     --path reports/run-123456-analysis.html
 ```
 
@@ -241,9 +245,9 @@ hpc submissions mark-analysed <run-id> \
 the scientific result is correct. It records that you consider the analysis
 artifact to exist and be associated with this run.
 
-The current commands do not validate that a supplied run ID already exists.
-Always copy it from `submissions list`; a typo would append an unrelated event
-to the SQLite event table.
+Mutation commands validate that the supplied run ID exists and belongs to the
+selected profile before appending an event. Always copy it from that profile's
+`submissions list`; a typo is rejected.
 
 ## Recommended Workflow
 
@@ -277,15 +281,15 @@ Example:
 hpc --profile genius submissions observe
 hpc --profile genius --dry-run cancel 123456 --cluster wice
 hpc --profile genius cancel 123456 --cluster wice --reason superseded
-hpc submissions mark-collected <run-id> --path /remote/results/output.txt
-hpc submissions mark-analysed <run-id> --path /remote/results/report.md
-hpc submissions close <run-id> --reason done
+hpc --profile genius submissions mark-collected <run-id> --path /remote/results/output.txt
+hpc --profile genius submissions mark-analysed <run-id> --path /remote/results/report.md
+hpc --profile genius submissions close <run-id> --reason done
 ```
 
 Example for a superseded failed attempt:
 
 ```bash
-hpc submissions close <failed-run-id> --reason superseded-by-<new-jobid>
+hpc --profile genius submissions close <failed-run-id> --reason superseded-by-<new-jobid>
 ```
 
 Use a reason that will still be meaningful months later. A new Slurm job ID is
@@ -297,7 +301,7 @@ profiles or clusters are involved.
 The default active view is the restart point:
 
 ```bash
-hpc submissions list
+hpc --profile <profile> submissions list
 ```
 
 Work from the `ACTION` column:
@@ -319,7 +323,7 @@ sensitivity of the project.
 List the full reconstructed history:
 
 ```bash
-hpc submissions list --all
+hpc --profile <profile> submissions list --all
 ```
 
 The table is a summary of the latest derived state. For a detailed audit, the

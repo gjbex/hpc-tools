@@ -1,0 +1,6645 @@
+{
+  "cli": {
+    "": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "profile",
+          "nargs": null,
+          "options": [
+            "--profile"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "config",
+          "nargs": null,
+          "options": [
+            "--config"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": [
+            "profile-context",
+            "cluster-discovery",
+            "job-inspection",
+            "job-lifecycle"
+          ],
+          "default": null,
+          "dest": "capability",
+          "nargs": null,
+          "options": [
+            "--capability"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "show_disallowed",
+          "nargs": 0,
+          "options": [
+            "--show-disallowed"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "dry_run",
+          "nargs": 0,
+          "options": [
+            "--dry-run"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": [
+            "ssh",
+            "local"
+          ],
+          "default": null,
+          "dest": "executor",
+          "nargs": null,
+          "options": [
+            "--executor"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "agent": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "agent audit": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "ledger",
+          "nargs": null,
+          "options": [
+            "--ledger"
+          ],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "database",
+          "nargs": null,
+          "options": [
+            "--database"
+          ],
+          "required": false,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "delegation_id",
+          "nargs": null,
+          "options": [
+            "--delegation-id"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.agent:cmd_agent_audit"
+    },
+    "agent export": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "ledger",
+          "nargs": null,
+          "options": [
+            "--ledger"
+          ],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "database",
+          "nargs": null,
+          "options": [
+            "--database"
+          ],
+          "required": false,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "delegation_id",
+          "nargs": null,
+          "options": [
+            "--delegation-id"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [
+            "--output"
+          ],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.agent:cmd_agent_export"
+    },
+    "balance": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_balance"
+    },
+    "benchmark": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "benchmark compare": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "baseline",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "candidate",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "candidate_threads",
+          "nargs": null,
+          "options": [
+            "--candidate-threads"
+          ],
+          "required": false,
+          "type": "_positive_int"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.benchmark_support:cmd_benchmark_compare"
+    },
+    "benchmark summarize": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "targets",
+          "nargs": "+",
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.benchmark_support:cmd_benchmark_summarize"
+    },
+    "cancel": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "jobid",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "reason",
+          "nargs": null,
+          "options": [
+            "--reason"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "database",
+          "nargs": null,
+          "options": [
+            "--database"
+          ],
+          "required": false,
+          "type": "Path"
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_cancel"
+    },
+    "capabilities": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_capabilities"
+    },
+    "clone": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "url",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "branch",
+          "nargs": null,
+          "options": [
+            "--branch",
+            "-b"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [
+            "--name"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_clone"
+    },
+    "cxx": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "cxx fetchcontent": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "package",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "MYPROJECT",
+          "dest": "project_option_prefix",
+          "nargs": null,
+          "options": [
+            "--project-option-prefix"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "default_off",
+          "nargs": 0,
+          "options": [
+            "--default-off"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.cxx.commands:cmd_cxx_fetchcontent"
+    },
+    "cxx scan": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.cxx.commands:cmd_cxx_scan"
+    },
+    "doctor": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_doctor"
+    },
+    "files": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "files copy": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "source",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "destination",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 4194304,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_copy"
+    },
+    "files download": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "source",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 4194304,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_download"
+    },
+    "files list": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 1000,
+          "dest": "max_entries",
+          "nargs": null,
+          "options": [
+            "--max-entries"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_list"
+    },
+    "files mkdir": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_mkdir"
+    },
+    "files read": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": [
+            "utf-8",
+            "base64"
+          ],
+          "default": "utf-8",
+          "dest": "encoding",
+          "nargs": null,
+          "options": [
+            "--encoding"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 1048576,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_read"
+    },
+    "files remove": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_remove"
+    },
+    "files upload": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "source",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "destination",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": 4194304,
+          "dest": "max_bytes",
+          "nargs": null,
+          "options": [
+            "--max-bytes"
+          ],
+          "required": false,
+          "type": "_positive_integer"
+        }
+      ],
+      "handler": "hpc_tools.commands.files:cmd_files_upload"
+    },
+    "hardware": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "source",
+          "nargs": 0,
+          "options": [
+            "--source"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "path",
+          "nargs": 0,
+          "options": [
+            "--path"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_hardware"
+    },
+    "install-container": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": [
+            "agent",
+            "agent-boundary",
+            "conda",
+            "generic",
+            "r"
+          ],
+          "default": null,
+          "dest": "kind",
+          "nargs": null,
+          "options": [
+            "--kind"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [
+            "--name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.probes:cmd_install_container"
+    },
+    "install-hardware-probe": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": ".",
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "hardware-probe.slurm",
+          "dest": "name",
+          "nargs": null,
+          "options": [
+            "--name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "--clusters"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "qos",
+          "nargs": null,
+          "options": [
+            "--qos"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "mail_notifications",
+          "nargs": 0,
+          "options": [
+            "--mail-notifications"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "mail_user",
+          "nargs": null,
+          "options": [
+            "--mail-user"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.probes:cmd_install_hardware_probe"
+    },
+    "install-probe": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": [
+            "cuda-device-properties",
+            "hardware"
+          ],
+          "default": "hardware",
+          "dest": "kind",
+          "nargs": null,
+          "options": [
+            "--kind"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": ".",
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [
+            "--name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "--clusters"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "qos",
+          "nargs": null,
+          "options": [
+            "--qos"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "mail_notifications",
+          "nargs": 0,
+          "options": [
+            "--mail-notifications"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "mail_user",
+          "nargs": null,
+          "options": [
+            "--mail-user"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.probes:cmd_install_probe"
+    },
+    "job": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "jobid",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "all",
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_job"
+    },
+    "jobs": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "all",
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_jobs"
+    },
+    "module-spider": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_module_spider"
+    },
+    "paths": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_paths"
+    },
+    "plugins": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "plugins info": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_plugins_info"
+    },
+    "plugins list": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_plugins_list"
+    },
+    "projects": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_projects"
+    },
+    "python": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "python check": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "packages",
+          "nargs": null,
+          "options": [
+            "--package"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "modules",
+          "nargs": null,
+          "options": [
+            "--module"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.python.commands:cmd_python_check"
+    },
+    "python inspect-deps": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.python.commands:cmd_python_inspect_deps"
+    },
+    "python plan-install": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "packages",
+          "nargs": null,
+          "options": [
+            "--package"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "modules",
+          "nargs": null,
+          "options": [
+            "--module"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [
+            "--output"
+          ],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "venv",
+          "nargs": null,
+          "options": [
+            "--venv"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "python-package-install",
+          "dest": "job_name",
+          "nargs": null,
+          "options": [
+            "--job-name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "00:30:00",
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "2",
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "arch_guard",
+          "nargs": null,
+          "options": [
+            "--arch-guard"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "no_system_site_packages",
+          "nargs": 0,
+          "options": [
+            "--no-system-site-packages"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "upgrade_pip",
+          "nargs": 0,
+          "options": [
+            "--upgrade-pip"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.python.commands:cmd_python_plan_install"
+    },
+    "python scan": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.python.commands:cmd_python_scan"
+    },
+    "python submit-install": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "jobscript",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account",
+            "-A"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "remote_name",
+          "nargs": null,
+          "options": [
+            "--remote-name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition",
+            "-p"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "reservation",
+          "nargs": null,
+          "options": [
+            "--reservation"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time",
+            "-t"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task",
+            "-c"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "nodes",
+          "nargs": null,
+          "options": [
+            "--nodes",
+            "-N"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "skip_quote",
+          "nargs": 0,
+          "options": [
+            "--skip-quote"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "no_validate_first",
+          "nargs": 0,
+          "options": [
+            "--no-validate-first"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.python.commands:cmd_python_submit_install"
+    },
+    "python verify-install": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "job_output",
+          "nargs": null,
+          "options": [
+            "--job-output"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "packages",
+          "nargs": null,
+          "options": [
+            "--package"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "require_venv_fragment",
+          "nargs": null,
+          "options": [
+            "--require-venv-fragment"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.python.commands:cmd_python_verify_install"
+    },
+    "queue": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_queue"
+    },
+    "quota": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_quota"
+    },
+    "quote": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "quote_args",
+          "nargs": "...",
+          "options": [],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_quote"
+    },
+    "r": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "r check": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "packages",
+          "nargs": null,
+          "options": [
+            "--package"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "module",
+          "nargs": null,
+          "options": [
+            "--module"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cran_bundle",
+          "nargs": null,
+          "options": [
+            "--cran-bundle"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "bioc_bundle",
+          "nargs": null,
+          "options": [
+            "--bioc-bundle"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.r.commands:cmd_r_check"
+    },
+    "r plan-install": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "packages",
+          "nargs": null,
+          "options": [
+            "--package"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "module",
+          "nargs": null,
+          "options": [
+            "--module"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cran_bundle",
+          "nargs": null,
+          "options": [
+            "--cran-bundle"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "bioc_bundle",
+          "nargs": null,
+          "options": [
+            "--bioc-bundle"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [
+            "--output"
+          ],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "r-package-install",
+          "dest": "job_name",
+          "nargs": null,
+          "options": [
+            "--job-name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "01:00:00",
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "4",
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "${VSC_DATA}/Rlibs/${VSC_OS_LOCAL}/${VSC_ARCH_LOCAL}/R-${EBVERSIONR}",
+          "dest": "library_root_template",
+          "nargs": null,
+          "options": [
+            "--library-root-template"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "arch_guard",
+          "nargs": null,
+          "options": [
+            "--arch-guard"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "archive_package",
+          "nargs": null,
+          "options": [
+            "--archive-package"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": [],
+          "dest": "extra_repo",
+          "nargs": null,
+          "options": [
+            "--extra-repo"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.r.commands:cmd_r_plan_install"
+    },
+    "r scan": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "target",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.r.commands:cmd_r_scan"
+    },
+    "r submit-install": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "jobscript",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account",
+            "-A"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "remote_name",
+          "nargs": null,
+          "options": [
+            "--remote-name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition",
+            "-p"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "reservation",
+          "nargs": null,
+          "options": [
+            "--reservation"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time",
+            "-t"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task",
+            "-c"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "nodes",
+          "nargs": null,
+          "options": [
+            "--nodes",
+            "-N"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "skip_quote",
+          "nargs": 0,
+          "options": [
+            "--skip-quote"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "no_validate_first",
+          "nargs": 0,
+          "options": [
+            "--no-validate-first"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.r.commands:cmd_r_submit_install"
+    },
+    "r verify-install": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "job_output",
+          "nargs": null,
+          "options": [
+            "--job-output"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "packages",
+          "nargs": null,
+          "options": [
+            "--package"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "require_lib_fragment",
+          "nargs": null,
+          "options": [
+            "--require-lib-fragment"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "json",
+          "nargs": 0,
+          "options": [
+            "--json"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.plugins.r.commands:cmd_r_verify_install"
+    },
+    "references": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "references attach": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_attach"
+    },
+    "references create": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_create"
+    },
+    "references detach": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_detach"
+    },
+    "references export": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [
+            "--output"
+          ],
+          "required": false,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_export"
+    },
+    "references import": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "archive",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": "Path"
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_import"
+    },
+    "references list": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_list"
+    },
+    "references show": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_show"
+    },
+    "references validate": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.references:cmd_references_validate"
+    },
+    "repo": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "repo status": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_repo_status"
+    },
+    "run": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "remote_command",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_run"
+    },
+    "sacct": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "jobid",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_sacct"
+    },
+    "site-env": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.core:cmd_site_env"
+    },
+    "slurm-limits": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition",
+            "-p"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "qos",
+          "nargs": null,
+          "options": [
+            "--qos"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_slurm_limits"
+    },
+    "statement": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "start",
+          "nargs": null,
+          "options": [
+            "--start"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "end",
+          "nargs": null,
+          "options": [
+            "--end"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_statement"
+    },
+    "status": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_status"
+    },
+    "storage": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": null
+    },
+    "storage inspect": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": "?",
+          "options": [],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.remote:cmd_storage_inspect"
+    },
+    "submissions": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "database",
+          "nargs": null,
+          "options": [
+            "--database"
+          ],
+          "required": false,
+          "type": "Path"
+        }
+      ],
+      "handler": null
+    },
+    "submissions close": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "run_id",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "reason",
+          "nargs": null,
+          "options": [
+            "--reason"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.submissions:cmd_submissions_close"
+    },
+    "submissions list": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "all",
+          "nargs": 0,
+          "options": [
+            "--all"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.submissions:cmd_submissions_list"
+    },
+    "submissions mark-analysed": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "run_id",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [
+            "--path"
+          ],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.submissions:cmd_submissions_mark_analysed"
+    },
+    "submissions mark-collected": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "run_id",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "path",
+          "nargs": null,
+          "options": [
+            "--path"
+          ],
+          "required": true,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.submissions:cmd_submissions_mark_collected"
+    },
+    "submissions observe": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "run_id",
+          "nargs": "?",
+          "options": [],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.submissions:cmd_submissions_observe"
+    },
+    "submit": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "jobscript",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": ".",
+          "dest": "directory",
+          "nargs": null,
+          "options": [
+            "--directory",
+            "-C"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "test_only",
+          "nargs": 0,
+          "options": [
+            "--test-only"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "validate_first",
+          "nargs": 0,
+          "options": [
+            "--validate-first"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account",
+            "-A"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "array",
+          "nargs": null,
+          "options": [
+            "--array"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "-M"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "dependency",
+          "nargs": null,
+          "options": [
+            "--dependency"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "error",
+          "nargs": null,
+          "options": [
+            "--error"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "export",
+          "nargs": null,
+          "options": [
+            "--export"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "job_name",
+          "nargs": null,
+          "options": [
+            "--job-name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [
+            "--output"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition",
+            "-p"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "reservation",
+          "nargs": null,
+          "options": [
+            "--reservation"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time",
+            "-t"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "nodes",
+          "nargs": null,
+          "options": [
+            "--nodes",
+            "-N"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "ntasks",
+          "nargs": null,
+          "options": [
+            "--ntasks",
+            "-n"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "ntasks_per_node",
+          "nargs": null,
+          "options": [
+            "--ntasks-per-node"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task",
+            "-c"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "mem",
+          "nargs": null,
+          "options": [
+            "--mem"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "mem_per_cpu",
+          "nargs": null,
+          "options": [
+            "--mem-per-cpu"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "gres",
+          "nargs": null,
+          "options": [
+            "--gres"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "gpus",
+          "nargs": null,
+          "options": [
+            "--gpus"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "gpus_per_node",
+          "nargs": null,
+          "options": [
+            "--gpus-per-node"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "gpus_per_task",
+          "nargs": null,
+          "options": [
+            "--gpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "gpu_bind",
+          "nargs": null,
+          "options": [
+            "--gpu-bind"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.slurm:cmd_submit"
+    },
+    "write-container": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": [
+            "agent",
+            "agent-boundary",
+            "conda",
+            "generic",
+            "r"
+          ],
+          "default": null,
+          "dest": "kind",
+          "nargs": null,
+          "options": [
+            "--kind"
+          ],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "output",
+          "nargs": null,
+          "options": [],
+          "required": true,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "name",
+          "nargs": null,
+          "options": [
+            "--name"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.probes:cmd_write_container"
+    },
+    "write-hardware-probe": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "-",
+          "dest": "output",
+          "nargs": "?",
+          "options": [],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "--clusters"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "qos",
+          "nargs": null,
+          "options": [
+            "--qos"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "mail_notifications",
+          "nargs": 0,
+          "options": [
+            "--mail-notifications"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "mail_user",
+          "nargs": null,
+          "options": [
+            "--mail-user"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.probes:cmd_write_hardware_probe"
+    },
+    "write-probe": {
+      "arguments": [
+        {
+          "choices": null,
+          "default": "==SUPPRESS==",
+          "dest": "help",
+          "nargs": 0,
+          "options": [
+            "-h",
+            "--help"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": [
+            "cuda-device-properties",
+            "hardware"
+          ],
+          "default": "hardware",
+          "dest": "kind",
+          "nargs": null,
+          "options": [
+            "--kind"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": "-",
+          "dest": "output",
+          "nargs": "?",
+          "options": [],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "force",
+          "nargs": 0,
+          "options": [
+            "--force"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "account",
+          "nargs": null,
+          "options": [
+            "--account"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cluster",
+          "nargs": null,
+          "options": [
+            "--cluster",
+            "--clusters"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "partition",
+          "nargs": null,
+          "options": [
+            "--partition"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "qos",
+          "nargs": null,
+          "options": [
+            "--qos"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "time",
+          "nargs": null,
+          "options": [
+            "--time"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "cpus_per_task",
+          "nargs": null,
+          "options": [
+            "--cpus-per-task"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": false,
+          "dest": "mail_notifications",
+          "nargs": 0,
+          "options": [
+            "--mail-notifications"
+          ],
+          "required": false,
+          "type": null
+        },
+        {
+          "choices": null,
+          "default": null,
+          "dest": "mail_user",
+          "nargs": null,
+          "options": [
+            "--mail-user"
+          ],
+          "required": false,
+          "type": null
+        }
+      ],
+      "handler": "hpc_tools.commands.probes:cmd_write_probe"
+    }
+  },
+  "console_entry_points": {
+    "hpc": "hpc_tools.cli:main",
+    "hpc-agent-launch": "hpc_tools.restricted_launch:main",
+    "hpc-agent-reap": "hpc_tools.agent_cleanup:main",
+    "hpc-mcp": "hpc_tools.mcp_server:main",
+    "hpc-mcp-bridge": "hpc_tools.mcp_bridge:main",
+    "hpc-mcp-relay": "hpc_tools.mcp_bridge:relay_main"
+  },
+  "console_parsers": {
+    "hpc-agent-launch": {
+      "": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "manifest",
+            "nargs": null,
+            "options": [
+              "--manifest"
+            ],
+            "required": true,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "ledger",
+            "nargs": null,
+            "options": [
+              "--ledger"
+            ],
+            "required": true,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "profile",
+            "nargs": null,
+            "options": [
+              "--profile"
+            ],
+            "required": true,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "config",
+            "nargs": null,
+            "options": [
+              "--config"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "agent_image",
+            "nargs": null,
+            "options": [
+              "--agent-image"
+            ],
+            "required": true,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "runtime_directory",
+            "nargs": null,
+            "options": [
+              "--runtime-directory"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "agent_env_file",
+            "nargs": null,
+            "options": [
+              "--agent-env-file"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "prompt_file",
+            "nargs": null,
+            "options": [
+              "--prompt-file"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": false,
+            "dest": "dry_run",
+            "nargs": 0,
+            "options": [
+              "--dry-run"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "agent_command",
+            "nargs": "...",
+            "options": [],
+            "required": false,
+            "type": null
+          }
+        ],
+        "handler": null
+      }
+    },
+    "hpc-agent-reap": {
+      "": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "manifest",
+            "nargs": null,
+            "options": [
+              "--manifest"
+            ],
+            "required": true,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "ledger",
+            "nargs": null,
+            "options": [
+              "--ledger"
+            ],
+            "required": true,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "profile",
+            "nargs": null,
+            "options": [
+              "--profile"
+            ],
+            "required": true,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "parent_job_id",
+            "nargs": null,
+            "options": [
+              "--parent-job-id"
+            ],
+            "required": true,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": 6,
+            "dest": "retries",
+            "nargs": null,
+            "options": [
+              "--retries"
+            ],
+            "required": false,
+            "type": "int"
+          },
+          {
+            "choices": null,
+            "default": 10.0,
+            "dest": "retry_delay",
+            "nargs": null,
+            "options": [
+              "--retry-delay"
+            ],
+            "required": false,
+            "type": "float"
+          }
+        ],
+        "handler": null
+      }
+    },
+    "hpc-mcp": {
+      "": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": [
+              "ssh",
+              "local"
+            ],
+            "default": null,
+            "dest": "executor",
+            "nargs": null,
+            "options": [
+              "--executor"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": [
+              "context",
+              "discovery",
+              "job-inspect",
+              "job-lifecycle",
+              "full",
+              "slurm-job"
+            ],
+            "default": null,
+            "dest": "preset",
+            "nargs": null,
+            "options": [
+              "--preset"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "profile",
+            "nargs": null,
+            "options": [
+              "--profile"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "config",
+            "nargs": null,
+            "options": [
+              "--config"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "delegation",
+            "nargs": null,
+            "options": [
+              "--delegation"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "ledger",
+            "nargs": null,
+            "options": [
+              "--ledger"
+            ],
+            "required": false,
+            "type": null
+          }
+        ],
+        "handler": null
+      }
+    },
+    "hpc-mcp-bridge": {
+      "": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          }
+        ],
+        "handler": null
+      },
+      "connect": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "socket",
+            "nargs": null,
+            "options": [
+              "--socket"
+            ],
+            "required": false,
+            "type": "Path"
+          }
+        ],
+        "handler": null
+      },
+      "serve": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "socket",
+            "nargs": null,
+            "options": [
+              "--socket"
+            ],
+            "required": true,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "command",
+            "nargs": "...",
+            "options": [],
+            "required": false,
+            "type": null
+          }
+        ],
+        "handler": null
+      }
+    },
+    "hpc-mcp-relay": {
+      "connect": {
+        "arguments": [
+          {
+            "choices": null,
+            "default": "==SUPPRESS==",
+            "dest": "help",
+            "nargs": 0,
+            "options": [
+              "-h",
+              "--help"
+            ],
+            "required": false,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "socket",
+            "nargs": null,
+            "options": [
+              "--socket"
+            ],
+            "required": false,
+            "type": "Path"
+          }
+        ],
+        "handler": null
+      }
+    }
+  },
+  "format_version": 1,
+  "mcp_full": {
+    "hpc_cancel_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobid",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reason",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_copy": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "source",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "destination",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 4194304,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_download": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "source",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 4194304,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_list": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "int",
+        "default": 1000,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_entries",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_files_mkdir": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_read": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "utf-8",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "encoding",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 1048576,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_files_remove": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_files_upload": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "source",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "destination",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "int",
+        "default": 4194304,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "max_bytes",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_hardware_context": [],
+    "hpc_hardware_sources": [],
+    "hpc_install_container": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "generic",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "kind",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_install_probe": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "hardware",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "kind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "qos",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mail_user",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mail_notifications",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobid",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "all",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_job_accounting": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobid",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_jobs": [
+      {
+        "annotation": "str",
+        "default": "all",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_module_spider": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_paths": [],
+    "hpc_plugins_list": [],
+    "hpc_profile_show": [],
+    "hpc_profiles_list": [],
+    "hpc_quote_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobscript",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": ".",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "array",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dependency",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "error",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "export",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpu_bind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gres",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "job_name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem_per_cpu",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "nodes",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reservation",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "container",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_references_attach": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_references_create": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_references_import": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "archive",
+        "required": true
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_references_list": [],
+    "hpc_references_show": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": true
+      }
+    ],
+    "hpc_repo_clone": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "url",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "branch",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_site_env": [
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_slurm_limits": [
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "qos",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_status": [
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_storage_inspect": [
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_submissions_close": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "run_id",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reason",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_submissions_list": [
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "all",
+        "required": false
+      }
+    ],
+    "hpc_submissions_mark_analysed": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "run_id",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_submissions_mark_collected": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "run_id",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "path",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_submit_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobscript",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": true
+      },
+      {
+        "annotation": "dict[str, Any]",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "quote_evidence",
+        "required": true
+      },
+      {
+        "annotation": "dict[str, Any]",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "validation_evidence",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "array",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dependency",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "error",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "export",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpu_bind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gres",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "job_name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem_per_cpu",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "nodes",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reservation",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "container",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_validate_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobscript",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": ".",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "array",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dependency",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "error",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "export",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpu_bind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gres",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "job_name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem_per_cpu",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "nodes",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reservation",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "container",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_write_container": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "generic",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "kind",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ],
+    "hpc_write_probe": [
+      {
+        "annotation": "str",
+        "default": "hardware",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "kind",
+        "required": false
+      },
+      {
+        "annotation": "str",
+        "default": "-",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "output",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "force",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "qos",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mail_user",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mail_notifications",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "confirm",
+        "required": false
+      }
+    ]
+  },
+  "mcp_slurm_job": {
+    "hpc_cancel_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobid",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reason",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobid",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": "all",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_job_accounting": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobid",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_jobs": [
+      {
+        "annotation": "str",
+        "default": "all",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_quote_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobscript",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": ".",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "array",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dependency",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpu_bind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gres",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "job_name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem_per_cpu",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "nodes",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reservation",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "container",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_submit_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobscript",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": true
+      },
+      {
+        "annotation": "dict[str, Any]",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "quote_evidence",
+        "required": true
+      },
+      {
+        "annotation": "dict[str, Any]",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "validation_evidence",
+        "required": true
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "array",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dependency",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpu_bind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gres",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "job_name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem_per_cpu",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "nodes",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reservation",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "container",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": true,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ],
+    "hpc_validate_job": [
+      {
+        "annotation": "str",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "jobscript",
+        "required": true
+      },
+      {
+        "annotation": "str",
+        "default": ".",
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "directory",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "account",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "array",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cluster",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dependency",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpu_bind",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "gres",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "job_name",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "mem_per_cpu",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "nodes",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "ntasks_per_node",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "partition",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "reservation",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "time",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "cpus_per_task",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "container",
+        "required": false
+      },
+      {
+        "annotation": "str | None",
+        "default": null,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "idempotency_key",
+        "required": false
+      },
+      {
+        "annotation": "bool",
+        "default": false,
+        "kind": "POSITIONAL_OR_KEYWORD",
+        "name": "dry_run",
+        "required": false
+      }
+    ]
+  },
+  "pre_policy_no_config_examples": {
+    "agent-audit": false,
+    "benchmark-summarize": true,
+    "cxx-scan": true,
+    "doctor": false,
+    "no-command": false,
+    "paths": true,
+    "plugins-list": true,
+    "profile-command-help": false,
+    "python-check": false,
+    "python-scan": true,
+    "r-check": false,
+    "r-scan": true,
+    "references-create": false,
+    "references-import": false,
+    "root-help": true,
+    "submissions-list": false,
+    "submissions-mark": false,
+    "submissions-observe": false,
+    "write-probe-mail": false,
+    "write-probe-profile": false,
+    "write-probe-stdout": false
+  },
+  "resources": {
+    "full": [
+      "hpc://paths",
+      "hpc://profile",
+      "hpc://config",
+      "hpc://reference-set",
+      "hpc://cluster/hardware",
+      "hpc://cluster/slurm",
+      "hpc://cluster/storage",
+      "hpc://submissions/active",
+      "hpc://submissions/all",
+      "hpc://runtime"
+    ],
+    "full_templates": [],
+    "slurm_job": [
+      "hpc://runtime",
+      "hpc://cluster/hardware",
+      "hpc://cluster/slurm",
+      "hpc://cluster/storage"
+    ],
+    "slurm_job_templates": []
+  },
+  "snapshot_semantics": "current capability-transition surface; update intentionally with implementation, inventory, documentation, examples, and tests"
+}

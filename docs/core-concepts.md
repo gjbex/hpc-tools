@@ -120,10 +120,10 @@ hpc-tools sees it. Conversely, a relative remote path is relative to the
 working directory selected by the remote command, not necessarily the local
 directory from which `hpc` was invoked.
 
-## Commands can depend on profile capabilities
+## Commands can depend on configured site features
 
 Not every cluster exposes the same helper commands. Profile fields declare
-optional capabilities:
+optional site features:
 
 | Profile field | Enables or informs |
 | --- | --- |
@@ -135,10 +135,15 @@ optional capabilities:
 | hardware or Slurm reference metadata | `hpc hardware` context |
 | `status_url` | the service-status part of `hpc status` |
 
-When a selected profile lacks a capability, the corresponding command may be
+When a selected profile lacks a site helper, the corresponding command may be
 hidden from profile-specific help or rejected. Do not work around that by
 inventing a command from another site; configure the correct site helper or use
 the cluster's documented procedure.
+
+These fields describe what a site provides. They are separate from the
+mandatory `capabilities` policy table, which describes what hpc-tools is
+allowed to expose and do for that profile. The CLI filters profile-aware help
+from that policy and every invocation is authorized again before effects.
 
 ## Slurm requests are resource shapes
 
@@ -300,7 +305,8 @@ authorization policy. See [MCP integration](mcp.md).
 
 | Class | Examples | Principal risk |
 | --- | --- | --- |
-| local read | `hpc paths`, `hpc submissions list` | stale or misunderstood context |
+| local read | `hpc paths`, installed reference reads | stale or misunderstood context |
+| profile-bound job-history read | `hpc --profile example submissions list` | cross-profile disclosure or stale workflow state |
 | remote read | `doctor`, `jobs`, `slurm-limits`, bounded storage inspection | load, privacy, or misleading snapshots |
 | local write | writing a probe or container bundle, updating references | overwriting or misplacing local artifacts |
 | remote write | cloning a repository, installing a probe or container bundle | modifying the wrong directory or filesystem |

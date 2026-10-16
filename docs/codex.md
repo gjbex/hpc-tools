@@ -208,7 +208,7 @@ Codex conversation state is not the durable workflow record. Successful
 hpc-tools submissions are recorded in the local SQLite submission database:
 
 ```console
-hpc submissions list
+hpc --profile <profile> submissions list
 ```
 
 Use its `ACTION` column to observe, collect, analyse, triage, or close work.

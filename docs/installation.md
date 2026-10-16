@@ -18,7 +18,7 @@ an isolated Python environment while exposing its commands on the user's
 
 Requirements:
 
-- Python 3.10 or newer;
+- Python 3.13 or newer;
 - `pipx`;
 - an SSH client when using the default SSH executor.
 
@@ -50,16 +50,21 @@ pipx install .
 This is a release-style test: pipx installs a snapshot into its managed
 environment. Subsequent source edits are not automatically reflected there.
 
-Do not use `pipx install .` as an editable development environment. During
-development, follow the repository convention:
+Do not use `pipx install .` as a development environment. The repository pins
+uv and Python and keeps all contributor dependencies in `uv.lock`:
 
 ```bash
-python3 -m pip install --user -e .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync hpc --help
 ```
 
 An editable installation and a pipx installation can both place an `hpc`
 executable on the `PATH`. Check `command -v hpc` before assuming which source
 is running.
+
+The development workflow requires uv 0.13.1. `pyproject.toml` enforces that
+version, `.python-version` selects Python 3.13, and `uv.lock` fixes the complete
+development, documentation, and optional MCP dependency graph.
 
 ## Install the MCP extra
 
@@ -74,12 +79,12 @@ hpc-mcp
 The package declares the MCP dependency separately so ordinary CLI users do not
 need the agent-server stack.
 
-From a development checkout, install the project and extra into the active
-environment:
+From a development checkout, synchronize the locked environment with the MCP
+extra:
 
 ```bash
-uv pip install -e '.[mcp]'
-hpc-mcp
+uv sync --locked --extra mcp
+uv run --locked --no-sync hpc-mcp
 ```
 
 The `hpc-mcp` command starts a server; it is not an interactive CLI. Normally an
@@ -269,10 +274,10 @@ can still be present even when the optional server cannot start.
 
 ### A command documented for another profile is absent
 
-Some commands are capability-driven. For example, site-specific quota, queue,
+Some commands are currently site-feature-driven. For example, site-specific quota, queue,
 balance, statement, quote, hardware, or status commands depend on corresponding
-profile fields. This is a configuration issue, not necessarily an installation
-failure.
+profile fields. This is separate from the mandatory capability policy and is a
+configuration issue, not necessarily an installation failure.
 
 For SSH, Slurm, package, probe, submission-database, Codex, and MCP failures,
 continue with the full [Troubleshooting](troubleshooting.md) guide.

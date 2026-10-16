@@ -41,6 +41,30 @@ class McpFixtures:
                 sam_balance_command = "sam-balance"
                 sam_quote_command = "sam-quote"
                 default_cluster = "wice"
+
+                [profiles.genius.capabilities]
+                version = 1
+                max_level = "job-lifecycle"
+                scopes = [
+                    "accounting.read",
+                    "config.read.raw",
+                    "delegation-ledger.read",
+                    "job.validate",
+                    "local-state.write",
+                    "remote-filesystem.list",
+                    "remote-filesystem.read",
+                    "remote-install.write",
+                    "remote-workspace.delete",
+                    "remote-workspace.write",
+                    "submission-record.write",
+                ]
+
+                [profiles.genius.capabilities.remote_roots]
+                list = ["$VSC_DATA", "~"]
+                read = ["$VSC_DATA", "~"]
+                write = ["$VSC_DATA", "~"]
+                delete = ["$VSC_DATA", "~"]
+                install = ["$VSC_DATA", "~"]
                 """
             ).strip()
             + "\n",

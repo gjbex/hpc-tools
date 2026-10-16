@@ -32,6 +32,7 @@ nav:
   - Quick start: getting-started.md
   - Installation and maintenance: installation.md
   - Core concepts and safety: core-concepts.md
+  - Capability policy: capabilities.md
   - Configure cluster profiles: configuration.md
   - Onboard a new cluster: onboarding.md
   - Everyday cluster operations: everyday-operations.md
@@ -56,5 +57,8 @@ nav:
       - CLI plugin system: plugins.md
   - Contributing:
       - Build the documentation: contributing/documentation.md
+      - Capability design and implementation: development/capabilities/index.md
+      - MCP server roadmap: development/mcp-roadmap.md
+      - Real-cluster qualification: development/real-cluster-qualification.md
       - Delegation security internals: delegation-development.md
       - Parent-agent lifecycle design: parent-agent-lifecycle.md

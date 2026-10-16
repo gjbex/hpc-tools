@@ -13,6 +13,7 @@ import threading
 from pathlib import Path
 
 SOCKET_ENV_VAR = "HPC_TOOLS_MCP_SOCKET"
+READINESS_SUFFIX = ".ready"
 
 
 class BridgeError(RuntimeError):
@@ -24,12 +25,18 @@ def serve(socket_path: Path, command: list[str]) -> int:
     if not command:
         raise BridgeError("serve requires a server command after --")
     selected = _validate_socket_path(socket_path, must_exist=False)
+    ready = readiness_path(selected)
+    if ready.exists() or ready.is_symlink():
+        raise BridgeError(f"refusing to replace existing readiness path: {ready}")
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     child: subprocess.Popen[bytes] | None = None
+    ready_created = False
     try:
         listener.bind(str(selected))
         os.chmod(selected, 0o600)
         listener.listen(1)
+        _publish_readiness(ready)
+        ready_created = True
         connection, _ = listener.accept()
         listener.close()
         with connection:
@@ -59,6 +66,11 @@ def serve(socket_path: Path, command: list[str]) -> int:
             return child.wait()
     finally:
         listener.close()
+        if ready_created:
+            try:
+                ready.unlink()
+            except FileNotFoundError:
+                pass
         if child is not None and child.poll() is None:
             child.terminate()
             try:
@@ -70,6 +82,30 @@ def serve(socket_path: Path, command: list[str]) -> int:
             selected.unlink()
         except FileNotFoundError:
             pass
+
+
+def readiness_path(socket_path: Path) -> Path:
+    """Return the marker published only after the bridge starts listening."""
+    return socket_path.with_name(f"{socket_path.name}{READINESS_SUFFIX}")
+
+
+def _publish_readiness(path: Path) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        payload = f"{os.getpid()}\n".encode("ascii")
+        if os.write(descriptor, payload) != len(payload):
+            raise OSError("short write while publishing bridge readiness")
+    except BaseException:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+    finally:
+        os.close(descriptor)
 
 
 def connect(socket_path: Path) -> int:

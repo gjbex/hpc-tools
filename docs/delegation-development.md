@@ -30,7 +30,8 @@ ledger.
 ## Delegation manifest
 
 The operator starts the host-side server with a TOML manifest selected through
-`hpc-mcp --delegation PATH` or `HPC_TOOLS_MCP_DELEGATION`. The file must be
+`hpc-mcp --delegation PATH` or `HPC_TOOLS_MCP_DELEGATION`, and can bind the
+profile configuration explicitly with `--config PATH`. The manifest must be
 owned by the server user and must not be group- or world-writable. The server
 also requires `HPC_TOOLS_PARENT_JOB_ID`; it must match `parent_job_id`.
 The ledger path is selected by `--ledger`, `HPC_TOOLS_MCP_LEDGER`, or the
@@ -201,6 +202,14 @@ distributed multi-node database.
 There is no schema migration because this authorization format has not entered
 production and existing delegation data was explicitly out of scope. A
 non-version-3 ledger is rejected rather than modified implicitly.
+
+The first accepted controller start adds one `controller_authority` audit row.
+It contains the complete C3 profile-policy snapshot, its digest, and the path
+and digest of the configuration that supplied it. Subsequent starts reuse that
+row: a changed profile cannot replace or widen the captured ceiling. The MCP
+server intersects the current profile with this capture for new work, while
+host-only requeue and cleanup continue under the capture so already accepted
+ownership obligations remain enforceable after profile narrowing.
 
 The Python API exposes `DelegationLedger.revoke` for an operator control
 plane and `DelegationLedger.reconcile_job` for scheduler reconciliation.

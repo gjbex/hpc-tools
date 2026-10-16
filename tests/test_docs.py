@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import re
+import tempfile
+
+from hpc_tools.config import load_config
 from test_skill_fixtures import *
 
 
@@ -8,6 +12,10 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         navigation = (ROOT / "mkdocs.yml").read_text(encoding="utf-8")
         self.assertIn("reference.md", navigation)
         self.assertIn("project-information.md", navigation)
+        self.assertIn("capabilities.md", navigation)
+        self.assertIn("development/capabilities/index.md", navigation)
+        self.assertIn("development/mcp-roadmap.md", navigation)
+        self.assertIn("development/real-cluster-qualification.md", navigation)
 
         reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
         self.assertIn("## Complete CLI command reference", reference)
@@ -15,8 +23,68 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("## Submission-database format", reference)
         self.assertIn("## Reference-set manifest format", reference)
         self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", reference)
-        self.assertIn("Unknown TOML keys are currently ignored", reference)
+        self.assertIn("Unknown keys within `capabilities`", reference)
         self.assertIn("spacing or headings as a stable machine API", reference)
+
+        capabilities = (ROOT / "docs" / "capabilities.md").read_text(encoding="utf-8")
+        for level in ("profile-context", "cluster-discovery", "job-inspection", "job-lifecycle"):
+            self.assertIn(level, capabilities)
+        self.assertIn("--show-disallowed", capabilities)
+        self.assertIn("Restart the server", capabilities)
+        self.assertIn("knowledge, not authority", capabilities)
+        self.assertIn("examples/capability-profiles.toml", capabilities)
+
+    def test_capability_development_records_are_indexed(self) -> None:
+        root = ROOT / "docs" / "development" / "capabilities"
+        index = (root / "index.md").read_text(encoding="utf-8")
+        work_packages = sorted((root / "work-packages").glob("wp*.md"))
+
+        self.assertTrue((root / "design.md").is_file())
+        self.assertTrue((root / "implementation-plan.md").is_file())
+        self.assertEqual(12, len(work_packages))
+        for record in work_packages:
+            self.assertIn(f"work-packages/{record.name}", index)
+        self.assertFalse((ROOT / "capabilities.md").exists())
+        self.assertFalse((ROOT / "CAPABILITIES_PLAN.md").exists())
+
+    def test_real_cluster_qualification_replaces_root_todo(self) -> None:
+        qualification = (
+            ROOT / "docs" / "development" / "real-cluster-qualification.md"
+        ).read_text(encoding="utf-8")
+
+        for requirement in (
+            "same Slurm job ID",
+            "afterany:<parent-job-id>",
+            "Apptainer",
+            "unrelated control job",
+            "hpc agent export",
+            "qualified with restrictions",
+        ):
+            self.assertIn(requirement, qualification)
+        self.assertFalse((ROOT / "TODO.md").exists())
+
+    def test_documented_profile_toml_uses_the_accepted_capability_schema(self) -> None:
+        documents = [
+            README,
+            ROOT / "docs" / "development" / "capabilities" / "design.md",
+            *(ROOT / "docs").glob("*.md"),
+        ]
+        checked = 0
+        for document in documents:
+            text = document.read_text(encoding="utf-8")
+            for index, block in enumerate(
+                re.findall(r"```toml\n(.*?)\n```", text, flags=re.DOTALL),
+                start=1,
+            ):
+                if not re.search(r"^\s*\[profiles\.", block, flags=re.MULTILINE):
+                    continue
+                with self.subTest(document=document.name, block=index):
+                    with tempfile.TemporaryDirectory() as directory:
+                        path = Path(directory) / "config.toml"
+                        path.write_text(block, encoding="utf-8")
+                        load_config(str(path))
+                checked += 1
+        self.assertGreaterEqual(checked, 15)
 
         project_information = (ROOT / "docs" / "project-information.md").read_text(encoding="utf-8")
         self.assertIn("## Current limitations and deliberate non-features", project_information)
@@ -61,22 +129,40 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertEqual(deployment_workflows, ["docs-deploy.yml"])
 
         deployment = (workflows / "docs-deploy.yml").read_text(encoding="utf-8")
-        self.assertIn("mkdocs build --strict", deployment)
+        self.assertIn("uv run --locked --no-sync mkdocs build --strict", deployment)
         self.assertIn("path: site", deployment)
+
+    def test_validation_ci_runs_capability_and_distribution_acceptance(self) -> None:
+        validation = (
+            ROOT / ".github" / "workflows" / "validate.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn('version: "0.13.1"', validation)
+        self.assertIn('python-version: "3.13"', validation)
+        self.assertIn("uv lock --check", validation)
+        self.assertIn("uv sync --locked --all-extras --all-groups", validation)
+        self.assertLess(
+            validation.index("tools/check_repo_hygiene.py"),
+            validation.index("uv sync --locked --all-extras --all-groups"),
+        )
+        self.assertIn("tools/run_capability_acceptance.py", validation)
+        self.assertIn("uv build --out-dir dist", validation)
+        self.assertIn("tools/check_capability_distribution.py", validation)
+        self.assertIn("--wheel dist/*.whl", validation)
+        self.assertIn("--sdist dist/*.tar.gz", validation)
 
     def test_readme_installs_without_repo_dependency(self) -> None:
         text = README.read_text(encoding="utf-8")
 
         self.assertIn("pipx install hpc-tools", text)
         self.assertIn("pipx install .", text)
-        self.assertIn("Use an editable install only when developing", text)
+        self.assertIn("Use the pinned, locked uv environment when developing", text)
         self.assertIn("~/.config/hpc-tools/profiles/<profile>/", text)
         self.assertIn("cp -R skills/hpc-cluster-onboarding", text)
         self.assertIn("cp -R skills/hpc-slurm-job-arrays", text)
         self.assertIn("hpc plugins list", text)
         self.assertIn("hpc plugins info benchmark", text)
         self.assertIn("hpc-mcp", text)
-        self.assertIn('uv pip install -e ".[mcp]"', text)
+        self.assertIn("uv sync --locked --extra mcp", text)
         self.assertIn("Run the server with", text)
         self.assertIn("guarded MCP interface", text)
         self.assertIn("plugin manifest points at `.mcp.json`", text)
@@ -88,8 +174,8 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc_validate_job", text)
         self.assertIn("hpc_submit_job", text)
         self.assertIn("Stale or dry-run evidence is rejected", text)
-        self.assertIn("hpc://profiles/{profile}/hardware", text)
-        self.assertIn("active hpc-tools config tree", text)
+        self.assertIn("hpc://cluster/hardware", text)
+        self.assertIn("startup-bound profile", text)
         self.assertIn("hpc_status", text)
         self.assertIn("hpc_slurm_limits", text)
         self.assertIn("hpc_module_spider", text)
@@ -121,6 +207,8 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc_tools/data/cuda-device-properties.slurm", text)
         self.assertIn("hpc_tools/data/cuda/", text)
         self.assertIn("pipx uninstall hpc-tools", text)
+        self.assertIn("tools/run_capability_acceptance.py", text)
+        self.assertIn("tools/check_capability_distribution.py", text)
         self.assertNotIn("ln -s /home", text)
 
     def test_partition_discovery_report_is_reusable(self) -> None:

@@ -7,14 +7,15 @@ description: Run and manage embarrassingly parallel Slurm job-array workflows on
 
 ## Remote Access
 
-Use the installed `hpc` CLI for remote commands:
+Inspect the selected profile before using remote commands:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
 
-For profile selection, optional helpers, login-gate handling, `--dry-run`, and
-remote command patterns, read
+For policy denials, profile selection, optional helpers, login-gate handling,
+`--dry-run`, and remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
 ## Conceptual References
@@ -299,11 +300,11 @@ task-specific, rerun only the affected task IDs.
 After collection and analysis, update the local submission lifecycle:
 
 ```bash
-hpc submissions mark-collected <run-id> --path <results-path>
-hpc submissions mark-analysed <run-id> --path <analysis-path>
-hpc submissions close <run-id> --reason done
+hpc --profile <profile> submissions mark-collected <run-id> --path <results-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path <analysis-path>
+hpc --profile <profile> submissions close <run-id> --reason done
 ```
 
 Close invalid or superseded array attempts once their role in the workflow is
-understood so `hpc submissions list` stays focused on work that still needs
+understood so that profile's `submissions list` stays focused on work that still needs
 attention.

@@ -4,26 +4,24 @@ The documentation source is Markdown under `docs/`. MkDocs reads
 `mkdocs.yml`, validates the configured navigation, and writes the generated
 site to `site/`.
 
-## Create a local environment
+## Create the local environment
 
 From the repository root:
 
 ```bash
-python3 -m venv .venv-docs
-. .venv-docs/bin/activate
-python3 -m pip install --upgrade pip
-python3 -m pip install -r docs/requirements.txt
+uv sync --locked --only-group docs
 ```
 
-The documentation dependencies are kept separate from the runtime dependencies
-of the `hpc` CLI.
+The documentation group is declared in `pyproject.toml` and resolved in the
+repository-wide `uv.lock`. The command creates or updates `.venv` without
+installing unrelated runtime or development dependencies.
 
 ## Preview changes
 
 Run the development server:
 
 ```bash
-mkdocs serve
+uv run --locked --no-sync mkdocs serve
 ```
 
 Open the local address printed by MkDocs. The server watches the Markdown and
@@ -34,7 +32,7 @@ configuration files and rebuilds the preview after changes.
 Before committing documentation changes, run:
 
 ```bash
-mkdocs build --strict
+uv run --locked --no-sync mkdocs build --strict
 ```
 
 Strict mode treats warnings as errors. The generated `site/` directory is a

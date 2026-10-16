@@ -11,33 +11,45 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          python-version: "3.10"
+          version: "0.13.1"
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Verify the dependency lock
+        run: uv lock --check
 
       - name: Validate Codex plugin manifest
-        run: python3 tools/validate_plugin.py .
+        run: uv run --no-project --python 3.13 python tools/validate_plugin.py .
 
       - name: Validate Codex skills
-        run: python3 tools/validate_skills.py .
+        run: uv run --no-project --python 3.13 python tools/validate_skills.py .
 
       - name: Check repository hygiene
-        run: python3 tools/check_repo_hygiene.py .
+        run: uv run --no-project --python 3.13 python tools/check_repo_hygiene.py .
 
-      - name: Install package dependencies
-        run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -e .
-
-      - name: Install documentation dependencies
-        run: python3 -m pip install -r docs/requirements.txt
+      - name: Install the locked environment
+        run: uv sync --locked --all-extras --all-groups
 
       - name: Build documentation
-        run: mkdocs build --strict
+        run: uv run --locked --no-sync mkdocs build --strict
 
       - name: Compile Python modules
-        run: python3 -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
+        run: uv run --locked --no-sync python -m py_compile hpc_tools/*.py hpc_tools/plugins/*.py hpc_tools/plugins/cxx/*.py hpc_tools/plugins/python/*.py hpc_tools/plugins/r/*.py hpc_tools/commands/*.py hpc_tools/mcp/*.py tests/*.py tools/*.py
 
       - name: Run tests
-        run: python3 -m unittest discover -s tests
+        run: uv run --locked --no-sync python -m unittest discover -s tests
+
+      - name: Run capability acceptance tier
+        run: uv run --locked --no-sync python tools/run_capability_acceptance.py
+
+      - name: Build wheel and source archive
+        run: uv build --out-dir dist
+
+      - name: Validate isolated wheel and source installations
+        run: |
+          uv run --locked --no-sync python tools/check_capability_distribution.py \
+            --wheel dist/*.whl \
+            --sdist dist/*.tar.gz

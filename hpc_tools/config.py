@@ -4,13 +4,14 @@ from dataclasses import dataclass
 from pathlib import Path
 import os
 import shlex
+import tomllib
 from typing import Any
 
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10.
-    import tomli as tomllib  # type: ignore[no-redef]
-
+from hpc_tools.capabilities import (
+    CapabilityPolicy,
+    CapabilityPolicyError,
+    parse_capability_policy,
+)
 
 CONFIG_DIR_NAME = "hpc-tools"
 CONFIG_FILE_NAME = "config.toml"
@@ -41,6 +42,7 @@ class Profile:
     reference_set: str | None
     default_cluster: str | None
     email: str | None
+    capabilities: CapabilityPolicy
 
     @property
     def ssh_target(self) -> str | None:
@@ -122,6 +124,14 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
     host = _optional_string(raw_profile, "host", profile=name)
     user = _optional_string(raw_profile, "user", profile=name)
     login_shell = _parse_login_shell(raw_profile.get("login_shell", ["bash", "-l", "-c"]), name)
+    if "capabilities" not in raw_profile:
+        raise ConfigError(
+            f"profile '{name}' must define [profiles.{name}.capabilities]"
+        )
+    try:
+        capabilities = parse_capability_policy(raw_profile["capabilities"], profile=name)
+    except CapabilityPolicyError as error:
+        raise ConfigError(str(error)) from error
 
     return Profile(
         name=name,
@@ -146,7 +156,16 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         reference_set=_optional_string(raw_profile, "reference_set", profile=name),
         default_cluster=_optional_string(raw_profile, "default_cluster", profile=name),
         email=_optional_string(raw_profile, "email", profile=name),
+        capabilities=capabilities,
     )
+
+
+def profile_capability_summary(profile: Profile) -> dict[str, object]:
+    """Return policy metadata without profile connection details or commands."""
+    return {
+        "name": profile.name,
+        "capabilities": profile.capabilities.public_summary(),
+    }
 
 
 def _parse_ssh_target(raw_profile: dict[str, Any], *, profile: str) -> str | None:

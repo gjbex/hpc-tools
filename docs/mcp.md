@@ -9,6 +9,10 @@ MCP is an additional interface over the same local configuration and command
 executors. It does not replace the CLI, create authorization, or make an agent
 a trusted cluster operator.
 
+Read [Capability policy](capabilities.md) first when choosing the server's
+profile and preset. MCP discovery is deliberately narrower than CLI auditing:
+denied operations are absent, not listed with denial annotations.
+
 ## Decide whether MCP is useful
 
 Use MCP when an agent needs to:
@@ -35,11 +39,11 @@ command -v hpc-mcp
 pipx list
 ```
 
-For development in an active uv environment:
+For development in the repository's locked uv environment:
 
 ```console
-uv pip install -e '.[mcp]'
-command -v hpc-mcp
+uv sync --locked --extra mcp
+uv run --locked --no-sync hpc-mcp --help
 ```
 
 The server uses the same Python-package version as the CLI installation. A
@@ -76,7 +80,59 @@ enabling writes.
 
 The server resolves configuration in the normal hpc-tools order, including
 `HPC_TOOLS_CONFIG` and `XDG_CONFIG_HOME`. Environment variables must be present
-in the server process. Use `hpc_paths` to verify which state tree it sees.
+in the server process. It resolves one profile and snapshots that profile,
+policy, configuration path, and submission database at startup. Tool schemas do
+not expose overrides for those trusted selections. Restart the server after
+editing configuration; a running server intentionally keeps both discovery and
+execution on its original snapshot. Use `hpc_paths` to verify which state tree
+it sees.
+
+One process never multiplexes authority across profiles. Configure separate
+stdio servers when a client needs two centers or two roles:
+
+```json
+{
+  "mcpServers": {
+    "atlas-context": {
+      "command": "hpc-mcp",
+      "args": ["--profile", "atlas-context", "--preset", "context"]
+    },
+    "borealis-monitor": {
+      "command": "hpc-mcp",
+      "args": ["--profile", "borealis-monitor", "--preset", "job-inspect"]
+    }
+  }
+}
+```
+
+Restart the affected process after editing its profile, scopes, roots, site
+features, or attached reference set. Starting another process is also required
+to select a different profile; tools cannot switch profiles in call arguments.
+
+## Select a capability preset
+
+The default `full` preset requests every operation the bound profile permits;
+it is not an unrestricted or compatibility mode. The lower presets impose an
+additional cumulative ceiling:
+
+| Preset | Maximum operation level |
+| --- | --- |
+| `context` | local installed context (C0) |
+| `discovery` | non-job cluster discovery (C1) |
+| `job-inspect` | job observation, quotation, and validation (C2) |
+| `job-lifecycle` | submission and cancellation (C3) |
+
+For example:
+
+```console
+hpc-mcp --profile example --preset discovery
+```
+
+The registered tools and resources are the intersection of the preset,
+profile level and scopes, configured site helpers, and deployment mode. Missing
+tools are unavailable rather than merely documented as denied. Independent
+filesystem scopes still apply at every preset level. `slurm-job` is the
+separate delegated deployment mode described below.
 
 ## Select where cluster commands run
 
@@ -115,6 +171,7 @@ manifest, ledger, parent allocation, and profile:
 ```console
 HPC_TOOLS_PARENT_JOB_ID=60350000 \
 hpc-mcp --executor local --preset slurm-job --profile example \
+    --config ~/.config/hpc-tools/config.toml \
     --delegation /srv/hpc-tools/delegations/agent-001.toml \
     --ledger /srv/hpc-tools/state/delegations.sqlite3
 ```
@@ -143,7 +200,9 @@ hpc://cluster/slurm
 hpc://cluster/storage
 ```
 
-The restricted tools do not expose `profile` or `config` parameters. Profile
+No bound tools expose `profile`, `config`, or `database` parameters. The
+restricted tools additionally hide confirmation and selected submission-path
+overrides. Profile
 enumeration, raw configuration, arbitrary path inspection, live site discovery,
 installation, probe generation, reference mutation, and unrelated local-state
 mutation are absent from the server registry.
@@ -172,22 +231,24 @@ The read-oriented tools are:
 
 | Tool | Result |
 | --- | --- |
-| `hpc_profiles_list` | Config path, default profile, and profile summaries. |
+| `hpc_profiles_list` | The bound profile's safe summary only. |
 | `hpc_paths` | Active config, reference, packaged-template, skill, and uninstall paths. |
 | `hpc_profile_show` | One resolved profile as structured data. |
 | `hpc_hardware_context` | Rendered hardware, Slurm, storage, and status context. |
 | `hpc_hardware_sources` | Reference paths, URLs, status URL, and attached set metadata. |
-| `hpc_references_list` | Installed shared reference sets. |
-| `hpc_references_show` | Manifest data for one reference set. |
+| `hpc_references_list` | The bound profile's effective attached reference set, if any. |
+| `hpc_references_show` | Manifest data for that attached reference set only. |
 | `hpc_plugins_list` | Installed Python CLI extensions. |
-| `hpc_submissions_list` | Active or complete reconstructed submission records. |
-| `hpc_status` | Combined status-page, quota, balance, and submission summary. |
-| `hpc_jobs` | Full mode: current user queue. Delegated mode: only ledger-owned active jobs. |
+| `hpc_submissions_list` | Active or complete reconstructed records for the selected profile. |
+| `hpc_status` | The configured public site-status page; quota, balance, and submissions are separate operations. |
+| `hpc_jobs` | Ordinary mode: current user queue. Delegated mode: only ledger-owned active jobs. |
 | `hpc_job` | Queue state for one job ID; delegated mode requires ownership. |
 | `hpc_job_accounting` | Slurm accounting for one job; delegated mode requires ownership and reconciles terminal state. |
 | `hpc_slurm_limits` | Raw and best-effort parsed controller, partition, QoS, and association data. |
 | `hpc_module_spider` | Raw and best-effort parsed Lmod search result. |
 | `hpc_storage_inspect` | Bounded filesystem information for one remote path. |
+| `hpc_files_list` | Non-recursive bounded entries and metadata under a list root. |
+| `hpc_files_read` | Bounded UTF-8 or base64 content for one regular file under a read root. |
 | `hpc_site_env` | Site variables, module system, and common HPC helper availability. |
 
 Tools that access the cluster execute SSH-backed reads by default. Pass
@@ -205,37 +266,44 @@ failed remote command or unfamiliar site output.
 
 ## Use MCP resources for durable context
 
-The server publishes fixed resources:
+Subject to profile policy and site availability, the server publishes fixed
+selected-profile resources:
 
 ```text
 hpc://paths
+hpc://profile
 hpc://config
+hpc://reference-set
+hpc://cluster/hardware
+hpc://cluster/slurm
+hpc://cluster/storage
 hpc://submissions/active
 hpc://submissions/all
+hpc://runtime
 ```
 
-It also publishes templates:
+`hpc://reference-set` is present only when the profile attaches an effective
+set. The server publishes no resource templates that accept a different
+profile or arbitrary reference-set name. Profile references resolve from the
+startup snapshot and installed reference material, not from repository
+examples. Missing configured files produce an error rather than an invented
+reference.
 
-```text
-hpc://profiles/{profile}
-hpc://profiles/{profile}/hardware
-hpc://profiles/{profile}/slurm
-hpc://profiles/{profile}/storage
-hpc://reference-sets/{name}
-```
+`hpc://config` requires the selected profile's `config.read.raw` grant and
+returns parseable TOML containing only that profile's resolved configuration
+and the needed `default_profile` setting, not the complete multi-profile file.
+It can still reveal hosts, usernames, email addresses,
+paths, site commands, and project context. Do not expose it to an untrusted
+client or model.
 
-Profile references resolve from the active configuration and installed
-reference sets, not from repository examples. Missing configured files produce
-an error rather than an invented reference.
+`hpc://runtime` reports the selected preset, executor, profile, cluster, and
+effective capability level/scopes. Ordinary mode does not add protected
+deployment data; delegated mode retains its existing public delegation and
+ledger summary.
 
-`hpc://config` returns the active TOML file as text. Even though hpc-tools does
-not expect passwords or private keys there, it can reveal hosts, usernames,
-email addresses, paths, site commands, and project context. Do not expose these
-resources to an untrusted client or model.
-
-Resources are read-only protocol endpoints. Reading a submission resource does
-not observe Slurm again, and reading a reference does not refresh it from a
-site URL.
+Resources are read-only protocol endpoints. Submission resources are filtered
+to the selected profile and reject unlabelled records; reading one does not
+observe Slurm again. Reading a reference does not refresh it from a site URL.
 
 ## Preview local writes
 
@@ -249,6 +317,12 @@ The following tools can change local state:
 - `hpc_submissions_close`
 - `hpc_write_probe`
 - `hpc_write_container`
+- `hpc_files_download`
+- `hpc_files_upload`
+- `hpc_files_copy`
+- `hpc_files_mkdir`
+- `hpc_files_remove`
+- `hpc_repo_clone`
 
 Without `confirm=true`, they return a preview and do not write. Review the
 destination, selected profile, archive, generated content, overwrite flag, and
@@ -257,6 +331,13 @@ submission-database event before confirming.
 `force=true` can replace existing generated files or reference sets. The
 confirmation flag does not back up overwritten state. Prefer versioned outputs
 and inspect exact targets first.
+
+File mutations additionally require `dry_run=false`; their default call is a
+preview even when `confirm=true`. Downloads name an explicit local target.
+Uploads and copies are bounded single-file operations and publish the remote
+destination atomically. Removal accepts only a regular file or empty directory
+and never follows symlinks or removes a configured root. `hpc_repo_clone`
+accepts network sources only and disables hooks and recursive submodules.
 
 Lifecycle tools append events only. They do not copy artifacts, execute an
 analysis, validate a path, cancel a job, or reopen a closed record.
@@ -330,7 +411,7 @@ The protocol is stricter than the ordinary CLI:
 2. `hpc_validate_job` executes `sbatch --test-only` for the proposed request.
 3. `hpc_submit_job` requires successful quote and validation evidence for the
    same resource shape.
-4. Full mode requires `confirm=true` and `dry_run=false`. Delegated mode
+4. Ordinary mode requires `confirm=true` and `dry_run=false`. Delegated mode
    instead requires `dry_run=false`, a fresh `idempotency_key`, matching
    policy, and available budget.
 5. Delegated mode records ownership in the private ledger before appending the
@@ -439,9 +520,11 @@ Then inspect the client's MCP logs for `ModuleNotFoundError`, configuration
 errors, or a missing executable.
 
 If the server starts but tools are absent, verify the client loaded the
-hpc-tools MCP entry, restart the client or start a new task, and check for
-version drift between the plugin checkout and Python package. If tools work but
-profiles are absent, compare `HPC_TOOLS_CONFIG`, `XDG_CONFIG_HOME`, and
+hpc-tools MCP entry, selected the intended profile and preset, and that the
+profile grants the required level, scopes, roots, and site helper. Restart the
+server after configuration edits, and check for version drift between the
+plugin checkout and Python package. If the bound profile is unexpected,
+compare `HPC_TOOLS_MCP_PROFILE`, `HPC_TOOLS_CONFIG`, `XDG_CONFIG_HOME`, and
 `hpc_paths` in the server environment.
 
 Continue with [Troubleshooting](troubleshooting.md) for a layer-by-layer

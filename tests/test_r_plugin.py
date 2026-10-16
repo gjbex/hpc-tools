@@ -108,6 +108,27 @@ Session info:
         self.assertEqual(result.statuses["dlnm"], "MISSING")
         self.assertIn('/data/Rlibs/icelake', result.library_paths[0])
 
+    def test_r_verify_install_reads_through_filesystem_service(self) -> None:
+        args = argparse.Namespace(
+            job_output="$VSC_DATA/Projects/demo/install.out",
+            packages=["PrevMap"],
+            require_lib_fragment="/Rlibs/",
+            json=False,
+            dry_run=False,
+        )
+        output = 'PrevMap OK\n\nLibrary paths:\n[1] "/data/Rlibs/icelake"\n'
+
+        with mock.patch(
+            "hpc_tools.plugins.r.commands.read_remote_text",
+            return_value=(args.job_output, output),
+        ) as read, mock.patch(
+            "hpc_tools.plugins.r.commands.run_command_capture"
+        ) as remote, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(r_support.cmd_r_verify_install(args, make_profile()), 0)
+
+        read.assert_called_once()
+        remote.assert_not_called()
+
     def test_build_stage_script_command_writes_remote_script(self) -> None:
         command = r_support.build_stage_script_command(
             directory="$VSC_DATA/Projects/demo",
@@ -175,7 +196,7 @@ Session info:
                 stderr="",
             )
             stdout = io.StringIO()
-            profile = type("Profile", (), {})()
+            profile = make_profile()
             with mock.patch("hpc_tools.plugins.r.remote_verify.run_command_capture", return_value=completed) as remote, \
                  contextlib.redirect_stdout(stdout):
                 exit_code = r_support.cmd_r_check(args, profile)
@@ -188,31 +209,23 @@ Session info:
         with tempfile.TemporaryDirectory() as directory:
             script = Path(directory) / "install.slurm"
             script.write_text("#!/bin/bash\n", encoding="utf-8")
-            args = type(
-                "Args",
-                (),
-                {
-                    "jobscript": script,
-                    "directory": "$VSC_DATA/Projects/demo",
-                    "account": "proj123",
-                    "remote_name": None,
-                    "cluster": "wice",
-                    "partition": "batch_icelake",
-                    "reservation": None,
-                    "time": "01:00:00",
-                    "cpus_per_task": "4",
-                    "nodes": "1",
-                    "skip_quote": False,
-                    "no_validate_first": False,
-                    "dry_run": False,
-                },
-            )()
-            profile = type(
-                "Profile",
-                (),
-                {"name": "genius", "default_cluster": "wice", "sam_quote_command": "sam-quote"},
-            )()
-            stage = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+            args = argparse.Namespace(
+                jobscript=script,
+                directory="$VSC_DATA/Projects/demo",
+                account="proj123",
+                remote_name=None,
+                cluster="wice",
+                partition="batch_icelake",
+                reservation=None,
+                time="01:00:00",
+                cpus_per_task="4",
+                nodes="1",
+                skip_quote=False,
+                no_validate_first=False,
+                dry_run=False,
+                force=False,
+            )
+            profile = make_profile()
             quote = subprocess.CompletedProcess(args=[], returncode=0, stdout="600\n", stderr="")
             validate = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
             submit = subprocess.CompletedProcess(
@@ -224,12 +237,16 @@ Session info:
 
             with mock.patch(
                 "hpc_tools.plugins.r.commands.run_command_capture",
-                side_effect=[stage, quote, validate, submit],
-            ) as remote, mock.patch("hpc_tools.plugins.r.install_plan.submissions.append_event") as append_event:
+                side_effect=[quote, validate, submit],
+            ) as remote, mock.patch(
+                "hpc_tools.plugins.r.commands.install_remote_assets",
+                return_value=[type("Installed", (), {"path": "$VSC_DATA/Projects/demo/install.slurm"})()],
+            ) as stage, mock.patch("hpc_tools.plugins.r.install_plan.submissions.append_event") as append_event:
                 exit_code = r_support.cmd_r_submit_install(args, profile)
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(remote.call_count, 4)
+        stage.assert_called_once()
+        self.assertEqual(remote.call_count, 3)
         event = append_event.call_args.args[0]
         self.assertEqual(event["event"], "submitted")
         self.assertEqual(event["job_id"], "12345")

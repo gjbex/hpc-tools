@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 from datetime import datetime
 import html
 from pathlib import Path
@@ -15,6 +14,7 @@ from urllib.request import urlopen
 from hpc_tools import slurm
 from hpc_tools import slurm_contracts
 from hpc_tools import submissions
+from hpc_tools.authorization import namespace_arguments, require_authorized
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import run_command, run_command_capture
 
@@ -27,34 +27,35 @@ def register(subparsers: Any, profile: Any, handlers: Any) -> None:
 
 
 def register_status(subparsers: Any, profile: Any, handlers: Any) -> None:
-    if profile is None or profile.status_url:
-        status_parser = subparsers.add_parser(
-            "status",
-            help="Show site status, quota, balance, and local submissions",
-        )
-        status_parser.set_defaults(handler=handlers.cmd_status)
+    del profile
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show the public site status page",
+    )
+    status_parser.set_defaults(handler=handlers.cmd_status, operation_id="cluster.status")
 
 
 def register_accounting(subparsers: Any, profile: Any, handlers: Any) -> None:
-    if profile is None or profile.sam_quote_command:
-        quote_parser = subparsers.add_parser("quote", help="Estimate Slurm credits for a job")
-        quote_parser.add_argument(
-            "quote_args",
-            nargs=argparse.REMAINDER,
-            help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
-        )
-        quote_parser.set_defaults(handler=handlers.cmd_quote)
+    del profile
+    quote_parser = subparsers.add_parser("quote", help="Estimate Slurm credits for a job")
+    quote_parser.add_argument(
+        "quote_args",
+        nargs=argparse.REMAINDER,
+        help="sam-quote submit command and Slurm options, e.g. srun -M wice -p gpu_a100 -A account",
+    )
+    quote_parser.set_defaults(handler=handlers.cmd_quote, operation_id="job.quote")
 
-    if profile is None or profile.sam_balance_command:
-        balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
-        balance_parser.set_defaults(handler=handlers.cmd_balance)
+    balance_parser = subparsers.add_parser("balance", help="Show Slurm account credit balances")
+    balance_parser.set_defaults(handler=handlers.cmd_balance, operation_id="account.balance")
 
-    if profile is None or profile.sam_statement_command:
-        statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
-        statement_parser.add_argument("--account", required=True, help="Slurm account name")
-        statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
-        statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
-        statement_parser.set_defaults(handler=handlers.cmd_statement)
+    statement_parser = subparsers.add_parser("statement", help="Show Slurm account credit transactions")
+    statement_parser.add_argument("--account", required=True, help="Slurm account name")
+    statement_parser.add_argument("--start", help="Start date in YYYY-mm-dd format")
+    statement_parser.add_argument("--end", help="End date in YYYY-mm-dd format")
+    statement_parser.set_defaults(
+        handler=handlers.cmd_statement,
+        operation_id="account.statement",
+    )
 
 
 def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
@@ -77,7 +78,7 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         help="Run sbatch --test-only with the same options before submitting",
     )
     handlers.add_submit_override_arguments(submit_parser)
-    submit_parser.set_defaults(handler=handlers.cmd_submit)
+    submit_parser.set_defaults(handler=handlers.cmd_submit, operation_id="job.submit")
 
     jobs_parser = subparsers.add_parser("jobs", help="Show current user's Slurm jobs")
     jobs_parser.add_argument(
@@ -86,7 +87,7 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         default="all",
         help="Slurm cluster name; defaults to all visible clusters",
     )
-    jobs_parser.set_defaults(handler=handlers.cmd_jobs)
+    jobs_parser.set_defaults(handler=handlers.cmd_jobs, operation_id="job.list")
 
     job_parser = subparsers.add_parser("job", help="Show status for one Slurm job")
     job_parser.add_argument("jobid", help="Slurm job ID")
@@ -96,7 +97,7 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         default="all",
         help="Slurm cluster name; defaults to all visible clusters",
     )
-    job_parser.set_defaults(handler=handlers.cmd_job)
+    job_parser.set_defaults(handler=handlers.cmd_job, operation_id="job.show")
 
     cancel_parser = subparsers.add_parser(
         "cancel",
@@ -113,16 +114,15 @@ def register_lifecycle(subparsers: Any, profile: Any, handlers: Any) -> None:
         type=Path,
         help="Submission SQLite database path; defaults to the hpc-tools config directory",
     )
-    cancel_parser.set_defaults(handler=handlers.cmd_cancel)
+    cancel_parser.set_defaults(handler=handlers.cmd_cancel, operation_id="job.cancel")
 
-    if profile is None or profile.queue_command:
-        queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
-        queue_parser.set_defaults(handler=handlers.cmd_queue)
+    queue_parser = subparsers.add_parser("queue", help="Show remote Slurm queue occupancy")
+    queue_parser.set_defaults(handler=handlers.cmd_queue, operation_id="job.queue")
 
     sacct_parser = subparsers.add_parser("sacct", help="Show Slurm accounting for a job")
     sacct_parser.add_argument("jobid", help="Slurm job ID")
     sacct_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
-    sacct_parser.set_defaults(handler=handlers.cmd_sacct)
+    sacct_parser.set_defaults(handler=handlers.cmd_sacct, operation_id="job.accounting")
 
 
 def register_limits(subparsers: Any, handlers: Any) -> None:
@@ -133,9 +133,10 @@ def register_limits(subparsers: Any, handlers: Any) -> None:
     limits_parser.add_argument("--cluster", "-M", help="Slurm cluster name")
     limits_parser.add_argument("--partition", "-p", help="Slurm partition name")
     limits_parser.add_argument("--qos", help="Limit QoS output to one QoS name")
-    limits_parser.set_defaults(handler=handlers.cmd_slurm_limits)
+    limits_parser.set_defaults(handler=handlers.cmd_slurm_limits, operation_id="cluster.limits")
 
 def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.queue", profile, namespace_arguments(args))
     if not profile.queue_command:
         raise ConfigError(f"profile '{profile.name}' does not define queue_command")
     return run_command(
@@ -145,11 +146,13 @@ def cmd_queue(args: argparse.Namespace, profile: Profile) -> int:
     )
 
 def cmd_balance(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("account.balance", profile, namespace_arguments(args))
     if not profile.sam_balance_command:
         raise ConfigError(f"profile '{profile.name}' does not define sam_balance_command")
     return run_command(profile, profile.sam_balance_command, dry_run=args.dry_run)
 
 def cmd_statement(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("account.statement", profile, namespace_arguments(args))
     if not profile.sam_statement_command:
         raise ConfigError(f"profile '{profile.name}' does not define sam_statement_command")
     command = _statement_command(
@@ -161,13 +164,15 @@ def cmd_statement(args: argparse.Namespace, profile: Profile) -> int:
     return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_quote(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.quote", profile, namespace_arguments(args))
     if not profile.sam_quote_command:
         raise ConfigError(f"profile '{profile.name}' does not define sam_quote_command")
     command = _quote_command(profile.sam_quote_command, args.quote_args)
     return run_command(profile, command, dry_run=args.dry_run)
 
 def cmd_status(args: argparse.Namespace, profile: Profile) -> int:
-    report = build_status_report(profile, dry_run=args.dry_run)
+    require_authorized("cluster.status", profile, namespace_arguments(args))
+    report = build_site_status_report(profile, dry_run=args.dry_run)
 
     for index, section in enumerate(report["sections"]):
         if index:
@@ -182,142 +187,60 @@ def cmd_status(args: argparse.Namespace, profile: Profile) -> int:
 
     return 0 if report["failures"] == 0 else 1
 
-def build_status_report(profile: Profile, *, dry_run: bool = False) -> dict[str, object]:
-    failures = 0
-    sections: list[dict[str, object]] = []
-
-    if profile.status_url:
-        try:
-            status_text = _fetch_status_page(profile.status_url)
-        except ConfigError as error:
-            sections.append(
-                {
-                    "title": "status page",
-                    "ok": False,
-                    "source": profile.status_url,
-                    "lines": [f"status page unavailable: {error}"],
-                }
-            )
-            failures += 1
-        else:
-            sections.append(
-                {
-                    "title": "status page",
-                    "ok": True,
-                    "source": profile.status_url,
-                    "lines": status_text.splitlines(),
-                }
-            )
-    else:
-        sections.append(
-            {
-                "title": "status page",
-                "ok": False,
-                "source": None,
-                "lines": [f"profile '{profile.name}' does not define status_url"],
-            }
-        )
-        failures += 1
-
-    if profile.quota_command:
-        quota_result = run_command_capture(profile, profile.quota_command, dry_run=dry_run)
-        if quota_result.returncode != 0:
-            failures += 1
-            sections.append(
-                {
-                    "title": "quota",
-                    "ok": False,
-                    "command": profile.quota_command,
-                    "returncode": quota_result.returncode,
-                    "stderr": quota_result.stderr,
-                    "lines": [f"quota check failed with return code {quota_result.returncode}"],
-                }
-            )
-        else:
-            quota_text = quota_result.stdout.strip()
-            sections.append(
-                {
-                    "title": "quota",
-                    "ok": True,
-                    "command": profile.quota_command,
-                    "returncode": quota_result.returncode,
-                    "stderr": quota_result.stderr,
-                    "lines": quota_text.splitlines() if quota_text else [],
-                }
-            )
-    else:
-        sections.append(
-            {
-                "title": "quota",
-                "ok": False,
-                "command": None,
-                "lines": [f"profile '{profile.name}' does not define quota_command"],
-            }
-        )
-        failures += 1
-
-    if profile.sam_balance_command:
-        balance_result = run_command_capture(profile, profile.sam_balance_command, dry_run=dry_run)
-        if balance_result.returncode != 0:
-            failures += 1
-            sections.append(
-                {
-                    "title": "balance",
-                    "ok": False,
-                    "command": profile.sam_balance_command,
-                    "returncode": balance_result.returncode,
-                    "stderr": balance_result.stderr,
-                    "lines": [f"balance check failed with return code {balance_result.returncode}"],
-                }
-            )
-        else:
-            balance_text = balance_result.stdout.strip()
-            sections.append(
-                {
-                    "title": "balance",
-                    "ok": True,
-                    "command": profile.sam_balance_command,
-                    "returncode": balance_result.returncode,
-                    "stderr": balance_result.stderr,
-                    "lines": balance_text.splitlines() if balance_text else [],
-                }
-            )
-    else:
-        sections.append(
-            {
-                "title": "balance",
-                "ok": False,
-                "command": None,
-                "lines": [f"profile '{profile.name}' does not define sam_balance_command"],
-            }
-        )
-        failures += 1
-
-    records = submissions.active_records(submissions.read_events())
-    sections.append(
-        {
-            "title": "submissions",
+def build_site_status_report(profile: Profile, *, dry_run: bool = False) -> dict[str, object]:
+    """Return only public site status; quota, balance, and jobs are separate."""
+    if not profile.status_url:
+        raise ConfigError(f"profile '{profile.name}' does not define status_url")
+    if dry_run:
+        section = {
+            "title": "status page",
             "ok": True,
-            "lines": submissions.format_records(records).splitlines(),
+            "source": profile.status_url,
+            "lines": ["dry run; status page not fetched"],
         }
-    )
-
+        return {
+            "profile": profile.name,
+            "dry_run": True,
+            "failures": 0,
+            "ok": True,
+            "sections": [section],
+        }
+    try:
+        status_text = _fetch_status_page(profile.status_url)
+    except ConfigError as error:
+        section = {
+            "title": "status page",
+            "ok": False,
+            "source": profile.status_url,
+            "lines": [f"status page unavailable: {error}"],
+        }
+        failures = 1
+    else:
+        section = {
+            "title": "status page",
+            "ok": True,
+            "source": profile.status_url,
+            "lines": status_text.splitlines(),
+        }
+        failures = 0
     return {
         "profile": profile.name,
-        "dry_run": dry_run,
+        "dry_run": False,
         "failures": failures,
         "ok": failures == 0,
-        "sections": sections,
-        "submissions": [asdict(record) for record in records],
+        "sections": [section],
     }
 
 def cmd_jobs(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.list", profile, namespace_arguments(args))
     return run_command(profile, slurm.squeue_user_command(args.cluster), dry_run=args.dry_run)
 
 def cmd_job(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.show", profile, namespace_arguments(args))
     return run_command(profile, slurm.squeue_job_command(args.jobid, args.cluster), dry_run=args.dry_run)
 
 def cmd_cancel(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.cancel", profile, namespace_arguments(args))
     cluster = args.cluster or profile.default_cluster
     command = slurm.cancel_command(args.jobid, cluster)
     completed = run_command_capture(profile, command, dry_run=args.dry_run)
@@ -339,6 +262,7 @@ def cmd_cancel(args: argparse.Namespace, profile: Profile) -> int:
     return completed.returncode
 
 def cmd_submit(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.submit", profile, namespace_arguments(args))
     overrides = _submit_overrides(args)
     command = slurm.submit_command(
         args.jobscript,
@@ -462,10 +386,12 @@ def _log_cancellation_request(
         return []
 
 def cmd_sacct(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("job.accounting", profile, namespace_arguments(args))
     cluster = args.cluster or profile.default_cluster
     return run_command(profile, slurm.sacct_command(args.jobid, cluster), dry_run=args.dry_run)
 
 def cmd_slurm_limits(args: argparse.Namespace, profile: Profile) -> int:
+    require_authorized("cluster.limits", profile, namespace_arguments(args))
     cluster = args.cluster or profile.default_cluster
     return run_command(
         profile,

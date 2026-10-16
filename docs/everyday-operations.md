@@ -225,9 +225,9 @@ Observe a known submission or annotate its local lifecycle:
 
 ```console
 hpc --profile example submissions observe <run-id>
-hpc submissions mark-collected <run-id> --path /remote/results/output.dat
-hpc submissions mark-analysed <run-id> --path /remote/results/report.md
-hpc submissions close <run-id> --reason done
+hpc --profile example submissions mark-collected <run-id> --path /remote/results/output.dat
+hpc --profile example submissions mark-analysed <run-id> --path /remote/results/report.md
+hpc --profile example submissions close <run-id> --reason done
 ```
 
 The submission database is an audit aid, not scheduler truth. Jobs submitted by

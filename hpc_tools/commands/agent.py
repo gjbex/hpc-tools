@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from hpc_tools import agent_audit
-from hpc_tools.config import Profile
+from hpc_tools.authorization import namespace_arguments, require_authorized
+from hpc_tools.config import ConfigError, Profile
 
 
 def register(subparsers: Any, handlers: Any) -> None:
@@ -45,11 +46,16 @@ def register(subparsers: Any, handlers: Any) -> None:
         if name == "export":
             command.add_argument("--output", type=Path, required=True)
             command.add_argument("--force", action="store_true")
-        command.set_defaults(handler=handler)
+        command.set_defaults(handler=handler, operation_id=f"agent.{name}")
 
 
 def cmd_agent_audit(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+    if profile is None:
+        raise ConfigError("agent audit requires a selected capability profile")
+    require_authorized("agent.audit", profile, namespace_arguments(args))
+    if args.dry_run:
+        print("Dry run; delegation audit state not read.")
+        return 0
     report = agent_audit.build_report(
         args.ledger,
         submissions_database=args.database,
@@ -63,7 +69,12 @@ def cmd_agent_audit(args: argparse.Namespace, profile: Profile | None) -> int:
 
 
 def cmd_agent_export(args: argparse.Namespace, profile: Profile | None) -> int:
-    del profile
+    if profile is None:
+        raise ConfigError("agent export requires a selected capability profile")
+    require_authorized("agent.export", profile, namespace_arguments(args))
+    if args.dry_run:
+        print(f"Dry run; audit report not written: {args.output}")
+        return 0
     report = agent_audit.build_report(
         args.ledger,
         submissions_database=args.database,

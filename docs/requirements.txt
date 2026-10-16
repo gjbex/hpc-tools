@@ -1,2 +1,0 @@
-# Keep local and CI documentation builds on the same MkDocs release.
-mkdocs==1.6.1

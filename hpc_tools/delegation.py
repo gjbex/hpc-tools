@@ -18,6 +18,14 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore[no-redef]
 
+from hpc_tools.capabilities import (
+    AuthorizationContext,
+    CapabilityLevel,
+    CapabilityPolicy,
+    CapabilityRequirement,
+    evaluate_capability,
+    parse_capability_policy,
+)
 from hpc_tools.config import ConfigError, default_config_dir
 
 MANIFEST_VERSION = 2
@@ -121,9 +129,35 @@ class DelegationManifest:
 class DelegationRuntime:
     manifest: DelegationManifest
     ledger_path: Path
+    controller_authority: ControllerAuthority
 
 
-_CURRENT: ContextVar[DelegationRuntime | None] = ContextVar("hpc_tools_delegation", default=None)
+@dataclass(frozen=True)
+class ControllerAuthority:
+    """Immutable profile-policy ceiling captured for one delegation."""
+
+    policy: CapabilityPolicy
+    policy_sha256: str
+    config_path: str
+    config_sha256: str
+    captured_at: str
+
+    def public_summary(self, *, include_config_path: bool = False) -> dict[str, Any]:
+        summary: dict[str, Any] = {
+            "policy": self.policy.public_summary(),
+            "policy_sha256": self.policy_sha256,
+            "config_sha256": self.config_sha256,
+            "captured_at": self.captured_at,
+        }
+        if include_config_path:
+            summary["config_path"] = self.config_path
+        return summary
+
+
+_CURRENT: ContextVar[DelegationRuntime | None] = ContextVar(
+    "hpc_tools_delegation",
+    default=None,
+)
 
 
 def default_ledger_path() -> Path:
@@ -136,6 +170,9 @@ def load_runtime(
     profile: str,
     ledger_path: str | Path | None = None,
     parent_job_id: str | None = None,
+    profile_policy: CapabilityPolicy,
+    config_path: str | Path,
+    config_sha256: str,
 ) -> DelegationRuntime:
     manifest = load_manifest(
         Path(manifest_path),
@@ -147,8 +184,40 @@ def load_runtime(
     ).expanduser()
     ledger = DelegationLedger(selected)
     ledger.register(manifest)
+    authority = ledger.controller_authority_or_none(manifest)
+    if authority is None:
+        require_controller_authority(profile_policy, operation="agent.controller.start")
+        authority = ledger.capture_controller_authority(
+            manifest,
+            policy=profile_policy,
+            config_path=config_path,
+            config_sha256=config_sha256,
+        )
+    else:
+        require_controller_authority(
+            authority.policy,
+            operation="agent.controller.continue",
+        )
     ledger.begin_controller(manifest, restart_count=_controller_restart_count())
-    return DelegationRuntime(manifest, selected)
+    return DelegationRuntime(manifest, selected, authority)
+
+
+def require_controller_authority(
+    policy: CapabilityPolicy,
+    *,
+    operation: str,
+) -> None:
+    """Require captured C3 authority for controller-owned scheduler effects."""
+    decision = evaluate_capability(
+        CapabilityRequirement(
+            operation_id=operation,
+            minimum_level=CapabilityLevel.JOB_LIFECYCLE,
+        ),
+        AuthorizationContext(profile_name="controller", policy=policy),
+    )
+    if not decision.allowed:
+        reasons = "; ".join(denial.reason for denial in decision.denials)
+        raise DelegationError(f"{operation} is not authorized: {reasons}")
 
 
 @contextmanager
@@ -413,6 +482,94 @@ class DelegationLedger:
                     "accepted",
                     {"generation": 1, "restart_count": 0},
                 )
+
+    def capture_controller_authority(
+        self,
+        manifest: DelegationManifest,
+        *,
+        policy: CapabilityPolicy,
+        config_path: str | Path,
+        config_sha256: str,
+    ) -> ControllerAuthority:
+        """Capture the first authorized profile policy; never widen it later."""
+        require_controller_authority(policy, operation="agent.controller.start")
+        policy_value = policy.public_summary()
+        policy_json = json.dumps(
+            policy_value,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        policy_sha256 = hashlib.sha256(policy_json.encode("utf-8")).hexdigest()
+        if not re.fullmatch(r"[0-9a-f]{64}", config_sha256):
+            raise DelegationError(
+                "controller config digest must be lowercase SHA-256"
+            )
+        detail = {
+            "policy": policy_value,
+            "policy_sha256": policy_sha256,
+            "config_path": str(Path(config_path).expanduser()),
+            "config_sha256": config_sha256,
+        }
+        with self._transaction() as db:
+            self._registered(db, manifest)
+            existing = self._controller_authority_row(db, manifest.identifier)
+            if existing is None:
+                captured_at = _now()
+                db.execute(
+                    """INSERT INTO delegation_audit
+                       (delegation_id,occurred_at,operation,decision,detail_json)
+                       VALUES (?,?,?,?,?)""",
+                    (
+                        manifest.identifier,
+                        captured_at,
+                        "controller_authority",
+                        "accepted",
+                        json.dumps(detail, sort_keys=True, separators=(",", ":")),
+                    ),
+                )
+                return _controller_authority(detail, captured_at, manifest.profile)
+            return _controller_authority(
+                json.loads(existing[1]),
+                existing[0],
+                manifest.profile,
+            )
+
+    def controller_authority_or_none(
+        self,
+        manifest: DelegationManifest,
+    ) -> ControllerAuthority | None:
+        with self._connection() as db:
+            self._registered(db, manifest)
+            row = self._controller_authority_row(db, manifest.identifier)
+        if row is None:
+            return None
+        try:
+            detail = json.loads(row[1])
+        except (TypeError, json.JSONDecodeError) as error:
+            raise DelegationError("captured controller authority is malformed") from error
+        return _controller_authority(detail, row[0], manifest.profile)
+
+    def controller_authority(
+        self,
+        manifest: DelegationManifest,
+    ) -> ControllerAuthority:
+        authority = self.controller_authority_or_none(manifest)
+        if authority is None:
+            raise DelegationError("delegation has no captured controller authority")
+        return authority
+
+    @staticmethod
+    def _controller_authority_row(
+        db: sqlite3.Connection,
+        delegation_id: str,
+    ) -> tuple[str, str] | None:
+        return db.execute(
+            """SELECT occurred_at,detail_json FROM delegation_audit
+               WHERE delegation_id=? AND operation='controller_authority'
+                 AND decision='accepted'
+               ORDER BY sequence LIMIT 1""",
+            (delegation_id,),
+        ).fetchone()
 
     def begin_controller(
         self,
@@ -1586,6 +1743,49 @@ def _execute_schema(db: sqlite3.Connection, script: str) -> None:
     for statement in script.split(";"):
         if statement.strip():
             db.execute(statement)
+
+
+def _controller_authority(
+    detail: object,
+    captured_at: str,
+    profile: str,
+) -> ControllerAuthority:
+    if not isinstance(detail, dict):
+        raise DelegationError("captured controller authority is not an object")
+    policy_value = detail.get("policy")
+    try:
+        policy = parse_capability_policy(
+            policy_value,
+            profile=f"captured controller {profile}",
+        )
+    except ValueError as error:
+        raise DelegationError(
+            f"captured controller policy is invalid: {error}"
+        ) from error
+    policy_json = json.dumps(
+        policy.public_summary(),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    calculated = hashlib.sha256(policy_json.encode("utf-8")).hexdigest()
+    policy_sha256 = detail.get("policy_sha256")
+    config_path = detail.get("config_path")
+    config_sha256 = detail.get("config_sha256")
+    if calculated != policy_sha256:
+        raise DelegationError("captured controller policy digest does not match")
+    if not isinstance(config_path, str) or not config_path:
+        raise DelegationError("captured controller config path is invalid")
+    if not isinstance(config_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", config_sha256
+    ):
+        raise DelegationError("captured controller config digest is invalid")
+    return ControllerAuthority(
+        policy=policy,
+        policy_sha256=policy_sha256,
+        config_path=config_path,
+        config_sha256=config_sha256,
+        captured_at=captured_at,
+    )
 
 def _string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)

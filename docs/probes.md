@@ -149,9 +149,11 @@ hpc --profile example install-probe \
     --cpus-per-task 64
 ```
 
-`install-probe` creates the remote directory and writes executable probe
-assets. It refuses to replace existing files unless `--force` is present.
-Check the directory and filename carefully before intentional replacement.
+`install-probe` creates the permitted remote directory and publishes probe
+assets through the bounded filesystem helper. Executable scripts use mode
+`0700`; other files use `0600`. Each file is staged and atomically published,
+and existing files are preserved unless `--force` is present. Check the
+directory and filenames carefully before intentional replacement.
 
 The convenience alias `install-hardware-probe` installs the same hardware
 kind. Prefer the generic command when documenting a workflow that may also use
@@ -342,11 +344,11 @@ After retaining the raw result and producing a consolidated report, update the
 local workflow record:
 
 ```console
-hpc submissions mark-collected <run-id> \
+hpc --profile example submissions mark-collected <run-id> \
     --path '$VSC_DATA/probes/hardware-probe-node-123456'
-hpc submissions mark-analysed <run-id> \
+hpc --profile example submissions mark-analysed <run-id> \
     --path '~/.config/hpc-tools/profiles/example/probe-hardware-report.md'
-hpc submissions close <run-id> \
+hpc --profile example submissions close <run-id> \
     --reason 'representative CPU node consolidated into hardware reference'
 ```
 

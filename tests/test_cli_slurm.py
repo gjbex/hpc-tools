@@ -365,7 +365,7 @@ class CliCoreTests(unittest.TestCase):
 
         self.assertIs(args.handler, cmd_status)
 
-    def test_status_command_shows_full_report(self) -> None:
+    def test_status_command_shows_only_public_site_status(self) -> None:
         profile = make_profile()
         parser = build_parser(profile)
         args = parser.parse_args(["status"])
@@ -387,33 +387,25 @@ class CliCoreTests(unittest.TestCase):
 
         with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response) as urlopen, \
              mock.patch("hpc_tools.commands.slurm.run_command_capture") as run_remote_capture, \
-             mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]) as read_events:
-            run_remote_capture.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 573G* of 600G\n", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="ID Name Balance Reserved Available\n142 geniusdefaultslurmaccount 0 0 0\n", stderr=""),
-            ]
+             mock.patch("hpc_tools.commands.slurm.submissions.read_events") as read_events:
             stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
                 result = args.handler(args, profile)
 
         self.assertEqual(result, 0)
         self.assertEqual(urlopen.call_args.args[0], profile.status_url)
-        self.assertEqual([call.args[1] for call in run_remote_capture.call_args_list], ["myquota", "sam-balance"])
-        read_events.assert_called_once()
+        run_remote_capture.assert_not_called()
+        read_events.assert_not_called()
         text = stdout.getvalue()
         self.assertIn("== status page ==", text)
         self.assertIn("Tier 2 Leuven status", text)
         self.assertIn("All systems running fine", text)
         self.assertIn("No maintenance planned currently.", text)
-        self.assertIn("== quota ==", text)
-        self.assertIn("file system: $VSC_DATA", text)
-        self.assertIn("Blocks: 573G* of 600G", text)
-        self.assertIn("== balance ==", text)
-        self.assertIn("geniusdefaultslurmaccount", text)
-        self.assertIn("== submissions ==", text)
-        self.assertIn("No submissions.", text)
+        self.assertNotIn("== quota ==", text)
+        self.assertNotIn("== balance ==", text)
+        self.assertNotIn("== submissions ==", text)
 
-    def test_status_command_shows_full_report_with_issues(self) -> None:
+    def test_status_command_reports_site_incident_text(self) -> None:
         profile = make_profile()
         parser = build_parser(profile)
         args = parser.parse_args(["status"])
@@ -433,13 +425,7 @@ class CliCoreTests(unittest.TestCase):
         response.read.return_value = html_body.encode("utf-8")
         response.headers.get_content_charset.return_value = "utf-8"
 
-        with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response), \
-             mock.patch("hpc_tools.commands.slurm.run_command_capture") as run_remote_capture, \
-             mock.patch("hpc_tools.commands.slurm.submissions.read_events", return_value=[]):
-            run_remote_capture.side_effect = [
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="file system: $VSC_DATA\nBlocks: 599G of 600G\n", stderr=""),
-                subprocess.CompletedProcess(args=[], returncode=0, stdout="ID Name Balance Reserved Available\n142 geniusdefaultslurmaccount 0 0 0\n", stderr=""),
-            ]
+        with mock.patch("hpc_tools.commands.slurm.urlopen", return_value=response):
             stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
                 result = args.handler(args, profile)
@@ -450,13 +436,20 @@ class CliCoreTests(unittest.TestCase):
         self.assertIn("Service update", text)
         self.assertIn("Planned maintenance on 2026-06-20.", text)
         self.assertIn("Minor incident on the login node.", text)
-        self.assertIn("== quota ==", text)
-        self.assertIn("file system: $VSC_DATA", text)
-        self.assertIn("Blocks: 599G of 600G", text)
-        self.assertIn("== balance ==", text)
-        self.assertIn("geniusdefaultslurmaccount", text)
-        self.assertIn("== submissions ==", text)
-        self.assertIn("No submissions.", text)
+        self.assertNotIn("== quota ==", text)
+
+    def test_status_dry_run_performs_no_http_or_remote_effect(self) -> None:
+        profile = make_profile()
+        args = build_parser(profile).parse_args(["--dry-run", "status"])
+        stdout = io.StringIO()
+        with mock.patch("hpc_tools.commands.slurm.urlopen") as fetch, \
+             mock.patch("hpc_tools.commands.slurm.run_command_capture") as remote, \
+             contextlib.redirect_stdout(stdout):
+            result = args.handler(args, profile)
+        self.assertEqual(result, 0)
+        fetch.assert_not_called()
+        remote.assert_not_called()
+        self.assertIn("dry run; status page not fetched", stdout.getvalue())
 
     def test_statement_command_requires_account_and_accepts_date_range(self) -> None:
         parser = build_parser(make_profile())

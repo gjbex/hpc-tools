@@ -10,19 +10,26 @@ class CliCoreTests(unittest.TestCase):
 
         self.assertIs(args.handler, cmd_storage_inspect)
         self.assertEqual(args.path, "$VSC_DATA/Projects/demo")
-        command = _storage_inspect_command(args.path)
-        self.assertIn("## path", command)
-        self.assertIn("ls -ld $VSC_DATA/Projects/demo", command)
-        self.assertIn("df -hT $VSC_DATA/Projects/demo", command)
-        self.assertIn("du -sh $VSC_DATA/Projects/demo", command)
-        self.assertIn("mount | sed -n '1,80p'", command)
+        with mock.patch(
+            "hpc_tools.commands.remote.list_remote_directory",
+            return_value=(args.path, (), False),
+        ) as listing:
+            result = cmd_storage_inspect(args, make_profile())
 
-    def test_storage_inspect_defaults_to_current_directory(self) -> None:
+        self.assertEqual(result, 0)
+        listing.assert_called_once()
+
+    def test_storage_inspect_defaults_to_profile_projects_directory(self) -> None:
         parser = build_parser(make_profile())
         args = parser.parse_args(["storage", "inspect"])
 
-        self.assertEqual(args.path, ".")
-        self.assertIn("df -hT .", _storage_inspect_command(args.path))
+        self.assertIsNone(args.path)
+        with mock.patch(
+            "hpc_tools.commands.remote.list_remote_directory",
+            return_value=("$VSC_DATA/Projects", (), False),
+        ) as listing:
+            self.assertEqual(cmd_storage_inspect(args, make_profile()), 0)
+        self.assertEqual(listing.call_args.args[1], "$VSC_DATA/Projects")
 
     def test_module_spider_parser_and_command_quotes_name(self) -> None:
         parser = build_parser(make_profile())
@@ -88,20 +95,28 @@ class CliCoreTests(unittest.TestCase):
 
         self.assertEqual(
             run_remote.call_args.args[1],
-            "cd $VSC_SCRATCH/repos && git clone https://github.com/org/repo.git",
+            "cd $VSC_SCRATCH/repos && git -c core.hooksPath=/dev/null clone "
+            "--no-recurse-submodules -- https://github.com/org/repo.git repo",
         )
+
+    def test_clone_rejects_local_source(self) -> None:
+        profile = make_profile()
+        parser = build_parser(profile)
+        args = parser.parse_args(["--dry-run", "clone", "file:///tmp/repo"])
+
+        with self.assertRaisesRegex(ConfigError, "network URL"):
+            cmd_clone(args, profile)
 
     def test_projects_quotes_directory_paths(self) -> None:
         profile = make_profile(projects_dir="/data/My Projects")
         args = type("Args", (), {"dry_run": False})()
 
-        with mock.patch("hpc_tools.commands.remote.run_command") as run_remote:
-            cmd_projects(args, profile)
-
-        self.assertEqual(
-            run_remote.call_args.args[1],
-            "ls -ld '/data/My Projects' 2>/dev/null && ls -1 '/data/My Projects'",
-        )
+        with mock.patch(
+            "hpc_tools.commands.remote.list_remote_directory",
+            return_value=("/data/My Projects", (), False),
+        ) as listing:
+            self.assertEqual(cmd_projects(args, profile), 0)
+        self.assertEqual(listing.call_args.args[1], "/data/My Projects")
 
     def test_clone_requires_directory_when_projects_dir_is_missing(self) -> None:
         profile = make_profile(projects_dir=None)

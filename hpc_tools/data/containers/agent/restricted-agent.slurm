@@ -18,6 +18,7 @@ umask 077
 
 manifest=/path/to/protected/delegation.toml
 ledger=/path/to/protected/delegations.sqlite3
+config=${HPC_TOOLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hpc-tools/config.toml}
 agent_image=/path/to/restricted-codex.sif
 agent_env_file=/path/to/protected/codex.env
 prompt_file=/path/to/reviewed-task.md
@@ -29,6 +30,7 @@ prompt_file=/path/to/reviewed-task.md
 hpc-agent-launch \
     --manifest "$manifest" \
     --ledger "$ledger" \
+    --config "$config" \
     --profile example \
     --agent-env-file "$agent_env_file" \
     --agent-image "$agent_image" \

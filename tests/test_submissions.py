@@ -11,6 +11,45 @@ from hpc_tools import submissions
 
 
 class SubmissionDatabaseTests(unittest.TestCase):
+    def test_record_reads_are_filtered_by_profile(self) -> None:
+        events = [
+            {
+                "event": "submitted",
+                "run_id": f"{profile}-run",
+                "profile": profile,
+                "job_id": str(index),
+                "cluster": "wice",
+            }
+            for index, profile in enumerate(("genius", "other"), start=1)
+        ]
+
+        records = submissions.records_from_events(events, profile="genius")
+
+        self.assertEqual([record.run_id for record in records], ["genius-run"])
+
+    def test_unlabelled_submission_record_is_rejected(self) -> None:
+        events = [{"event": "submitted", "run_id": "legacy", "job_id": "1"}]
+
+        with self.assertRaisesRegex(ValueError, "no profile attribution"):
+            submissions.records_from_events(events, profile="genius")
+
+    def test_cross_profile_run_mutation_is_rejected(self) -> None:
+        events = [
+            {
+                "event": "submitted",
+                "run_id": "other-run",
+                "profile": "other",
+                "job_id": "1",
+            }
+        ]
+
+        with self.assertRaisesRegex(ValueError, "different profile"):
+            submissions.require_record_for_profile(
+                events,
+                run_id="other-run",
+                profile="genius",
+            )
+
     def test_parse_sbatch_submission_with_cluster(self) -> None:
         job_id, cluster = submissions.parse_sbatch_submission(
             "Submitted batch job 60351238 on cluster wice\n"
@@ -54,7 +93,7 @@ class SubmissionDatabaseTests(unittest.TestCase):
             {"event": "closed", "run_id": "wice-run"},
         ]
 
-        active = submissions.active_records(events)
+        active = submissions.active_records(events, profile="genius")
 
         self.assertEqual([record.run_id for record in active], ["mindwell-run"])
         self.assertEqual(active[0].latest_state, "PENDING")
@@ -74,11 +113,11 @@ class SubmissionDatabaseTests(unittest.TestCase):
             {"event": "observed", "run_id": "run-1", "state": "COMPLETED"},
         ]
 
-        record = submissions.records_from_events(events)[0]
+        record = submissions.records_from_events(events, profile="genius")[0]
         self.assertEqual(record.action, "collect")
 
         events.append({"event": "results_collected", "run_id": "run-1"})
-        record = submissions.records_from_events(events)[0]
+        record = submissions.records_from_events(events, profile="genius")[0]
         self.assertEqual(record.action, "analyse")
 
     def test_cancellation_request_is_audited_without_claiming_cancelled_state(self) -> None:
@@ -94,7 +133,7 @@ class SubmissionDatabaseTests(unittest.TestCase):
             },
             {"event": "observed", "run_id": "run-1", "state": "RUNNING"},
         ]
-        record = submissions.records_from_events(events)[0]
+        record = submissions.records_from_events(events, profile="genius")[0]
         events.append(
             submissions.cancel_requested_event(
                 record,
@@ -104,7 +143,7 @@ class SubmissionDatabaseTests(unittest.TestCase):
             )
         )
 
-        refreshed = submissions.records_from_events(events)[0]
+        refreshed = submissions.records_from_events(events, profile="genius")[0]
 
         self.assertEqual(refreshed.latest_event, "cancel_requested")
         self.assertEqual(refreshed.latest_state, "RUNNING")
@@ -153,9 +192,9 @@ class SubmissionDatabaseTests(unittest.TestCase):
             {"event": "analysed", "run_id": "run-1", "path": "job.out"},
         ]
 
-        record = submissions.records_from_events(events)[0]
+        record = submissions.records_from_events(events, profile="genius")[0]
         self.assertEqual(record.action, "closed")
-        self.assertEqual(submissions.active_records(events), [])
+        self.assertEqual(submissions.active_records(events, profile="genius"), [])
 
     def test_append_and_read_events(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -191,6 +230,27 @@ class SubmissionDatabaseTests(unittest.TestCase):
         self.assertEqual(1, count)
         self.assertEqual("delete", journal_mode)
         self.assertEqual(0o600, mode)
+
+    def test_reading_uninitialized_database_does_not_create_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "submissions.sqlite3"
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("CREATE TABLE unrelated (value TEXT)")
+            before = database_path.read_bytes()
+
+            self.assertEqual(submissions.read_events(database_path), [])
+
+            self.assertEqual(database_path.read_bytes(), before)
+            with sqlite3.connect(database_path) as connection:
+                version = connection.execute("PRAGMA user_version").fetchone()[0]
+                tables = {
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+            self.assertEqual(version, 0)
+            self.assertNotIn("submission_events", tables)
 
     def test_append_events_is_atomic_when_validation_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

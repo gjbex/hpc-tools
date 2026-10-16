@@ -219,7 +219,7 @@ dependencies:
                     "dry_run": False,
                 },
             )()
-            profile = type("Profile", (), {"default_cluster": "wice"})()
+            profile = make_profile()
             completed = subprocess.CompletedProcess(
                 args=[],
                 returncode=1,
@@ -261,35 +261,51 @@ Python sys.path:
         self.assertEqual(result.python_executable, "/data/venvs/py313/bin/python")
         self.assertIn("/apps/python/site-packages", result.sys_path)
 
+    def test_python_verify_install_reads_through_filesystem_service(self) -> None:
+        args = argparse.Namespace(
+            job_output="$VSC_DATA/Projects/demo/install.out",
+            packages=["mmh3"],
+            require_venv_fragment="/venv/",
+            json=False,
+            dry_run=False,
+        )
+        output = "mmh3 OK\n\nPython executable:\n/venv/bin/python\n"
+
+        with mock.patch(
+            "hpc_tools.plugins.python.commands.read_remote_text",
+            return_value=(args.job_output, output),
+        ) as read, mock.patch(
+            "hpc_tools.plugins.python.commands.run_command_capture"
+        ) as remote, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(
+                python_support.cmd_python_verify_install(args, make_profile()),
+                0,
+            )
+
+        read.assert_called_once()
+        remote.assert_not_called()
+
     def test_python_submit_install_stages_quotes_validates_submits_and_logs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             script = Path(directory) / "install-python.slurm"
             script.write_text("#!/bin/bash\n", encoding="utf-8")
-            args = type(
-                "Args",
-                (),
-                {
-                    "jobscript": script,
-                    "directory": "$VSC_DATA/Projects/demo",
-                    "account": "proj123",
-                    "remote_name": None,
-                    "cluster": "wice",
-                    "partition": "batch_icelake",
-                    "reservation": None,
-                    "time": "00:30:00",
-                    "cpus_per_task": "2",
-                    "nodes": "1",
-                    "skip_quote": False,
-                    "no_validate_first": False,
-                    "dry_run": False,
-                },
-            )()
-            profile = type(
-                "Profile",
-                (),
-                {"name": "genius", "default_cluster": "wice", "sam_quote_command": "sam-quote"},
-            )()
-            stage = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+            args = argparse.Namespace(
+                jobscript=script,
+                directory="$VSC_DATA/Projects/demo",
+                account="proj123",
+                remote_name=None,
+                cluster="wice",
+                partition="batch_icelake",
+                reservation=None,
+                time="00:30:00",
+                cpus_per_task="2",
+                nodes="1",
+                skip_quote=False,
+                no_validate_first=False,
+                dry_run=False,
+                force=False,
+            )
+            profile = make_profile()
             quote = subprocess.CompletedProcess(args=[], returncode=0, stdout="300\n", stderr="")
             validate = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
             submit = subprocess.CompletedProcess(
@@ -301,12 +317,16 @@ Python sys.path:
 
             with mock.patch(
                 "hpc_tools.plugins.python.commands.run_command_capture",
-                side_effect=[stage, quote, validate, submit],
-            ) as remote, mock.patch("hpc_tools.plugins.python.install_plan.submissions.append_event") as append_event:
+                side_effect=[quote, validate, submit],
+            ) as remote, mock.patch(
+                "hpc_tools.plugins.python.commands.install_remote_assets",
+                return_value=[type("Installed", (), {"path": "$VSC_DATA/Projects/demo/install-python.slurm"})()],
+            ) as stage, mock.patch("hpc_tools.plugins.python.install_plan.submissions.append_event") as append_event:
                 exit_code = python_support.cmd_python_submit_install(args, profile)
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(remote.call_count, 4)
+        stage.assert_called_once()
+        self.assertEqual(remote.call_count, 3)
         event = append_event.call_args.args[0]
         self.assertEqual(event["event"], "submitted")
         self.assertEqual(event["job_id"], "12345")

@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import shlex
 import sys
 
 from hpc_tools import slurm
+from hpc_tools.authorization import namespace_arguments, require_authorized
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import run_command_capture
+from hpc_tools.plugin_system import PLUGIN_CONTRACT_VERSION, builtin_operations
 from hpc_tools.plugins.python.dependencies import (
     DependencyInspection,
     DependencySpec,
@@ -22,17 +23,30 @@ from hpc_tools.plugins.python.dependencies import (
 )
 from hpc_tools.plugins.python.install_plan import (
     _log_submission,
-    _remote_script_path,
     build_quote_args,
     build_quote_command,
-    build_stage_script_command,
     render_install_script,
 )
 from hpc_tools.plugins.python.remote_verify import check_packages, parse_verify_output
+from hpc_tools.remote_filesystem import (
+    install_remote_assets,
+    plan_remote_assets,
+    read_remote_text,
+    resolve_granted_path,
+)
 
 class PythonSupportPlugin:
     name = "python"
     description = "Python package checks and venv bootstrap helpers for HPC workflows."
+    contract_version = PLUGIN_CONTRACT_VERSION
+    operations = builtin_operations(
+        "python.scan",
+        "python.inspect-deps",
+        "python.check",
+        "python.plan-install",
+        "python.submit-install",
+        "python.verify-install",
+    )
 
     def register(
         self,
@@ -51,7 +65,7 @@ class PythonSupportPlugin:
         )
         scan_parser.add_argument("target", type=Path, help="Python script path or project directory")
         scan_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        scan_parser.set_defaults(handler=cmd_python_scan)
+        scan_parser.set_defaults(handler=cmd_python_scan, operation_id="python.scan")
 
         inspect_parser = py_subparsers.add_parser(
             "inspect-deps",
@@ -59,7 +73,10 @@ class PythonSupportPlugin:
         )
         inspect_parser.add_argument("target", type=Path, help="Python project directory or file")
         inspect_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        inspect_parser.set_defaults(handler=cmd_python_inspect_deps)
+        inspect_parser.set_defaults(
+            handler=cmd_python_inspect_deps,
+            operation_id="python.inspect-deps",
+        )
 
         check_parser = py_subparsers.add_parser(
             "check",
@@ -68,7 +85,7 @@ class PythonSupportPlugin:
         _add_target_and_package_args(check_parser)
         _add_module_args(check_parser)
         check_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        check_parser.set_defaults(handler=cmd_python_check)
+        check_parser.set_defaults(handler=cmd_python_check, operation_id="python.check")
 
         plan_parser = py_subparsers.add_parser(
             "plan-install",
@@ -102,7 +119,10 @@ class PythonSupportPlugin:
             help="Upgrade pip in the venv before installing missing packages",
         )
         plan_parser.add_argument("--force", action="store_true", help="Overwrite the output script if it exists")
-        plan_parser.set_defaults(handler=cmd_python_plan_install)
+        plan_parser.set_defaults(
+            handler=cmd_python_plan_install,
+            operation_id="python.plan-install",
+        )
 
         submit_parser = py_subparsers.add_parser(
             "submit-install",
@@ -112,6 +132,11 @@ class PythonSupportPlugin:
         submit_parser.add_argument("--directory", "-C", required=True, help="Remote directory for the script")
         submit_parser.add_argument("--account", "-A", required=True, help="Slurm account for quote and submit")
         submit_parser.add_argument("--remote-name", help="Remote filename; defaults to the local script basename")
+        submit_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite an existing remote install script",
+        )
         submit_parser.add_argument("--cluster", "-M", help="Override sbatch --clusters")
         submit_parser.add_argument("--partition", "-p", help="Override sbatch --partition")
         submit_parser.add_argument("--reservation", help="Override sbatch --reservation")
@@ -124,7 +149,10 @@ class PythonSupportPlugin:
             action="store_true",
             help="Skip sbatch --test-only before submitting",
         )
-        submit_parser.set_defaults(handler=cmd_python_submit_install)
+        submit_parser.set_defaults(
+            handler=cmd_python_submit_install,
+            operation_id="python.submit-install",
+        )
 
         verify_parser = py_subparsers.add_parser(
             "verify-install",
@@ -143,7 +171,10 @@ class PythonSupportPlugin:
             help="Optional substring that must appear in the recorded Python executable path",
         )
         verify_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        verify_parser.set_defaults(handler=cmd_python_verify_install)
+        verify_parser.set_defaults(
+            handler=cmd_python_verify_install,
+            operation_id="python.verify-install",
+        )
 
     def requires_profile(self, argv: list[str]) -> bool:
         if not argv:
@@ -203,6 +234,7 @@ def cmd_python_inspect_deps(args: argparse.Namespace, profile: Profile | None) -
 def cmd_python_check(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("python check requires a configured profile")
+    require_authorized("python.check", profile, namespace_arguments(args))
     result = check_packages(
         profile,
         target=args.target,
@@ -253,6 +285,7 @@ def cmd_python_check(args: argparse.Namespace, profile: Profile | None) -> int:
 def cmd_python_plan_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("python plan-install requires a configured profile")
+    require_authorized("python.plan-install", profile, namespace_arguments(args))
     if args.output.exists() and not args.force:
         raise ConfigError(f"output already exists: {args.output}")
     dependency_inspection = inspect_dependencies(args.target)
@@ -286,6 +319,9 @@ def cmd_python_plan_install(args: argparse.Namespace, profile: Profile | None) -
         system_site_packages=not args.no_system_site_packages,
         upgrade_pip=args.upgrade_pip,
     )
+    if args.dry_run:
+        print(f"Dry run; would write {args.output}")
+        return 0
     args.output.write_text(script_text, encoding="utf-8")
     print(f"Wrote {args.output}")
     print(f"Missing packages: {', '.join(result.missing)}")
@@ -304,10 +340,14 @@ def cmd_python_plan_install(args: argparse.Namespace, profile: Profile | None) -
 def cmd_python_verify_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("python verify-install requires a configured profile")
-    completed = run_command_capture(profile, f"cat {shlex.quote(args.job_output)}", dry_run=args.dry_run)
-    if completed.returncode != 0:
-        raise ConfigError(completed.stderr.strip() or f"could not read job output: {args.job_output}")
-    result = parse_verify_output(completed.stdout, args.packages)
+    require_authorized("python.verify-install", profile, namespace_arguments(args))
+    roots = profile.capabilities.remote_roots.read
+    if args.dry_run:
+        selected_path, _ = resolve_granted_path(args.job_output, roots)
+        print(f"Dry run; would read {selected_path}")
+        return 0
+    _, output = read_remote_text(profile, args.job_output, roots=roots)
+    result = parse_verify_output(output, args.packages)
     if args.require_venv_fragment and (
         not result.python_executable or args.require_venv_fragment not in result.python_executable
     ):
@@ -340,24 +380,28 @@ def cmd_python_verify_install(args: argparse.Namespace, profile: Profile | None)
 def cmd_python_submit_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("python submit-install requires a configured profile")
+    require_authorized("python.submit-install", profile, namespace_arguments(args))
     if not args.jobscript.exists():
         raise ConfigError(f"local job script does not exist: {args.jobscript}")
     remote_name = args.remote_name or args.jobscript.name
-    stage = run_command_capture(
-        profile,
-        build_stage_script_command(
-            directory=args.directory,
-            remote_name=remote_name,
-            contents=args.jobscript.read_text(encoding="utf-8"),
-        ),
-        dry_run=args.dry_run,
+    contents = args.jobscript.read_text(encoding="utf-8")
+    roots = profile.capabilities.remote_roots.write
+    planned = plan_remote_assets(
+        args.directory,
+        {remote_name: contents},
+        roots=roots,
     )
-    if stage.stdout:
-        print(stage.stdout, end="")
-    if stage.stderr:
-        print(stage.stderr, end="", file=sys.stderr)
-    if stage.returncode != 0:
-        return stage.returncode
+    if args.dry_run:
+        print(f"Dry run; would stage {planned[0].path}")
+    else:
+        installed = install_remote_assets(
+            profile,
+            args.directory,
+            {remote_name: contents},
+            roots=roots,
+            overwrite=getattr(args, "force", False),
+        )
+        print(f"Staged {installed[0].path}")
 
     overrides = {
         "account": args.account,
@@ -370,7 +414,7 @@ def cmd_python_submit_install(args: argparse.Namespace, profile: Profile | None)
     }
     overrides = {name: value for name, value in overrides.items() if value is not None}
     quote_args = build_quote_args(
-        remote_script_path=_remote_script_path(args.directory, remote_name),
+        remote_script_path=planned[0].path,
         account=args.account,
         cluster=args.cluster,
         partition=args.partition,

@@ -103,7 +103,8 @@ Keep these surfaces separate:
 - Codex plugin: cluster, Slurm, filesystem, package, benchmark, and container
   workflow skills for Codex.
 - Python package: the `hpc` executable, packaged probe templates, and the
-  `hpc_tools.plugins` CLI extension API.
+  versioned `hpc_tools.plugins` CLI extension API. Plugin commands must declare
+  capability metadata; incompatible or undeclared command surfaces are rejected.
 - User state: profile configuration, reference sets, submission databases, and
   consolidated cluster notes under `$XDG_CONFIG_HOME/hpc-tools` or
   `~/.config/hpc-tools`.
@@ -157,17 +158,34 @@ The Codex plugin manifest points at `.mcp.json`, which starts the MCP server
 with the `hpc-mcp` command. Installing the Codex plugin does not install that
 command; install the Python package first.
 
-Install the optional MCP dependency in a development checkout with:
+Synchronize the optional MCP dependency in a development checkout with:
 
 ```bash
-uv pip install -e ".[mcp]"
+uv sync --locked --extra mcp
 ```
 
 Run the server with:
 
 ```bash
-hpc-mcp
+uv run --locked --no-sync hpc-mcp
 ```
+
+Every server binds one profile at startup (the configured default unless
+`--profile NAME` or `HPC_TOOLS_MCP_PROFILE` selects another) and registers only
+the operations allowed by that profile. `full` is the default convenience
+preset; it requests the profile's complete grant but cannot bypass it. Use a
+lower ceiling when the client needs less authority:
+
+```bash
+hpc-mcp --profile genius --preset context
+hpc-mcp --profile genius --preset discovery
+hpc-mcp --profile genius --preset job-inspect
+hpc-mcp --profile genius --preset job-lifecycle
+```
+
+The bound tool schemas do not expose profile, config, or submission-database
+overrides. Policy and profile changes require a server restart before they
+affect discovery or calls.
 
 Cluster commands use the SSH executor by default. When the server itself runs
 on an approved cluster login node, select direct execution explicitly:
@@ -201,10 +219,12 @@ The MCP interface supports read-only context tools such as:
 - `hpc_slurm_limits`
 - `hpc_module_spider`
 - `hpc_storage_inspect`
+- `hpc_files_list`
+- `hpc_files_read`
 - `hpc_site_env`
 
 It also supports confirm-gated write and install tools, plus narrowly scoped
-job cancellation. Full mode is confirm-gated; a configured restricted server
+job cancellation. Ordinary mode is confirm-gated; a configured restricted server
 uses delegation ownership and an idempotency key:
 
 - `hpc_cancel_job`
@@ -218,10 +238,15 @@ uses delegation ownership and an idempotency key:
 - `hpc_install_probe`
 - `hpc_write_container`
 - `hpc_install_container`
+- `hpc_files_download`
+- `hpc_files_upload`
+- `hpc_files_copy`
+- `hpc_files_mkdir`
+- `hpc_files_remove`
+- `hpc_repo_clone`
 
-Local writes and remote installs require `confirm=true`. Remote install tools
-return command previews by default; they only execute when `confirm=true` and
-`dry_run=false`.
+Local writes require `confirm=true`. Remote file mutations and installs return
+previews by default; they only execute when `confirm=true` and `dry_run=false`.
 
 Slurm submission is exposed only as an evidence-gated sequence:
 
@@ -230,7 +255,7 @@ Slurm submission is exposed only as an evidence-gated sequence:
 3. `hpc_submit_job`
 
 `hpc_submit_job` requires matching quote and validation evidence for the same
-profile, account, jobscript, remote directory, and Slurm resource shape. Full
+profile, account, jobscript, remote directory, and Slurm resource shape. Ordinary
 mode also requires `confirm=true`; delegated mode requires host-side policy,
 available budget, and an idempotency key.
 Stale or dry-run evidence is rejected.
@@ -245,6 +270,10 @@ registers a dependent cleanup job that cancels only ledger-owned jobs after a
 final parent termination; the restricted agent cannot invoke either control
 path. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
+Initial launch requires profile C3. The launcher records an immutable
+controller-authority ceiling; restarted servers intersect it with the current
+profile for new work, while host-only requeue and cleanup retain the captured
+authority needed to settle already owned jobs.
 The packaged agent image runs a pinned Codex CLI in ephemeral non-interactive
 mode with a protected JSONL event stream, installs only the image-specific
 `hpc-delegated-slurm` skill, and treats the restricted relay as a required MCP
@@ -264,17 +293,19 @@ credential, use
 It also exposes durable local context as MCP resources:
 
 - `hpc://paths`
+- `hpc://profile`
 - `hpc://config`
-- `hpc://profiles/{profile}`
-- `hpc://profiles/{profile}/hardware`
-- `hpc://profiles/{profile}/slurm`
-- `hpc://profiles/{profile}/storage`
-- `hpc://reference-sets/{name}`
+- `hpc://reference-set` (only when the selected profile attaches one)
+- `hpc://cluster/hardware`
+- `hpc://cluster/slurm`
+- `hpc://cluster/storage`
 - `hpc://submissions/active`
 - `hpc://submissions/all`
+- `hpc://runtime`
 
-Profile and reference resources resolve from the active hpc-tools config tree
-and installed reference-set directory, not from repository examples.
+Only policy-allowed resources are registered. These fixed URIs resolve from
+the startup-bound profile and its effective reference set; there are no
+cross-profile or arbitrary reference-set URI templates.
 
 ## Plugins
 
@@ -335,12 +366,28 @@ When `XDG_CONFIG_HOME` is not set, it falls back to:
 Path precedence is: explicit `--config`, then `HPC_TOOLS_CONFIG`, then
 `XDG_CONFIG_HOME`, then `~/.config`.
 
-Two example configuration files are provided:
+Every profile must define a versioned `[profiles.<name>.capabilities]` table.
+The current release validates this typed policy, filters CLI help to permitted
+commands, guards service callables before effects, profile-filters submission
+records, and routes directory inspection and packaged remote asset installation
+through the bounded filesystem helper. Use `hpc capabilities` to inspect the
+effective grants, `--show-disallowed` to display annotated denied commands, and
+`--capability LEVEL` to preview a lower display ceiling. Those display options
+never change execution authority. MCP discovery and invocation use the same
+profile-bound startup snapshot. See the
+[capability policy guide](docs/capabilities.md) for the authority model and the
+[configuration guide](docs/configuration.md) for the complete profile schema.
+
+Three example configuration files are provided:
 
 - [examples/ssh-alias-config.toml](examples/ssh-alias-config.toml) uses a target
   from `~/.ssh/config`, such as `ssh genius`.
 - [examples/user-host-config.toml](examples/user-host-config.toml) uses explicit
   `user` and `host` fields.
+- [examples/capability-profiles.toml](examples/capability-profiles.toml) contains
+  fictional C0 context, C1 staging, C2 monitoring/preflight, and C3 lifecycle
+  role templates for two centers. Copy and adapt one profile; the file is not
+  a deployable site configuration.
 
 SSH alias example:
 
@@ -366,6 +413,28 @@ storage_url = "https://docs.vscentrum.be/leuven/tier2_hardware/storage.html"
 status_url = "https://status.vscentrum.be/tier2_leuven.html"
 default_cluster = "wice"
 email = "user@example.org"
+
+[profiles.genius.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = [
+    "accounting.read",
+    "job.validate",
+    "local-state.write",
+    "remote-filesystem.list",
+    "remote-filesystem.read",
+    "remote-install.write",
+    "remote-workspace.delete",
+    "remote-workspace.write",
+    "submission-record.write",
+]
+
+[profiles.genius.capabilities.remote_roots]
+list = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+read = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+write = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+delete = ["$VSC_DATA/Projects", "$VSC_SCRATCH/repos"]
+install = ["$VSC_DATA/Projects"]
 ```
 
 `ssh_target` is passed directly to `ssh`, so it can be a configured SSH alias
@@ -382,10 +451,14 @@ on a cluster login node:
 [profiles.login-node]
 login_shell = ["bash", "-l", "-c"]
 default_cluster = "compute"
+
+[profiles.login-node.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Use `hpc --executor local --profile login-node ...` for that profile. Omitting
-`--executor local` retains the safe compatibility default, SSH, and reports the
+`--executor local` retains the safe default, SSH, and reports the
 missing target before execution.
 
 User/host example:
@@ -395,6 +468,10 @@ User/host example:
 host = "login.somewhere"
 user = "myuser"
 ssh_options = ["-x"]
+
+[profiles.some-cluster.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 `projects_dir` is interpreted by the remote shell. Values such as
@@ -459,6 +536,10 @@ hardware_reference = "~/.config/hpc-tools/profiles/example/hardware.md"
 slurm_reference = "~/.config/hpc-tools/profiles/example/slurm.md"
 storage_reference = "~/.config/hpc-tools/profiles/example/storage.md"
 status_url = "https://status.example.org/"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "profile-context"
 ```
 
 Or attach a shared reference set:
@@ -468,6 +549,10 @@ Or attach a shared reference set:
 ssh_target = "example"
 login_shell = ["bash", "-l", "-c"]
 reference_set = "kuleuven-tier2"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "profile-context"
 ```
 
 ## Commands
@@ -483,6 +568,13 @@ hpc doctor
 hpc site-env
 hpc storage inspect .
 hpc storage inspect $VSC_DATA/Projects/demo
+hpc files list $VSC_DATA/Projects/demo
+hpc files read $VSC_DATA/Projects/demo/job.out
+hpc files upload job.slurm $VSC_DATA/Projects/demo/job.slurm
+hpc files copy $VSC_DATA/Projects/demo/job.slurm $VSC_SCRATCH/demo/job.slurm
+hpc files download $VSC_DATA/Projects/demo/job.out ./job.out
+hpc files mkdir $VSC_DATA/Projects/demo/results
+hpc files remove $VSC_DATA/Projects/demo/results
 hpc repo status --directory $VSC_DATA/Projects/demo
 hpc python scan analysis.py
 hpc python inspect-deps .
@@ -512,7 +604,7 @@ hpc install-probe --kind hardware --directory <remote-dir>
 hpc install-probe --kind cuda-device-properties --directory <remote-dir>
 hpc write-hardware-probe hardware-probe.slurm
 hpc install-hardware-probe --directory <remote-dir>
-hpc status          # full status, quota, balance, and submissions report
+hpc status                # public site-status page only
 hpc quota                  # if quota_command is configured
 hpc projects
 hpc clone https://github.com/org/repo.git --branch main
@@ -538,15 +630,16 @@ hpc submit --array 4 --time 00:05:00 --cpus-per-task 4 job.slurm
 hpc submit --gpus-per-node 1 --gpu-bind closest gpu-job.slurm
 hpc submit --cluster mindwell --partition gpu_b200 --reservation pilot --gpus-per-node 1 gpu-job.slurm
 hpc sacct 123456 --cluster wice
-hpc submissions list
-hpc submissions observe
-hpc submissions mark-collected <run-id> --path results/
-hpc submissions mark-analysed <run-id> --path reports/benchmark.md
-hpc submissions close <run-id> --reason done
+hpc --profile genius submissions list
+hpc --profile genius submissions observe
+hpc --profile genius submissions mark-collected <run-id> --path results/
+hpc --profile genius submissions mark-analysed <run-id> --path reports/benchmark.md
+hpc --profile genius submissions close <run-id> --reason done
 ```
 
-Use `--profile` to select a profile and `--dry-run` to print the selected
-executor command without executing it:
+Use `--profile` to select a profile and `--dry-run` to preview the selected
+executor or structured filesystem operation without contacting the cluster or
+status page:
 
 ```bash
 hpc --profile genius --dry-run repo status --directory "$VSC_DATA/Projects/foo"
@@ -575,10 +668,11 @@ The detailed workflow and follow-on implementation plan live in
 and submits only if validation succeeds. `hpc submit` records successful real
 Slurm submissions in an append-only local event database at
 `~/.config/hpc-tools/submissions.sqlite3`. Use
-`hpc submissions list` to show active submissions, `hpc submissions observe` to
+`hpc --profile <name> submissions list` to show that profile's active
+submissions, `hpc --profile <name> submissions observe` to
 append current Slurm accounting observations for active jobs,
 `hpc cancel <job-id>` to request cancellation and audit matching tracked runs,
-and `hpc submissions close <run-id>` to hide handled runs from the default
+and `hpc --profile <name> submissions close <run-id>` to hide handled runs from the default
 active view. Lifecycle events remain append-only; current state is derived by replaying
 them.
 Detailed semantics for the `STATE` and `ACTION` columns, plus a state-transition
@@ -673,6 +767,10 @@ normally `$XDG_CONFIG_HOME/hpc-tools/config.toml` or
 ssh_target = "example"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 If there is no SSH alias, use explicit `user` and `host` fields instead:
@@ -683,6 +781,10 @@ user = "myuser"
 host = "login.example.edu"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Then collect information in this order:
@@ -846,10 +948,15 @@ install:
 pipx install .
 ```
 
-Use an editable install only when developing `hpc-tools` itself:
+Development requires uv 0.13.1. The repository enforces that version,
+selects Python 3.13 through `.python-version`, and commits the complete
+dependency resolution in `uv.lock`.
+
+Use the pinned, locked uv environment when developing `hpc-tools` itself:
 
 ```bash
-python3 -m pip install --user -e .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync hpc --help
 ```
 
 ### Validation
@@ -857,11 +964,29 @@ python3 -m pip install --user -e .
 Before publishing plugin or skill changes, run the repo-local checks:
 
 ```bash
-python3 tools/validate_plugin.py .
-python3 tools/validate_skills.py .
-python3 tools/check_repo_hygiene.py .
-python3 -m unittest discover -s tests
+uv lock --check
+uv run --no-project --python 3.13 python tools/validate_plugin.py .
+uv run --no-project --python 3.13 python tools/validate_skills.py .
+uv run --no-project --python 3.13 python tools/check_repo_hygiene.py .
+uv sync --locked --all-extras --all-groups
+uv run --locked --no-sync python -m unittest discover -s tests
 ```
+
+For capability-policy or release acceptance, also run the focused nine-scenario
+tier and validate both distribution formats from isolated pipx homes:
+
+```bash
+uv run --locked --no-sync python tools/run_capability_acceptance.py
+uv build --out-dir dist
+uv run --locked --no-sync python tools/check_capability_distribution.py \
+  --wheel dist/hpc_tools-<version>-py3-none-any.whl \
+  --sdist dist/hpc_tools-<version>.tar.gz
+```
+
+The distribution check installs the wheel without the MCP extra, installs the
+source archive with the MCP extra, verifies the packaged filesystem helper, and
+uses a real stdio MCP client against two profile-bound server processes. Its
+pipx homes are temporary and do not change the user's normal installation.
 
 ### Build the documentation
 

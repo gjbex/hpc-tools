@@ -60,6 +60,22 @@ Do not include user-specific or sensitive state:
 A set should help another authorized user understand the site; it must not
 transfer your identity, authorization, or research data.
 
+## Separate administrator publishing from user policy
+
+A cluster administrator can publish one reviewed archive for users to download
+and import. This prevents every user from probing the same hardware or
+reconstructing stable Slurm and storage facts. Publishing can happen on a web
+page, software portal, or another center-managed channel; hpc-tools does not
+currently provide remote catalog discovery or automatic updates.
+
+The archive carries reference knowledge only. Importing or attaching it does
+not install a `[profiles.<name>.capabilities]` table, change `~/.ssh/config`,
+add credentials, grant remote roots, or authorize submission. Users still
+create or select their own profile and policy separately. A C0 profile can read
+an already attached set without SSH, while importing or attaching one requires
+the explicit `local-state.write` scope. See
+[Capability policy](capabilities.md).
+
 ## Prepare the source profile
 
 `references create` copies the resolved references from the selected profile.

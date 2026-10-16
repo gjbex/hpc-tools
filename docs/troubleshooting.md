@@ -76,6 +76,9 @@ Common configuration errors are:
 
 - invalid TOML quoting or table syntax;
 - no `[profiles.<name>]` table;
+- no matching `[profiles.<name>.capabilities]` table with `version = 1` and a
+  valid `max_level`;
+- unknown capability keys/scopes or malformed remote-root declarations;
 - a `default_profile` that is not defined;
 - neither `ssh_target` nor `host` in a profile used with the SSH executor;
 - non-string optional fields;
@@ -103,7 +106,8 @@ together so the profile is resolved from the intended file.
 
 ## A documented command is missing
 
-Some commands appear only when the selected profile declares a capability:
+Some commands currently appear only when the selected profile configures the
+corresponding site helper:
 
 - `quota` needs `quota_command`;
 - `queue` needs `queue_command`;
@@ -328,8 +332,8 @@ project environment or reviewed container as appropriate.
 List active and complete views:
 
 ```console
-hpc submissions list
-hpc submissions list --all
+hpc --profile example submissions list
+hpc --profile example submissions list --all
 ```
 
 Then observe through the profile that submitted the job:

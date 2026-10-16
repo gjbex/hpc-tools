@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hpc-tools"
+version = "0.1.0"
+description = "Small profile-based helpers for interacting with remote HPC systems."
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [
+  { name = "Geert Jan Bex" },
+]
+dependencies = [
+  "packaging>=24",
+  "PyYAML>=6",
+  "tomlkit>=0.12",
+]
+
+[project.optional-dependencies]
+mcp = [
+  "mcp>=1.27,<2",
+]
+
+[dependency-groups]
+dev = [
+  { include-group = "docs" },
+  "pipx>=1.7",
+]
+docs = [
+  "mkdocs==1.6.1",
+]
+
+[project.scripts]
+hpc = "hpc_tools.cli:main"
+hpc-mcp = "hpc_tools.mcp_server:main"
+hpc-mcp-bridge = "hpc_tools.mcp_bridge:main"
+hpc-mcp-relay = "hpc_tools.mcp_bridge:relay_main"
+hpc-agent-launch = "hpc_tools.restricted_launch:main"
+hpc-agent-reap = "hpc_tools.agent_cleanup:main"
+
+[project.entry-points."hpc_tools.plugins"]
+benchmark = "hpc_tools.plugins.benchmark_support:get_plugin"
+cxx = "hpc_tools.plugins.cxx_support:get_plugin"
+python = "hpc_tools.plugins.python_support:get_plugin"
+r = "hpc_tools.plugins.r_support:get_plugin"
+
+[tool.setuptools.packages.find]
+include = ["hpc_tools*"]
+
+[tool.setuptools.package-data]
+"hpc_tools.data" = [
+  "*.py",
+  "*.slurm",
+  "cuda/*",
+  "containers/*/*",
+  "containers/agent/skills/*/*",
+  "containers/agent/skills/*/references/*",
+]
+
+[tool.uv]
+required-version = "==0.13.1"
+

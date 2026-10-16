@@ -28,6 +28,22 @@ explicit for each quote or submission.
     [profiles.example]
     ssh_target = "example-login"
     default_cluster = "example-cluster"
+
+    [profiles.example.capabilities]
+    version = 1
+    max_level = "job-lifecycle"
+    scopes = [
+        "accounting.read",
+        "job.validate",
+        "remote-filesystem.list",
+        "remote-filesystem.read",
+        "remote-workspace.write",
+    ]
+
+    [profiles.example.capabilities.remote_roots]
+    list = ["$VSC_DATA/projects"]
+    read = ["$VSC_DATA/projects"]
+    write = ["$VSC_DATA/projects"]
     ```
 
 2. Verify access and current associations:
@@ -200,9 +216,9 @@ library by repeatedly reinstalling the R package into a larger user library.
     hpc --profile example jobs --cluster example-cluster
     hpc --profile example sacct 123456 --cluster example-cluster
     hpc --profile example submissions observe <run-id>
-    hpc submissions mark-collected <run-id> --path <results-path>
-    hpc submissions mark-analysed <run-id> --path <report-path>
-    hpc submissions close <run-id> --reason done
+    hpc --profile example submissions mark-collected <run-id> --path <results-path>
+    hpc --profile example submissions mark-analysed <run-id> --path <report-path>
+    hpc --profile example submissions close <run-id> --reason done
     ```
 
 See [Running Slurm jobs](slurm-jobs.md). Scheduler acceptance and GPU
@@ -311,7 +327,7 @@ does not establish freshness, correctness, authorship, or trust.
 1. List active local records:
 
     ```console
-    hpc submissions list
+    hpc --profile example submissions list
     ```
 
 2. Work from `PROFILE`, `CLUSTER`, `JOBID`, `STATE`, and `ACTION`.

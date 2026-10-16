@@ -162,6 +162,11 @@ class ReferenceSetTests(unittest.TestCase):
                 storage_reference = "{profile_dir / 'storage.md'}"
                 storage_url = "https://example.org/storage"
                 status_url = "https://status.example.org/"
+
+                [profiles.genius.capabilities]
+                version = 1
+                max_level = "profile-context"
+                scopes = ["local-state.write"]
                 """
             ).strip()
             + "\n",

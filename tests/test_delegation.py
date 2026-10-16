@@ -11,9 +11,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from hpc_tools import delegation
+from hpc_tools.capabilities import (
+    POLICY_VERSION,
+    CapabilityLevel,
+    CapabilityPolicy,
+    RemoteRootGrants,
+)
 
 
 class DelegationTests(unittest.TestCase):
+    @staticmethod
+    def _capability_policy(
+        level: CapabilityLevel,
+        *,
+        scopes: tuple[str, ...] = (),
+    ) -> CapabilityPolicy:
+        return CapabilityPolicy(
+            version=POLICY_VERSION,
+            max_level=level,
+            scopes=scopes,
+            remote_roots=RemoteRootGrants(),
+        )
+
     def _manifest(self, root: Path, **changes: str) -> Path:
         values = {
             "id": "delegate-1",
@@ -97,6 +116,89 @@ class DelegationTests(unittest.TestCase):
             path.chmod(0o666)
             with self.assertRaisesRegex(delegation.DelegationError, "writable"):
                 delegation.load_manifest(path, expected_profile="genius")
+
+    def test_controller_start_requires_job_lifecycle_capability(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = root / "config.toml"
+            config_path.write_text("# fixture\n", encoding="utf-8")
+            ledger_path = root / "ledger.sqlite3"
+
+            with self.assertRaisesRegex(
+                delegation.DelegationError,
+                "agent.controller.start.*job-lifecycle",
+            ):
+                delegation.load_runtime(
+                    self._manifest(root),
+                    profile="genius",
+                    ledger_path=ledger_path,
+                    parent_job_id="9001",
+                    profile_policy=self._capability_policy(
+                        CapabilityLevel.JOB_INSPECTION
+                    ),
+                    config_path=config_path,
+                    config_sha256="0" * 64,
+                )
+
+            manifest = delegation.load_manifest(
+                self._manifest(root), expected_profile="genius"
+            )
+            self.assertIsNone(
+                delegation.DelegationLedger(ledger_path).controller_authority_or_none(
+                    manifest
+                )
+            )
+
+    def test_controller_authority_is_captured_once_and_survives_narrowing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = root / "config.toml"
+            config_path.write_text("# initial\n", encoding="utf-8")
+            ledger_path = root / "ledger.sqlite3"
+            initial = self._capability_policy(
+                CapabilityLevel.JOB_LIFECYCLE,
+                scopes=("job.validate",),
+            )
+            runtime = delegation.load_runtime(
+                self._manifest(root),
+                profile="genius",
+                ledger_path=ledger_path,
+                parent_job_id="9001",
+                profile_policy=initial,
+                config_path=config_path,
+                config_sha256="1" * 64,
+            )
+
+            widened = self._capability_policy(
+                CapabilityLevel.JOB_LIFECYCLE,
+                scopes=("accounting.read", "job.validate"),
+            )
+            captured_again = delegation.DelegationLedger(
+                ledger_path
+            ).capture_controller_authority(
+                runtime.manifest,
+                policy=widened,
+                config_path=root / "replacement.toml",
+                config_sha256="2" * 64,
+            )
+            restarted = delegation.load_runtime(
+                runtime.manifest.source_path,
+                profile="genius",
+                ledger_path=ledger_path,
+                parent_job_id="9001",
+                profile_policy=self._capability_policy(
+                    CapabilityLevel.JOB_INSPECTION
+                ),
+                config_path=root / "narrowed.toml",
+                config_sha256="3" * 64,
+            )
+
+            self.assertEqual(("job.validate",), captured_again.policy.scopes)
+            self.assertEqual(
+                runtime.controller_authority,
+                restarted.controller_authority,
+            )
+            self.assertEqual(str(config_path), captured_again.config_path)
 
     def test_lifecycle_policy_has_strict_defaults_and_validation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

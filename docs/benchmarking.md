@@ -203,10 +203,10 @@ summaries, failed attempts, and analysis code. Mark superseded attempts rather
 than deleting them.
 
 ```console
-hpc submissions mark-collected <run-id> --path 'benchmarks/2026-08-19'
-hpc submissions mark-analysed <run-id> \
+hpc --profile example submissions mark-collected <run-id> --path 'benchmarks/2026-08-19'
+hpc --profile example submissions mark-analysed <run-id> \
     --path 'benchmarks/2026-08-19/report.md'
-hpc submissions close <run-id> \
+hpc --profile example submissions close <run-id> \
     --reason 'scaling report reviewed; raw data retained'
 ```
 

@@ -7,14 +7,15 @@ description: Benchmark command-line scientific and HPC executables on configured
 
 ## Remote Access
 
-Use the installed `hpc` CLI for remote commands:
+Inspect the selected profile before using remote commands:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
 
-For profile selection, optional helpers, login-gate handling, `--dry-run`, and
-remote command patterns, read
+For policy denials, profile selection, optional helpers, login-gate handling,
+`--dry-run`, and remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
 
 ## Conceptual References
@@ -213,13 +214,13 @@ submission lifecycle after collection and analysis, or propose doing so when the
 user may want to keep the active database focused:
 
 ```bash
-hpc submissions mark-collected <run-id> --path <results-path>
-hpc submissions mark-analysed <run-id> --path <analysis-path>
-hpc submissions close <run-id> --reason done
+hpc --profile <profile> submissions mark-collected <run-id> --path <results-path>
+hpc --profile <profile> submissions mark-analysed <run-id> --path <analysis-path>
+hpc --profile <profile> submissions close <run-id> --reason done
 ```
 
 Close failed, invalid, or superseded benchmark attempts with a reason once their
-status is understood, so `hpc submissions list` reflects only work that still
+status is understood, so that profile's `submissions list` reflects only work that still
 needs action.
 
 ## Analysis

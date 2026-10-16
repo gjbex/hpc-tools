@@ -3,27 +3,40 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import shlex
 import sys
 
 from hpc_tools import slurm
+from hpc_tools.authorization import namespace_arguments, require_authorized
 from hpc_tools.config import ConfigError, Profile
 from hpc_tools.execution import run_command_capture
+from hpc_tools.plugin_system import PLUGIN_CONTRACT_VERSION, builtin_operations
 from hpc_tools.plugins.r.dependencies import ScanResult, resolve_package_list, scan_target
 from hpc_tools.plugins.r.install_plan import (
     DEFAULT_LIBRARY_ROOT_TEMPLATE,
     _log_submission,
-    _remote_script_path,
     build_quote_args,
     build_quote_command,
-    build_stage_script_command,
     render_install_script,
 )
 from hpc_tools.plugins.r.remote_verify import check_packages, parse_verify_output
+from hpc_tools.remote_filesystem import (
+    install_remote_assets,
+    plan_remote_assets,
+    read_remote_text,
+    resolve_granted_path,
+)
 
 class RSupportPlugin:
     name = "r"
     description = "R dependency scanning helpers for HPC workflows."
+    contract_version = PLUGIN_CONTRACT_VERSION
+    operations = builtin_operations(
+        "r.scan",
+        "r.check",
+        "r.plan-install",
+        "r.submit-install",
+        "r.verify-install",
+    )
 
     def register(
         self,
@@ -42,7 +55,7 @@ class RSupportPlugin:
         )
         scan_parser.add_argument("target", type=Path, help="R script path or project directory")
         scan_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        scan_parser.set_defaults(handler=cmd_r_scan)
+        scan_parser.set_defaults(handler=cmd_r_scan, operation_id="r.scan")
 
         check_parser = r_subparsers.add_parser(
             "check",
@@ -51,7 +64,7 @@ class RSupportPlugin:
         _add_target_and_package_args(check_parser)
         _add_module_args(check_parser)
         check_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        check_parser.set_defaults(handler=cmd_r_check)
+        check_parser.set_defaults(handler=cmd_r_check, operation_id="r.check")
 
         plan_parser = r_subparsers.add_parser(
             "plan-install",
@@ -93,7 +106,10 @@ class RSupportPlugin:
             help="Additional repository entry added to the repos vector, for example INLA=https://...",
         )
         plan_parser.add_argument("--force", action="store_true", help="Overwrite the output script if it exists")
-        plan_parser.set_defaults(handler=cmd_r_plan_install)
+        plan_parser.set_defaults(
+            handler=cmd_r_plan_install,
+            operation_id="r.plan-install",
+        )
 
         submit_parser = r_subparsers.add_parser(
             "submit-install",
@@ -105,6 +121,11 @@ class RSupportPlugin:
         submit_parser.add_argument(
             "--remote-name",
             help="Remote filename; defaults to the local script basename",
+        )
+        submit_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Overwrite an existing remote install script",
         )
         submit_parser.add_argument("--cluster", "-M", help="Override sbatch --clusters")
         submit_parser.add_argument("--partition", "-p", help="Override sbatch --partition")
@@ -122,7 +143,10 @@ class RSupportPlugin:
             action="store_true",
             help="Skip sbatch --test-only before submitting",
         )
-        submit_parser.set_defaults(handler=cmd_r_submit_install)
+        submit_parser.set_defaults(
+            handler=cmd_r_submit_install,
+            operation_id="r.submit-install",
+        )
 
         verify_parser = r_subparsers.add_parser(
             "verify-install",
@@ -141,7 +165,10 @@ class RSupportPlugin:
             help="Optional substring that must appear in the recorded .libPaths() block",
         )
         verify_parser.add_argument("--json", action="store_true", help="Emit JSON instead of text")
-        verify_parser.set_defaults(handler=cmd_r_verify_install)
+        verify_parser.set_defaults(
+            handler=cmd_r_verify_install,
+            operation_id="r.verify-install",
+        )
 
     def requires_profile(self, argv: list[str]) -> bool:
         if not argv:
@@ -173,6 +200,7 @@ def cmd_r_scan(args: argparse.Namespace, profile: Profile | None) -> int:
 def cmd_r_check(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("r check requires a configured profile")
+    require_authorized("r.check", profile, namespace_arguments(args))
     result = check_packages(
         profile,
         target=args.target,
@@ -226,6 +254,7 @@ def cmd_r_check(args: argparse.Namespace, profile: Profile | None) -> int:
 def cmd_r_plan_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("r plan-install requires a configured profile")
+    require_authorized("r.plan-install", profile, namespace_arguments(args))
     if args.output.exists() and not args.force:
         raise ConfigError(f"output already exists: {args.output}")
 
@@ -261,6 +290,9 @@ def cmd_r_plan_install(args: argparse.Namespace, profile: Profile | None) -> int
         archive_packages=archive_packages,
         extra_repos=extra_repos,
     )
+    if args.dry_run:
+        print(f"Dry run; would write {args.output}")
+        return 0
     args.output.write_text(script_text, encoding="utf-8")
     print(f"Wrote {args.output}")
     print(f"Missing packages: {', '.join(result.missing)}")
@@ -270,11 +302,14 @@ def cmd_r_plan_install(args: argparse.Namespace, profile: Profile | None) -> int
 def cmd_r_verify_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("r verify-install requires a configured profile")
-    command = f"cat {shlex.quote(args.job_output)}"
-    completed = run_command_capture(profile, command, dry_run=args.dry_run)
-    if completed.returncode != 0:
-        raise ConfigError(completed.stderr.strip() or f"could not read job output: {args.job_output}")
-    result = parse_verify_output(completed.stdout, args.packages)
+    require_authorized("r.verify-install", profile, namespace_arguments(args))
+    roots = profile.capabilities.remote_roots.read
+    if args.dry_run:
+        selected_path, _ = resolve_granted_path(args.job_output, roots)
+        print(f"Dry run; would read {selected_path}")
+        return 0
+    _, output = read_remote_text(profile, args.job_output, roots=roots)
+    result = parse_verify_output(output, args.packages)
     if args.require_lib_fragment and not any(args.require_lib_fragment in line for line in result.library_paths):
         raise ConfigError(
             f"required library path fragment not found in job output: {args.require_lib_fragment}"
@@ -309,23 +344,29 @@ def cmd_r_verify_install(args: argparse.Namespace, profile: Profile | None) -> i
 def cmd_r_submit_install(args: argparse.Namespace, profile: Profile | None) -> int:
     if profile is None:
         raise ConfigError("r submit-install requires a configured profile")
+    require_authorized("r.submit-install", profile, namespace_arguments(args))
     if not args.jobscript.exists():
         raise ConfigError(f"local job script does not exist: {args.jobscript}")
 
     remote_name = args.remote_name or args.jobscript.name
     script_contents = args.jobscript.read_text(encoding="utf-8")
-    stage_command = build_stage_script_command(
-        directory=args.directory,
-        remote_name=remote_name,
-        contents=script_contents,
+    roots = profile.capabilities.remote_roots.write
+    planned = plan_remote_assets(
+        args.directory,
+        {remote_name: script_contents},
+        roots=roots,
     )
-    stage = run_command_capture(profile, stage_command, dry_run=args.dry_run)
-    if stage.stdout:
-        print(stage.stdout, end="")
-    if stage.stderr:
-        print(stage.stderr, end="", file=sys.stderr)
-    if stage.returncode != 0:
-        return stage.returncode
+    if args.dry_run:
+        print(f"Dry run; would stage {planned[0].path}")
+    else:
+        installed = install_remote_assets(
+            profile,
+            args.directory,
+            {remote_name: script_contents},
+            roots=roots,
+            overwrite=getattr(args, "force", False),
+        )
+        print(f"Staged {installed[0].path}")
 
     overrides = {
         "account": args.account,
@@ -338,7 +379,7 @@ def cmd_r_submit_install(args: argparse.Namespace, profile: Profile | None) -> i
     }
     overrides = {name: value for name, value in overrides.items() if value is not None}
     quote_args = build_quote_args(
-        remote_script_path=_remote_script_path(args.directory, remote_name),
+        remote_script_path=planned[0].path,
         account=args.account,
         cluster=args.cluster,
         partition=args.partition,

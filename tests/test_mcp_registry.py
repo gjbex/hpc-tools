@@ -1,65 +1,22 @@
 from __future__ import annotations
 
 from test_mcp_fixtures import *
+import tomllib
+from hpc_tools.config import load_config, resolve_profile
+from hpc_tools.operation_registry import OPERATION_REGISTRY, OperationSurface
 
 
 class McpServerFeatureTests(McpFixtures, unittest.TestCase):
     def test_mcp_tool_and_resource_registries_are_stable(self) -> None:
         self.assertEqual(
             mcp_server.TOOL_NAMES,
-            (
-                "hpc_profiles_list",
-                "hpc_paths",
-                "hpc_profile_show",
-                "hpc_hardware_context",
-                "hpc_hardware_sources",
-                "hpc_references_list",
-                "hpc_references_show",
-                "hpc_plugins_list",
-                "hpc_submissions_list",
-                "hpc_status",
-                "hpc_jobs",
-                "hpc_job",
-                "hpc_job_accounting",
-                "hpc_cancel_job",
-                "hpc_slurm_limits",
-                "hpc_module_spider",
-                "hpc_storage_inspect",
-                "hpc_site_env",
-                "hpc_references_create",
-                "hpc_references_import",
-                "hpc_references_attach",
-                "hpc_submissions_mark_collected",
-                "hpc_submissions_mark_analysed",
-                "hpc_submissions_close",
-                "hpc_write_probe",
-                "hpc_install_probe",
-                "hpc_write_container",
-                "hpc_install_container",
-                "hpc_quote_job",
-                "hpc_validate_job",
-                "hpc_submit_job",
-            ),
+            tuple(OPERATION_REGISTRY.bindings(OperationSurface.MCP_TOOL)),
         )
         self.assertEqual(
             mcp_server.RESOURCE_URIS,
-            (
-                "hpc://paths",
-                "hpc://config",
-                "hpc://submissions/active",
-                "hpc://submissions/all",
-            ),
+            tuple(OPERATION_REGISTRY.bindings(OperationSurface.MCP_RESOURCE)),
         )
-        self.assertEqual(
-            mcp_server.RESOURCE_TEMPLATES,
-            (
-                "hpc://profiles/{profile}",
-                "hpc://profiles/{profile}/hardware",
-                "hpc://profiles/{profile}/slurm",
-                "hpc://profiles/{profile}/storage",
-                "hpc://reference-sets/{name}",
-            ),
-        )
+        self.assertEqual(mcp_server.RESOURCE_TEMPLATES, ())
 
     def test_slurm_job_registry_is_a_narrow_fixed_surface(self) -> None:
         self.assertEqual(
@@ -92,22 +49,37 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "hpc_slurm_limits", "hpc_storage_inspect", "hpc_site_env",
                 "hpc_submissions_list", "hpc_references_create",
                 "hpc_install_probe", "hpc_install_container",
+                "hpc_files_list", "hpc_files_read", "hpc_files_mkdir",
+                "hpc_files_upload", "hpc_files_download", "hpc_files_copy",
+                "hpc_files_remove", "hpc_repo_clone",
             }.issubset(forbidden_tools)
         )
         self.assertTrue(restricted.isdisjoint(forbidden_tools))
         restricted_resources = set(
             mcp_server.resource_uris_for_preset("slurm-job")
         )
-        self.assertTrue(
-            restricted_resources.isdisjoint(
-                set(mcp_server.RESOURCE_URIS)
-                | set(mcp_server.RESOURCE_TEMPLATES)
-            )
-        )
+        self.assertTrue(restricted_resources.issubset(set(mcp_server.RESOURCE_URIS)))
 
     def test_unknown_mcp_preset_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unknown MCP preset"):
             mcp_server.resolve_preset("unrestricted")
+
+    def test_named_preset_candidates_follow_capability_levels(self) -> None:
+        context = set(mcp_server.tool_names_for_preset("context"))
+        discovery = set(mcp_server.tool_names_for_preset("discovery"))
+        inspection = set(mcp_server.tool_names_for_preset("job-inspect"))
+        lifecycle = set(mcp_server.tool_names_for_preset("job-lifecycle"))
+
+        self.assertLess(context, discovery)
+        self.assertLess(discovery, inspection)
+        self.assertLess(inspection, lifecycle)
+        self.assertNotIn("hpc_status", context)
+        self.assertIn("hpc_status", discovery)
+        self.assertNotIn("hpc_jobs", discovery)
+        self.assertIn("hpc_jobs", inspection)
+        self.assertNotIn("hpc_cancel_job", inspection)
+        self.assertIn("hpc_cancel_job", lifecycle)
+        self.assertIn("hpc_submit_job", lifecycle)
 
     def test_mcp_tool_schemas_are_stable_for_guarded_submission(self) -> None:
         expected = {
@@ -255,8 +227,9 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertIn("hpc://paths", uris)
         self.assertIn("hpc://config", uris)
         self.assertIn("hpc://submissions/active", uris)
-        self.assertIn("hpc://profiles/{profile}/hardware", templates)
-        self.assertIn("hpc://reference-sets/{name}", templates)
+        self.assertIn("hpc://cluster/hardware", uris)
+        self.assertIn("hpc://reference-set", uris)
+        self.assertEqual(templates, set())
         self.assertNotIn("hpc://submit", uris)
         self.assertNotIn("hpc://profiles/{profile}/install-probe", templates)
 
@@ -276,28 +249,206 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     server = mcp_server.create_server()
                     listed = await server.list_tools()
                     names = {tool.name for tool in listed}
+                    selected = resolve_profile(load_config(str(config_path)), None)
 
-                    self.assertEqual(set(mcp_server.TOOL_NAMES), names)
+                    self.assertEqual(
+                        set(mcp_server.tool_names_for_preset("full", selected)),
+                        names,
+                    )
                     self.assertIn("hpc_submit_job", names)
+                    self.assertNotIn("hpc_references_show", names)
+
+                    submit = next(tool for tool in listed if tool.name == "hpc_submit_job")
+                    self.assertNotIn("profile", submit.inputSchema["properties"])
+                    self.assertNotIn("config", submit.inputSchema["properties"])
+                    self.assertNotIn("database", submit.inputSchema["properties"])
+                    self.assertIn("confirm", submit.inputSchema["properties"])
 
                     content, structured = await server.call_tool("hpc_paths", {})
                     self.assertEqual(len(content), 1)
                     self.assertIn("hardware_probe_template", content[0].text)
-                    self.assertIn("hardware_probe_template", structured)
+                    self.assertIn("hardware_probe_template", structured["result"])
 
                     listed_resources = await server.list_resources()
                     resource_uris = {str(resource.uri) for resource in listed_resources}
-                    self.assertEqual(set(mcp_server.RESOURCE_URIS), resource_uris)
+                    self.assertEqual(
+                        set(mcp_server.resource_uris_for_preset("full", selected)),
+                        resource_uris,
+                    )
+                    self.assertNotIn("hpc://reference-set", resource_uris)
 
                     listed_templates = await server.list_resource_templates()
                     template_uris = {template.uriTemplate for template in listed_templates}
                     self.assertEqual(set(mcp_server.RESOURCE_TEMPLATES), template_uris)
 
-                    read = await server.read_resource("hpc://profiles/genius/hardware")
+                    read = await server.read_resource("hpc://cluster/hardware")
                     self.assertEqual(read[0].content, "# hardware\n")
 
-                    read = await server.read_resource("hpc://reference-sets/baseline")
-                    self.assertIn('"name": "baseline"', read[0].content)
+                    with self.assertRaises(Exception):
+                        await server.read_resource("hpc://profiles/genius/hardware")
+                    with self.assertRaises(Exception):
+                        await server.read_resource("hpc://reference-sets/baseline")
+
+        asyncio.run(exercise_server())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_profile_policy_filters_discovery_and_is_snapshotted(self) -> None:
+        async def exercise_server() -> None:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config_path = self._write_config(root)
+                original = config_path.read_text(encoding="utf-8")
+                config_path.write_text(
+                    original
+                    + textwrap.dedent(
+                        """
+
+                        [profiles.context_only]
+                        hardware_reference = "{hardware}"
+                        slurm_reference = "{slurm}"
+                        storage_reference = "{storage}"
+
+                        [profiles.context_only.capabilities]
+                        version = 1
+                        max_level = "profile-context"
+                        scopes = []
+
+                        [profiles.context_only.capabilities.remote_roots]
+                        list = []
+                        read = []
+                        write = []
+                        delete = []
+                        install = []
+                        """
+                    ).format(
+                        hardware=root / "hpc-tools" / "profiles" / "genius" / "hardware.md",
+                        slurm=root / "hpc-tools" / "profiles" / "genius" / "slurm.md",
+                        storage=root / "hpc-tools" / "profiles" / "genius" / "storage.md",
+                    ).strip()
+                    + "\n",
+                    encoding="utf-8",
+                )
+                environment = {
+                    "HPC_TOOLS_CONFIG": str(config_path),
+                    "XDG_CONFIG_HOME": str(root),
+                }
+                with mock.patch.dict("os.environ", environment, clear=False):
+                    lifecycle = mcp_server.create_server(
+                        preset="job-lifecycle",
+                        profile="genius",
+                    )
+                    context = mcp_server.create_server(
+                        preset="full",
+                        profile="context_only",
+                    )
+
+                    lifecycle_names = {tool.name for tool in await lifecycle.list_tools()}
+                    context_names = {tool.name for tool in await context.list_tools()}
+                    self.assertIn("hpc_submit_job", lifecycle_names)
+                    self.assertIn("hpc_jobs", lifecycle_names)
+                    self.assertNotIn("hpc_submit_job", context_names)
+                    self.assertNotIn("hpc_jobs", context_names)
+                    self.assertNotIn("hpc_profile_show", context_names)
+
+                    config_resource = await lifecycle.read_resource("hpc://config")
+                    selected_config = tomllib.loads(config_resource[0].content)
+                    self.assertEqual(["genius"], list(selected_config["profiles"]))
+                    self.assertNotIn("context_only", config_resource[0].content)
+
+                    _, profiles = await context.call_tool("hpc_profiles_list", {})
+                    self.assertEqual(
+                        ["context_only"],
+                        [item["name"] for item in profiles["result"]["profiles"]],
+                    )
+                    with self.assertRaises(Exception):
+                        await context.call_tool("hpc_jobs", {"dry_run": True})
+                    with self.assertRaises(Exception):
+                        await context.read_resource("hpc://config")
+                    self.assertEqual([], await context.list_resource_templates())
+                    denied_output = root / "denied-probe.slurm"
+                    with self.assertRaises(Exception):
+                        await context.call_tool(
+                            "hpc_write_probe",
+                            {"output": str(denied_output), "confirm": True},
+                        )
+                    self.assertFalse(denied_output.exists())
+
+                    config_path.write_text(
+                        config_path.read_text(encoding="utf-8").replace(
+                            'max_level = "profile-context"',
+                            'max_level = "job-lifecycle"',
+                        ),
+                        encoding="utf-8",
+                    )
+                    self.assertNotIn(
+                        "hpc_jobs",
+                        {tool.name for tool in await context.list_tools()},
+                    )
+                    restarted = mcp_server.create_server(
+                        preset="full",
+                        profile="context_only",
+                    )
+                    restarted_names = {
+                        tool.name for tool in await restarted.list_tools()
+                    }
+                    self.assertIn("hpc_jobs", restarted_names)
+                    self.assertIn("hpc_cancel_job", restarted_names)
+                    self.assertNotIn("hpc_quote_job", restarted_names)
+                    self.assertNotIn("hpc_validate_job", restarted_names)
+                    self.assertNotIn("hpc_submit_job", restarted_names)
+
+                    _, old_profiles = await context.call_tool(
+                        "hpc_profiles_list", {}
+                    )
+                    self.assertEqual(
+                        "profile-context",
+                        old_profiles["result"]["profiles"][0]["capabilities"]["max_level"],
+                    )
+                    runtime = await context.read_resource("hpc://runtime")
+                    self.assertEqual(
+                        "profile-context",
+                        json.loads(runtime[0].content)["capabilities"]["max_level"],
+                    )
+
+        asyncio.run(exercise_server())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_bound_reference_visibility_is_limited_to_attached_set(self) -> None:
+        async def exercise_server() -> None:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config_path = self._write_config(root)
+                self._write_reference_set(root, "baseline")
+                self._write_reference_set(root, "other")
+                config_path.write_text(
+                    config_path.read_text(encoding="utf-8").replace(
+                        'ssh_options = ["-x"]',
+                        'ssh_options = ["-x"]\nreference_set = "baseline"',
+                    ),
+                    encoding="utf-8",
+                )
+                with mock.patch.dict(
+                    "os.environ",
+                    {
+                        "HPC_TOOLS_CONFIG": str(config_path),
+                        "XDG_CONFIG_HOME": str(root),
+                    },
+                    clear=False,
+                ):
+                    server = mcp_server.create_server(preset="context")
+                    names = {tool.name for tool in await server.list_tools()}
+                    self.assertIn("hpc_references_show", names)
+                    _, listed = await server.call_tool("hpc_references_list", {})
+                    self.assertEqual(
+                        ["baseline"],
+                        [item["name"] for item in listed["result"]["reference_sets"]],
+                    )
+                    with self.assertRaises(Exception):
+                        await server.call_tool("hpc_references_show", {"name": "other"})
+                    selected = await server.read_resource("hpc://reference-set")
+                    self.assertIn('"name": "baseline"', selected[0].content)
+                    with self.assertRaises(Exception):
+                        await server.read_resource("hpc://reference-sets/other")
 
         asyncio.run(exercise_server())
 
@@ -383,6 +534,96 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
 
                     hardware = await server.read_resource("hpc://cluster/hardware")
                     self.assertEqual("# hardware\n", hardware[0].content)
+
+        asyncio.run(exercise_server())
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_slurm_job_controller_start_requires_c3(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = self._write_config(root)
+            manifest_path = self._write_delegation_manifest(root)
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'max_level = "job-lifecycle"',
+                    'max_level = "job-inspection"',
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                "os.environ",
+                {"HPC_TOOLS_PARENT_JOB_ID": "9001"},
+                clear=False,
+            ), self.assertRaisesRegex(
+                mcp_server.ConfigError,
+                "agent.controller.start.*job-lifecycle",
+            ):
+                mcp_server.create_server(
+                    preset="slurm-job",
+                    profile="genius",
+                    delegation_manifest=str(manifest_path),
+                    ledger=str(root / "ledger.sqlite3"),
+                    config=str(config_path),
+                )
+
+    @unittest.skipUnless(importlib.util.find_spec("mcp"), "mcp extra is not installed")
+    def test_restarted_slurm_job_server_intersects_current_and_captured_policy(self) -> None:
+        async def exercise_server() -> None:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config_path = self._write_config(root)
+                manifest_path = self._write_delegation_manifest(root)
+                ledger_path = root / "ledger.sqlite3"
+                with mock.patch.dict(
+                    "os.environ",
+                    {"HPC_TOOLS_PARENT_JOB_ID": "9001"},
+                    clear=False,
+                ):
+                    initial = mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(ledger_path),
+                        config=str(config_path),
+                    )
+                    self.assertIn(
+                        "hpc_submit_job",
+                        {tool.name for tool in await initial.list_tools()},
+                    )
+                    config_path.write_text(
+                        config_path.read_text(encoding="utf-8").replace(
+                            'max_level = "job-lifecycle"',
+                            'max_level = "job-inspection"',
+                        ),
+                        encoding="utf-8",
+                    )
+                    restarted = mcp_server.create_server(
+                        preset="slurm-job",
+                        profile="genius",
+                        delegation_manifest=str(manifest_path),
+                        ledger=str(ledger_path),
+                        config=str(config_path),
+                    )
+
+                    names = {tool.name for tool in await restarted.list_tools()}
+                    self.assertIn("hpc_jobs", names)
+                    self.assertIn("hpc_validate_job", names)
+                    self.assertNotIn("hpc_cancel_job", names)
+                    self.assertNotIn("hpc_submit_job", names)
+                    self.assertTrue(names.issubset(set(mcp_server.SLURM_JOB_TOOL_NAMES)))
+                    runtime = json.loads(
+                        (await restarted.read_resource("hpc://runtime"))[0].content
+                    )
+                    self.assertEqual(
+                        "job-inspection",
+                        runtime["capabilities"]["max_level"],
+                    )
+                    self.assertEqual(
+                        "job-lifecycle",
+                        runtime["delegation"]["controller_authority"]["policy"][
+                            "max_level"
+                        ],
+                    )
 
         asyncio.run(exercise_server())
 

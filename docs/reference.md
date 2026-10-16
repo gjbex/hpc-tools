@@ -20,7 +20,7 @@ the effective command tree with `hpc --help` and `hpc plugins list`.
 ## Command form and global options
 
 ```text
-hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--dry-run] COMMAND ...
+hpc [--json] [--profile PROFILE] [--config CONFIG] [--capability LEVEL] [--show-disallowed] [--executor {ssh,local}] [--dry-run] COMMAND ...
 ```
 
 | Option | Meaning |
@@ -28,13 +28,22 @@ hpc [--json] [--profile PROFILE] [--config CONFIG] [--executor {ssh,local}] [--d
 | `-h`, `--help` | Show help for the current command level and exit. |
 | `--profile PROFILE` | Select a named profile instead of `default_profile`. If the configuration contains exactly one profile, it is selected when neither option is present. |
 | `--config PATH` | Read a particular TOML configuration file. This takes precedence over the default configuration path. |
+| `--capability LEVEL` | Narrow help and command discovery to a lower capability ceiling. This is display-only: it never grants authority and never reduces the policy used to authorize an invocation. |
+| `--show-disallowed` | Include unavailable commands in help and annotate safe denial reasons. The default hides unavailable leaves and empty groups. |
 | `--executor {ssh,local}` | Select SSH transport or direct execution through the profile login shell. The default is `HPC_TOOLS_EXECUTOR`, then `ssh`. |
-| `--dry-run` | Print commands for the selected executor instead of running them. It does not turn every local operation into a preview, and `status` can still retrieve a configured web status page. |
+| `--dry-run` | Preview executor or structured filesystem operations without HTTP, SSH, scheduler, staging, or local-record mutation effects. It does not turn unrelated local file writes into previews. |
 | `--json` | Request structured output. Most commands use the generic envelope described under [Output formats](#output-formats); a small set emits command-specific JSON directly. |
 
 Put global options before the command in scripts. The CLI currently accepts
 `--json` at other positions too, but relying on conventional option placement
 makes invocations easier to read and forward.
+
+Help resolves an explicit profile, or the default profile when its configuration
+exists, before filtering commands. With no configuration file, root help and
+genuinely standalone local utilities expose only a small profile-free surface.
+Directly invoking a hidden command still uses the complete internal grammar so
+the authorization layer can return a precise denial; parser errors do not print
+the unfiltered command list.
 
 ## Complete CLI command reference
 
@@ -45,16 +54,18 @@ one. Repeated options are explicitly marked.
 
 | Command | Purpose |
 | --- | --- |
+| `hpc capabilities` | Show the selected profile, policy source, configured execution grants, and any narrower display-only grants. Add `--json` for the native structured form. |
 | `hpc paths` | Print the active configuration, reference, copied-skill, packaged-template, and uninstall locations. |
-| `hpc plugins list` | List core and external CLI plugins. Columns are `NAME`, `VERSION`, `SOURCE`, and `DESCRIPTION`. |
-| `hpc plugins info NAME` | Show the name, version, source, and description of one plugin. |
+| `hpc plugins list` | List core and external CLI plugins. Columns are `NAME`, `VERSION`, `SOURCE`, `CONTRACT`, and `DESCRIPTION`; incompatible contracts are shown as rejected. |
+| `hpc plugins info NAME` | Show the plugin identity, contract status, declared operations, and any contract error. |
 | `hpc agent audit --ledger PATH [--database PATH] [--delegation-id ID]` | Read a protected delegation ledger and show a joined controller, mutation, submission, output, and cleanup summary. |
 | `hpc agent export --ledger PATH [--database PATH] [--delegation-id ID] --output PATH [--force]` | Export the complete joined audit report as private mode-`0600` JSON. Existing output is preserved unless `--force` is explicit. |
 
 ### Shared cluster references
 
-These commands operate on the local reference-set directory. Only `create`,
-`attach`, and `detach` need a selected profile.
+These commands operate on the local reference-set directory. Reading installed
+sets is profile-free bootstrap functionality. `create`, `export`, `import`,
+`attach`, and `detach` require a selected profile with `local-state.write`.
 
 | Command | Purpose and important options |
 | --- | --- |
@@ -75,10 +86,10 @@ provenance, safe import, and refresh guidance.
 | Command | Purpose and important options |
 | --- | --- |
 | `hpc doctor` | Show remote identity and whether core Slurm commands are available. |
-| `hpc status` | Combine a configured status page, quota, account balance, and active local submissions. Missing configured helpers count as failures. |
+| `hpc status` | Retrieve only the configured public site-status page. Quota, balance, and submission history are separate operations. |
 | `hpc site-env` | Show selected environment variables, common storage tools, and the module-system version. |
 | `hpc hardware [--source | --path]` | Render configured hardware, Slurm, and storage context; restrict output to source URLs or local paths with the optional flags. |
-| `hpc storage inspect [PATH]` | Run bounded read-only checks for one remote path; the default is the remote working directory. |
+| `hpc storage inspect [PATH]` | List one permitted remote directory through the bounded filesystem helper. Omitting `PATH`, or using `.`, selects `projects_dir`. |
 | `hpc quota` | Run the profile's `quota_command`. |
 | `hpc module-spider NAME` | Search the remote Lmod module catalogue. |
 | `hpc slurm-limits [-M CLUSTER] [-p PARTITION] [--qos QOS]` | Inspect controller, partition, node, QoS, and user-association limits. |
@@ -89,8 +100,21 @@ provenance, safe import, and refresh guidance.
 | --- | --- |
 | `hpc projects` | List the selected profile's `projects_dir`. |
 | `hpc repo status -C DIRECTORY` | Show status, remotes, and latest commit for a remote Git checkout. |
-| `hpc clone URL [-b BRANCH] [-C DIRECTORY] [--name NAME]` | Clone a remote repository. The parent directory defaults to `projects_dir`. |
+| `hpc files list PATH [--max-entries N]` | List one permitted directory without recursion. |
+| `hpc files read PATH [--encoding utf-8\|base64] [--max-bytes N]` | Read one permitted regular file. |
+| `hpc files download SOURCE OUTPUT [--force] [--max-bytes N]` | Download one regular file and publish the local destination atomically. |
+| `hpc files upload SOURCE DESTINATION [--force] [--max-bytes N]` | Upload one local regular file without executing it. |
+| `hpc files copy SOURCE DESTINATION [--force] [--max-bytes N]` | Copy one bounded remote regular file after checking both root grants. |
+| `hpc files mkdir PATH` | Create one directory below an existing permitted parent. |
+| `hpc files remove PATH` | Remove one regular file or empty directory under a delete root. |
+| `hpc clone URL [-b BRANCH] [-C DIRECTORY] [--name NAME]` | Clone a network repository without hooks or recursive submodules. The parent defaults to `projects_dir`; local/file sources are rejected. |
 | `hpc run REMOTE_COMMAND` | Run one string through the configured remote login shell. This is an unrestricted escape hatch, not a safety boundary. |
+
+The fixed ceilings are 1 MiB per content read, 4 MiB per single-file transfer,
+and 1000 directory entries. Smaller limits can be requested. Symlinks and
+special files are not read, overwritten, or removed; removal is never
+recursive and refuses a configured root itself. `--dry-run` validates policy
+and declared paths without reading or changing either filesystem.
 
 ### Packaged probes and containers
 
@@ -154,7 +178,7 @@ event database.
 
 | Command | Purpose and important options |
 | --- | --- |
-| `hpc submissions [--database PATH] list [--all]` | Replay the event database and list active records; `--all` includes closed records. |
+| `hpc submissions [--database PATH] list [--all]` | Replay the event database and list only records attributed to the selected profile; `--all` includes its closed records. Unlabelled records are rejected. |
 | `hpc submissions [--database PATH] observe [RUN_ID]` | Query `sacct` through the stored profile and append observations for one or all active runs. |
 | `hpc submissions [--database PATH] mark-collected RUN_ID --path PATH` | Record where results were collected. This records the claim; it does not copy or verify the results. |
 | `hpc submissions [--database PATH] mark-analysed RUN_ID --path PATH` | Record an analysis artifact path. It does not run or validate the analysis. |
@@ -192,7 +216,7 @@ as independently installed plugins.
 | `hpc python inspect-deps TARGET [--json]` | Inspect supported dependency files without changing an environment. |
 | `hpc python check TARGET [--package NAME]... [--module NAME]... [--json]` | Test imports under a selected remote module stack. |
 | `hpc python plan-install TARGET --output FILE --venv PATH --partition NAME [--package NAME]... [--module NAME]... [--cluster NAME] [--job-name NAME] [--time TIME] [--cpus-per-task N] [--arch-guard NAME] [--no-system-site-packages] [--upgrade-pip] [--force]` | Generate, but do not submit, a virtual-environment installation job. |
-| `hpc python submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--skip-quote] [--no-validate-first]` | Stage and submit a generated install job. Quote and validation steps are on by default when available. |
+| `hpc python submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--force] [--skip-quote] [--no-validate-first]` | Authorize the complete workflow, stage through the bounded filesystem service, and submit a generated install job. Existing remote scripts require `--force`; quote and validation are on by default when available. |
 | `hpc python verify-install --job-output PATH --package NAME... [--require-venv-fragment TEXT] [--json]` | Parse a completed job's verification block and check the expected interpreter path. |
 
 #### R
@@ -205,7 +229,7 @@ shown.
 | `hpc r scan TARGET [--json]` | Discover package references locally. |
 | `hpc r check TARGET --module NAME [--package NAME]... [--cran-bundle NAME] [--bioc-bundle NAME] [--json]` | Check packages under a remote R and optional bundle-module stack. |
 | `hpc r plan-install TARGET --module NAME --output FILE --partition NAME [--package NAME]... [--cran-bundle NAME] [--bioc-bundle NAME] [--cluster NAME] [--job-name NAME] [--time TIME] [--cpus-per-task N] [--library-root-template EXPR] [--arch-guard NAME] [--archive-package PKG=URL]... [--extra-repo NAME=URL]... [--force]` | Generate, but do not submit, an R library installation job. |
-| `hpc r submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--skip-quote] [--no-validate-first]` | Stage and submit a generated install job. Quote and validation steps are on by default when available. |
+| `hpc r submit-install JOBSCRIPT -C DIRECTORY -A ACCOUNT [-M CLUSTER] [-p PARTITION] [--reservation NAME] [-t TIME] [-c N] [-N N] [--remote-name NAME] [--force] [--skip-quote] [--no-validate-first]` | Authorize the complete workflow, stage through the bounded filesystem service, and submit a generated install job. Existing remote scripts require `--force`; quote and validation are on by default when available. |
 | `hpc r verify-install --job-output PATH --package NAME... [--require-lib-fragment TEXT] [--json]` | Parse a completed job's verification block and check the expected library path. |
 
 The scanners are conservative aids, not complete dependency resolvers. Dynamic
@@ -213,7 +237,7 @@ imports, generated code, compiled system dependencies, and site policy still
 require review. See [Software environments and dependencies](software-environments.md)
 and [CLI plugin system](plugins.md).
 
-## Command availability by profile capability
+## Command availability by configured site feature
 
 Most cluster commands need only a selected profile and an executor that can use
 it. The SSH executor additionally requires a valid SSH target. The following
@@ -222,10 +246,10 @@ commands have additional conditions:
 | Command or group | Required profile field or condition |
 | --- | --- |
 | `projects`; default destination of `clone` | `projects_dir` |
-| `status` | `status_url`; its quota and balance sections additionally use `quota_command` and `sam_balance_command` |
-| `quota`; quota section of `status` | `quota_command` |
+| `status` | `status_url` |
+| `quota` | `quota_command` |
 | `queue` | `queue_command` |
-| `balance`; balance section of `status` | `sam_balance_command` |
+| `balance` | `sam_balance_command` |
 | `statement` | `sam_statement_command` |
 | `quote` and default quote stage of Python/R `submit-install` | `sam_quote_command` |
 | probe `--mail-notifications` | `email` |
@@ -239,6 +263,15 @@ so site-specific helpers can be absent rather than merely failing later. A
 local command such as `paths`, `plugins list`, reference-set inspection, or a
 local scanner can run without a cluster configuration.
 
+This site-feature filtering is separate from mandatory capability policy.
+The CLI hides denied leaves and empty groups by default; use
+`--show-disallowed` to display annotated denials and `--capability LEVEL` to
+preview a lower discovery ceiling. Built-in services still recheck the shared
+registry before effects. Directory inspection, project listing, repository
+preflight, clone destination preflight, and packaged asset installation use
+bounded filesystem primitives. MCP discovery applies the same registry and
+profile policy to a startup snapshot, with an additional preset ceiling.
+
 ## Configuration schema
 
 The configuration is TOML:
@@ -250,11 +283,16 @@ default_profile = "cluster-a"
 ssh_target = "cluster-a-login"
 projects_dir = "$HOME/projects"
 default_cluster = "compute"
+
+[profiles.cluster-a.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 `default_profile` is optional. A profile used with the SSH executor must define
 either `ssh_target` or `host`. Both may be omitted for a local-only profile; all
-other fields are optional.
+other connection/site fields are optional. Every profile must define a valid
+capability table.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -279,14 +317,20 @@ other fields are optional.
 | `reference_set` | string | Installed shared reference set attached to the profile. Its values take precedence over direct reference fields. |
 | `default_cluster` | string | Default Slurm cluster metadata used where supported; it is not a default account. |
 | `email` | string | Address inserted only when probe mail notifications are explicitly requested. |
+| `capabilities.version` | integer | Required policy schema version; currently `1`. |
+| `capabilities.max_level` | string | Required ceiling: `profile-context`, `cluster-discovery`, `job-inspection`, or `job-lifecycle`. |
+| `capabilities.scopes` | array of strings | Optional independent grants; omitted means none. Unknown and duplicate scopes are rejected. |
+| `capabilities.remote_roots` | table | Optional `list`, `read`, `write`, `delete`, and `install` root arrays; omitted arrays grant no roots. |
 
-Unknown TOML keys are currently ignored, not rejected. Do not use that as a
-forward-compatibility guarantee: a misspelled field can therefore appear to be
-accepted while having no effect. Validate behavior with `hpc doctor`,
-`hpc hardware --path`, and the relevant command.
+Unknown keys within `capabilities` and `capabilities.remote_roots` are rejected.
+Unknown keys elsewhere in the profile are currently ignored; do not use that
+as a forward-compatibility guarantee. Validate behavior with `hpc doctor`,
+`hpc hardware --path`, and the relevant command. Policy loading itself performs
+no cluster query and no write.
 
 See [Configure cluster profiles](configuration.md) for complete examples and
-SSH quoting guidance.
+SSH quoting guidance, and [Capability policy](capabilities.md) for the C0--C3
+authority model and role-based templates.
 
 ## Slurm submit override options
 
@@ -340,10 +384,13 @@ For most commands, global `--json` captures the ordinary result in an envelope:
 }
 ```
 
-Configuration failure before dispatch instead produces an object containing
-`error` and `returncode`. The following commands emit their own command-specific
-JSON rather than the envelope:
+Configuration failure before dispatch produces an object containing `error`
+and `returncode`. Capability denials additionally contain `code =
+"capability.denied"`, the operation and profile, and structured denial details.
+The following commands emit their own command-specific JSON rather than the
+envelope:
 
+- `capabilities`;
 - `benchmark summarize` and `benchmark compare`;
 - `agent audit` and `agent export`;
 - `cxx scan`;
@@ -359,7 +406,7 @@ Important text tables and remote formats are:
 
 | Producer | Fields |
 | --- | --- |
-| `plugins list` | `NAME`, `VERSION`, `SOURCE`, `DESCRIPTION` |
+| `plugins list` | `NAME`, `VERSION`, `SOURCE`, `CONTRACT`, `DESCRIPTION` |
 | `references list` | `NAME`, `CREATED_AT`, `SOURCE_PROFILE`, `PATH` |
 | `submissions list` | `RUN_ID`, `PROFILE`, `CLUSTER`, `JOBID`, `STATE`, `ACTION`, `JOBSCRIPT` |
 | `jobs` | job ID, partition, job name, user, compact state, elapsed time, time limit, nodes, reason/node list |
@@ -500,7 +547,10 @@ recorded Slurm state.
 ## MCP tools and resources
 
 The optional MCP server is a structured agent interface, not an alternative
-CLI syntax. Its current read tools cover profiles, paths, hardware context,
+CLI syntax. It binds one selected profile at startup and derives discovery from
+the intersection of the profile policy and the selected `context`, `discovery`,
+`job-inspect`, `job-lifecycle`, or `full` preset. Its current read tools cover
+the bound profile, paths, hardware context,
 reference sets, plugins, submissions, status, jobs, Slurm limits, modules,
 storage, and site environment. Confirm-gated tools cover reference changes,
 submission-database marks, local probe/container writes, and remote probe/container
@@ -516,17 +566,21 @@ hpc_quote_job → hpc_validate_job → hpc_submit_job
 Fixed resources are:
 
 - `hpc://paths`;
+- `hpc://profile`;
 - `hpc://config`;
+- `hpc://reference-set`, when the profile has an effective attached set;
+- `hpc://cluster/hardware`;
+- `hpc://cluster/slurm`;
+- `hpc://cluster/storage`;
 - `hpc://submissions/active`;
-- `hpc://submissions/all`.
+- `hpc://submissions/all`;
+- `hpc://runtime`.
 
-Resource templates are:
-
-- `hpc://profiles/{profile}`;
-- `hpc://profiles/{profile}/hardware`;
-- `hpc://profiles/{profile}/slurm`;
-- `hpc://profiles/{profile}/storage`;
-- `hpc://reference-sets/{name}`.
+Only authorized resources are registered, and the server publishes no
+cross-profile or arbitrary reference-set resource templates. Bound tool schemas
+also omit profile, config, and submission-database overrides. Ordinary
+lifecycle calls retain `confirm`; delegated `slurm-job` mode applies its
+additional host-side restrictions.
 
 Tool arguments and result objects are described by the running MCP server and
 can change while this interface remains experimental. Read [MCP integration](mcp.md)

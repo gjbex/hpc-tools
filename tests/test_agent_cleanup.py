@@ -1,16 +1,46 @@
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from hpc_tools import agent_cleanup, delegation
+from hpc_tools.capabilities import (
+    POLICY_VERSION,
+    CapabilityLevel,
+    CapabilityPolicy,
+    RemoteRootGrants,
+)
 from hpc_tools.config import ConfigError
 
 
 class AgentCleanupTests(unittest.TestCase):
+    def _register(
+        self,
+        ledger: delegation.DelegationLedger,
+        manifest: delegation.DelegationManifest,
+        root: Path,
+    ) -> None:
+        ledger.register(manifest)
+        config_path = root / "config.toml"
+        if not config_path.exists():
+            config_path.write_text("# cleanup fixture\n", encoding="utf-8")
+        ledger.capture_controller_authority(
+            manifest,
+            policy=CapabilityPolicy(
+                version=POLICY_VERSION,
+                max_level=CapabilityLevel.JOB_LIFECYCLE,
+                scopes=(),
+                remote_roots=RemoteRootGrants(),
+            ),
+            config_path=config_path,
+            config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
+        )
+
     def _manifest(
         self,
         root: Path,
@@ -85,14 +115,14 @@ class AgentCleanupTests(unittest.TestCase):
             ledger_path = root / "ledger.sqlite3"
             ledger = delegation.DelegationLedger(ledger_path)
             manifest = self._manifest(root)
-            ledger.register(manifest)
+            self._register(ledger, manifest, root)
             ledger.record_cleanup_job(manifest, job_id="7001")
             self._own(ledger, manifest, "123")
 
             unrelated = self._manifest(
                 root, identifier="delegate-2", parent_job_id="9002"
             )
-            ledger.register(unrelated)
+            self._register(ledger, unrelated, root)
             self._own(ledger, unrelated, "999")
             commands: list[list[str]] = []
 
@@ -126,6 +156,33 @@ class AgentCleanupTests(unittest.TestCase):
             self.assertEqual([], ledger.owned_jobs_for_cleanup(manifest))
             self.assertEqual(1, len(ledger.owned_jobs_for_cleanup(unrelated)))
 
+    def test_cleanup_requires_captured_controller_authority_before_scheduler(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ledger_path = root / "ledger.sqlite3"
+            ledger = delegation.DelegationLedger(ledger_path)
+            manifest = self._manifest(root)
+            ledger.register(manifest)
+            ledger.record_cleanup_job(manifest, job_id="7001")
+            runner = mock.Mock()
+
+            with self.assertRaisesRegex(
+                delegation.DelegationError,
+                "no captured controller authority",
+            ):
+                agent_cleanup.run_cleanup(
+                    manifest_path=manifest.source_path,
+                    ledger_path=ledger_path,
+                    profile="cluster",
+                    parent_job_id="9001",
+                    cleanup_job_id="7001",
+                    retries=1,
+                    retry_delay=0,
+                    runner=runner,
+                )
+
+            runner.assert_not_called()
+
     def test_leave_running_requires_manifest_policy_and_preserves_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -135,7 +192,7 @@ class AgentCleanupTests(unittest.TestCase):
                 lifecycle='[lifecycle]\non_cancel = "leave-running"',
             )
             ledger = delegation.DelegationLedger(ledger_path)
-            ledger.register(manifest)
+            self._register(ledger, manifest, root)
             ledger.record_cleanup_job(manifest, job_id="7001")
             self._own(ledger, manifest, "123")
 
@@ -165,7 +222,7 @@ class AgentCleanupTests(unittest.TestCase):
             ledger_path = root / "ledger.sqlite3"
             manifest = self._manifest(root)
             ledger = delegation.DelegationLedger(ledger_path)
-            ledger.register(manifest)
+            self._register(ledger, manifest, root)
             ledger.record_cleanup_job(manifest, job_id="7001")
             self._own(ledger, manifest, "123")
             commands: list[list[str]] = []
@@ -198,7 +255,7 @@ class AgentCleanupTests(unittest.TestCase):
             ledger_path = root / "ledger.sqlite3"
             manifest = self._manifest(root)
             ledger = delegation.DelegationLedger(ledger_path)
-            ledger.register(manifest)
+            self._register(ledger, manifest, root)
             ledger.record_cleanup_job(manifest, job_id="7001")
             with self.assertRaisesRegex(delegation.DelegationError, "registered"):
                 agent_cleanup.run_cleanup(
@@ -254,7 +311,7 @@ class AgentCleanupTests(unittest.TestCase):
             ledger_path = root / "ledger.sqlite3"
             manifest = self._manifest(root)
             ledger = delegation.DelegationLedger(ledger_path)
-            ledger.register(manifest)
+            self._register(ledger, manifest, root)
             ledger.record_cleanup_job(manifest, job_id="7001")
             self._own(ledger, manifest, "123")
             scancel_calls = 0
@@ -299,7 +356,7 @@ class AgentCleanupTests(unittest.TestCase):
                 lifecycle='[lifecycle]\non_failure = "leave-running"',
             )
             ledger = delegation.DelegationLedger(ledger_path)
-            ledger.register(manifest)
+            self._register(ledger, manifest, root)
             ledger.record_cleanup_job(manifest, job_id="7001")
             self._own(ledger, manifest, "123")
             ledger.begin_draining(manifest, reason="SIGUSR1")

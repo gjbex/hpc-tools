@@ -9,7 +9,7 @@ If you only want to verify installation and access, stop after step 5,
 
 ## What you need
 
-- Python 3.10 or newer;
+- Python 3.13 or newer;
 - `pipx`;
 - working SSH access to a Slurm login node;
 - the correct Slurm account and partition for a small test job;
@@ -73,6 +73,10 @@ default_profile = "example"
 ssh_target = "example"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 Without an SSH alias, specify the host and optionally the user:
@@ -85,12 +89,22 @@ host = "login.example.edu"
 user = "myuser"
 ssh_options = ["-x"]
 login_shell = ["bash", "-l", "-c"]
+
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
 ```
 
 The `login_shell` must end in `-c` so hpc-tools can pass one quoted remote
 command. The default is already `bash -l -c`; keeping it explicit makes the
 first profile easier to inspect. `ssh_options = ["-x"]` disables X11
 forwarding for these non-interactive commands.
+
+The capability table is mandatory. This initial onboarding profile permits
+bounded cluster discovery but not job inspection or job lifecycle actions.
+Scopes and remote roots are empty until explicitly configured. Add authority
+only after reviewing the site rules and choosing the specific operations and
+paths you need.
 
 ## 4. Preview and verify access
 
@@ -120,8 +134,6 @@ Start with bounded, read-only commands:
 ```bash
 hpc --profile example site-env
 hpc --profile example slurm-limits
-hpc --profile example storage inspect .
-hpc --profile example jobs
 ```
 
 Interpret them as a starting point, not a complete site description:
@@ -130,9 +142,37 @@ Interpret them as a starting point, not a complete site description:
   system visible in the login shell;
 - `slurm-limits` combines controller, partition, QoS, association, and array
   information where the site permits access;
-- `storage inspect .` performs bounded checks on one path;
-- `jobs` shows the current user's visible jobs and defaults to all visible
-  clusters unless a cluster is selected.
+
+To inspect a storage path, first identify a path permitted by site policy and
+add the matching C1 list scope and root. For example, if `/project/example-team`
+is approved, update the profile policy:
+
+```toml
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
+scopes = ["remote-filesystem.list"]
+
+[profiles.example.capabilities.remote_roots]
+list = ["/project/example-team"]
+```
+
+Then inspect only a path under that root:
+
+```bash
+hpc --profile example storage inspect /project/example-team
+```
+
+Inspecting jobs requires C2. After reviewing that additional authority, change
+`max_level` to `"job-inspection"` and run:
+
+```bash
+hpc --profile example jobs
+```
+
+This shows the current user's visible jobs and defaults to all visible clusters
+unless a cluster is selected. Keep the list scope and root only if you still
+need storage inspection.
 
 If the site is federated, repeat relevant commands with an explicit cluster:
 
@@ -181,7 +221,18 @@ scp hello.slurm example:hpc-tools-quick-start/
 The directory and script are remote state. hpc-tools does not automatically
 delete them after the example.
 
-## 7. Quote and preview the request
+## 7. Quote the request
+
+Before quoting or validating, review and grant C2 `job.validate`. A configured
+quote operation also requires `accounting.read`; retain any other scopes and
+roots needed for earlier steps. For example:
+
+```toml
+[profiles.example.capabilities]
+version = 1
+max_level = "job-inspection"
+scopes = ["job.validate", "accounting.read"]
+```
 
 If the profile and site provide a quote command, estimate the complete request
 with an explicit account:
@@ -197,21 +248,6 @@ configure a quote helper. A quote is evidence about the request at that time;
 it is not permission to use the account and becomes stale if the resource
 shape changes. Include an explicit cluster, QoS, or reservation when the site
 requires one.
-
-Preview both validation and submission SSH commands:
-
-```bash
-hpc --profile example --dry-run submit \
-  --directory '$HOME/hpc-tools-quick-start' \
-  --account <account> \
-  --partition <partition> \
-  --validate-first \
-  hello.slurm
-```
-
-The single quotes prevent the local shell from expanding `$HOME`; the login
-shell on the cluster expands it instead. Confirm that the preview contains the
-intended host, directory, account, partition, and script.
 
 ## 8. Validate without submitting
 
@@ -235,8 +271,29 @@ quote when the cost-relevant shape changed.
 
 ## 9. Submit deliberately
 
-The next command can consume allocation credits. It validates the request and,
-if validation succeeds, immediately performs the real submission:
+The next command can consume allocation credits. Before running it, review and
+explicitly approve C3 lifecycle authority by changing `max_level` to
+`"job-lifecycle"`; keep `job.validate` for the pre-submission validation and
+any other scopes required by your chosen setup.
+
+Preview the submission SSH command only after enabling C3. Although this is a
+dry run, `submit` still requires lifecycle authority:
+
+```bash
+hpc --profile example --dry-run submit \
+  --directory '$HOME/hpc-tools-quick-start' \
+  --account <account> \
+  --partition <partition> \
+  --validate-first \
+  hello.slurm
+```
+
+The single quotes prevent the local shell from expanding `$HOME`; the login
+shell on the cluster expands it instead. Confirm that the preview contains the
+intended host, directory, account, partition, and script.
+
+This command validates the request and, if validation succeeds, immediately
+performs the real submission:
 
 ```bash
 hpc --profile example submit \
@@ -264,11 +321,13 @@ hpc --profile example job <jobid>
 hpc --profile example sacct <jobid>
 ```
 
-Update the local submission records and view the active workflow:
+`submissions observe` also changes local records. Before using it, review and
+add the `submission-record.write` scope to the profile. Then update the local
+submission records and view the active workflow:
 
 ```bash
 hpc --profile example submissions observe
-hpc submissions list
+hpc --profile example submissions list
 ```
 
 `observe` records scheduler state; it does not download job output. Inspect or

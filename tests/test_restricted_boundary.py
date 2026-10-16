@@ -18,6 +18,12 @@ from importlib import resources
 from pathlib import Path
 from unittest import mock
 
+from hpc_tools.capabilities import (
+    POLICY_VERSION,
+    CapabilityLevel,
+    CapabilityPolicy,
+    RemoteRootGrants,
+)
 from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
 from hpc_tools.config import Profile
 from hpc_tools.mcp import server as mcp_registry
@@ -80,11 +86,36 @@ class RestrictedBoundaryTests(unittest.TestCase):
             encoding="utf-8",
         )
         paths["manifest"] = manifest_path
+        config_path = root / "config.toml"
+        config_path.write_text(
+            textwrap.dedent(
+                """
+                default_profile = "cluster"
+
+                [profiles.cluster]
+                ssh_target = "cluster"
+                default_cluster = "alpha"
+                sam_quote_command = "quote"
+
+                [profiles.cluster.capabilities]
+                version = 1
+                max_level = "job-lifecycle"
+                scopes = []
+                """
+            ).strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        paths["config"] = config_path
+        policy = self._profile().capabilities
         runtime = delegation.load_runtime(
             manifest_path,
             profile="cluster",
             ledger_path=root / "ledger.sqlite3",
             parent_job_id="9001",
+            profile_policy=policy,
+            config_path=config_path,
+            config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
         )
         return runtime, paths
 
@@ -97,6 +128,12 @@ class RestrictedBoundaryTests(unittest.TestCase):
             hardware_reference=None, hardware_url=None, slurm_reference=None,
             slurm_url=None, storage_reference=None, storage_url=None,
             status_url=None, reference_set=None, default_cluster="alpha", email=None,
+            capabilities=CapabilityPolicy(
+                version=POLICY_VERSION,
+                max_level=CapabilityLevel.JOB_LIFECYCLE,
+                scopes=(),
+                remote_roots=RemoteRootGrants(),
+            ),
         )
 
     def test_packaged_codex_agent_is_pinned_ephemeral_and_relay_only(self) -> None:
@@ -336,12 +373,21 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     prompt_file=prompt,
                     agent_image=paths["container"],
                     agent_command=["codex-agent", "-"],
+                    controller_authority=runtime.controller_authority,
                 )
 
             self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
             provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
             self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
             self.assertEqual("abc", provenance["work_source"]["commit"])
+            self.assertEqual(
+                runtime.controller_authority.policy_sha256,
+                provenance["controller_authority"]["policy_sha256"],
+            )
+            self.assertEqual(
+                str(paths["config"]),
+                provenance["controller_authority"]["config_path"],
+            )
             self.assertEqual(
                 hashlib.sha256(paths["container"].read_bytes()).hexdigest(),
                 provenance["agent_image"]["sha256"],
@@ -466,6 +512,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     agent_image=paths["container"],
                     agent_command=["agent", "--batch"],
                     runtime_base=runtime_base,
+                    config_path=paths["config"],
                     dry_run=True,
                 )
             rendered = stdout.getvalue()
@@ -616,6 +663,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             root = Path(directory)
             root.chmod(0o700)
             path = root / "mcp.sock"
+            ready = mcp_bridge.readiness_path(path)
             results: list[int] = []
             errors: list[OSError] = []
 
@@ -641,14 +689,21 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             server = threading.Thread(target=run_server)
             server.start()
             deadline = time.monotonic() + 5
-            while not path.exists() and not errors and time.monotonic() < deadline:
+            expected_pid = str(os.getpid())
+            while not errors and time.monotonic() < deadline:
+                try:
+                    if ready.read_text(encoding="ascii").strip() == expected_pid:
+                        break
+                except FileNotFoundError:
+                    pass
                 time.sleep(0.01)
             if errors:
                 server.join(timeout=1)
                 if errors[0].errno == 1:
                     self.skipTest("sandbox disallows Unix-domain socket binding")
                 raise errors[0]
-            self.assertTrue(path.exists(), "bridge did not create its socket")
+            self.assertTrue(ready.exists(), "bridge did not publish readiness")
+            self.assertEqual(expected_pid, ready.read_text(encoding="ascii").strip())
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             client.connect(str(path))
             client.sendall(b"mcp bytes")
@@ -664,6 +719,36 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertFalse(server.is_alive())
             self.assertEqual(b"mcp bytes", received)
             self.assertEqual([0], results)
+            self.assertFalse(path.exists())
+            self.assertFalse(ready.exists())
+
+    def test_launcher_requires_matching_bridge_readiness_marker(self) -> None:
+        with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+            path = Path(directory) / "mcp.sock"
+            ready = mcp_bridge.readiness_path(path)
+            listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            listener.bind(str(path))
+            ready.write_text("9999\n", encoding="ascii")
+            bridge = mock.Mock(pid=1234, returncode=None)
+            bridge.poll.return_value = None
+
+            with (
+                mock.patch(
+                    "hpc_tools.restricted_launch.time.monotonic",
+                    side_effect=[0.0, 0.0, 11.0],
+                ),
+                mock.patch("hpc_tools.restricted_launch.time.sleep"),
+                self.assertRaisesRegex(
+                    restricted_launch.ConfigError,
+                    "bridge readiness marker",
+                ),
+            ):
+                restricted_launch._wait_for_socket(path, bridge)
+
+            listener.listen(1)
+            ready.write_text("1234\n", encoding="ascii")
+            restricted_launch._wait_for_socket(path, bridge)
+            listener.close()
 
 
 if __name__ == "__main__":

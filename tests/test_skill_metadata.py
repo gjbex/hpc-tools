@@ -27,7 +27,9 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
     def test_domain_skills_reference_shared_remote_access(self) -> None:
         self.assertTrue(SHARED_REMOTE_ACCESS.exists(), f"missing {SHARED_REMOTE_ACCESS}")
         shared = SHARED_REMOTE_ACCESS.read_text(encoding="utf-8")
-        self.assertIn("hpc --profile <profile> run '<command>'", shared)
+        self.assertIn("hpc --profile <profile> capabilities", shared)
+        self.assertIn("remote-shell.execute", shared)
+        self.assertIn("automatic workaround for a denial", shared)
         self.assertIn("--dry-run", shared)
         self.assertIn("login-gate", shared)
 
@@ -62,4 +64,4 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc-container-workflows", text)
         self.assertIn("hpc-slurm-job-arrays", text)
         self.assertIn("hpc-slurm-benchmark", text)
-        self.assertIn("python3 -m unittest discover -s tests", text)
+        self.assertIn("uv run --locked --no-sync python -m unittest discover -s tests", text)

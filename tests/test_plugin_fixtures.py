@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import contextlib
 import io
 import json
@@ -13,6 +14,7 @@ from hpc_tools.config import ConfigError
 from hpc_tools.cli import build_parser
 from hpc_tools import plugin_system
 from hpc_tools.plugins import benchmark_support, cxx_support, python_support, r_support
+from test_cli_fixtures import make_profile
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

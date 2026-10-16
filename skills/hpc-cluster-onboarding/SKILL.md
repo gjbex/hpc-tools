@@ -76,8 +76,12 @@ pipx install .
 Do not proceed to remote profile checks until the local `hpc --help` command
 works.
 
-Use `python3 -m pip install --user -e .` only when the user is developing
-`hpc-tools` itself.
+When the user is developing `hpc-tools` itself, use the repository's locked
+environment:
+
+```bash
+uv sync --locked --all-extras --all-groups
+```
 
 ## MCP Installation
 
@@ -89,11 +93,11 @@ command -v hpc-mcp
 hpc-mcp --help
 ```
 
-In a development checkout that uses the repository uv environment, install the
-optional MCP dependencies with:
+In a development checkout, synchronize the repository uv environment with the
+optional MCP dependencies:
 
 ```bash
-uv pip install -e ".[mcp]"
+uv sync --locked --extra mcp
 ```
 
 The MCP server is a guarded structured interface over active hpc-tools
@@ -108,15 +112,18 @@ not replace the Codex plugin installation or install skills. Keep using the
 
 ## Remote Access
 
-Use the installed `hpc` CLI for remote commands after a profile exists:
+Inspect the profile policy and allowed command surface after a profile exists:
 
 ```bash
-hpc --profile <profile> run '<command>'
+hpc --profile <profile> capabilities
+hpc --profile <profile> --help
 ```
 
-For profile selection, optional helpers, login-gate handling, `--dry-run`, and
-remote command patterns, read
+For policy denials, profile selection, optional helpers, login-gate handling,
+`--dry-run`, and remote command patterns, read
 [`../_shared/hpc-tools-remote-access.md`](../_shared/hpc-tools-remote-access.md).
+If a discovery command is denied, stop and report the capability, scope, root,
+or site feature that is missing; do not bypass policy with `hpc run` or raw SSH.
 
 ## Conceptual References
 
@@ -273,10 +280,11 @@ Check whether the site uses Lmod or another module system:
 
 ```bash
 hpc --profile <profile> site-env
-hpc --profile <profile> run 'module avail 2>&1 | sed -n "1,120p"'
+hpc --profile <profile> module-spider <tool>
 ```
 
-For specific tools, use `hpc module-spider <tool>` when Lmod is available.
+Repeat `hpc module-spider <tool>` for the specific compilers, languages, and
+libraries required by the intended workflow when Lmod is available.
 
 ### 6. Probe Compute Hardware
 
@@ -324,8 +332,9 @@ After jobs finish, summarize probe output into the hardware reference. Keep
 probe-derived facts separate from documentation-derived facts. Consolidate both
 full hardware-probe and CUDA device-property findings into the profile hardware
 report under `~/.config/hpc-tools/profiles/<profile>/`. After the report is
-updated, use `hpc submissions mark-collected`, `hpc submissions mark-analysed`,
-and `hpc submissions close` for the matching runs; do not update the local SQLite
+updated, use `hpc --profile <profile> submissions mark-collected`,
+`hpc --profile <profile> submissions mark-analysed`, and
+`hpc --profile <profile> submissions close` for the matching runs; do not update the local SQLite
 submission database by hand unless the CLI is unavailable or broken. If an earlier
 probe attempt failed and a later corrected run succeeded, close the failed run
 with a superseded reason so onboarding state reflects only unresolved work.
