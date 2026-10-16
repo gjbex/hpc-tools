@@ -1,0 +1,47 @@
+{
+  "purpose": "WP1 characterization of the pre-credit-budget delegation contracts; this is a synchronized change detector, not a compatibility promise.",
+  "current": {
+    "array_submission_count_unit": "logical-submission",
+    "credit_budget_manifest_supported": false,
+    "controller_generation_bound_to_evidence": false,
+    "ledger_schema_version": 3,
+    "manifest_version": 2,
+    "profile_quote_fields": [
+      "sam_quote_command"
+    ],
+    "quote_evidence_fields": [
+      "account",
+      "command",
+      "directory",
+      "dry_run",
+      "evidence_token",
+      "execution_command",
+      "executor",
+      "jobscript",
+      "ok",
+      "overrides",
+      "profile",
+      "returncode",
+      "shape_token",
+      "ssh_command",
+      "stderr",
+      "stdout",
+      "timestamp",
+      "type"
+    ],
+    "quote_expiry_supported": false,
+    "structured_quote_supported": false,
+    "submission_operation_columns": [
+      "delegation_id",
+      "idempotency_key",
+      "request_sha256",
+      "status",
+      "resource_json",
+      "job_id",
+      "cluster",
+      "error",
+      "created_at",
+      "updated_at"
+    ]
+  }
+}
