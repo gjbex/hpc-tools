@@ -18,7 +18,7 @@ umask 077
 
 manifest=/path/to/protected/delegation.toml
 ledger=/path/to/protected/delegations.sqlite3
-config=${HPC_TOOLS_CONFIG:-$HOME/.config/hpc-tools/config.toml}
+config=${HPC_TOOLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hpc-tools/config.toml}
 agent_image=/path/to/restricted-codex.sif
 agent_env_file=/path/to/protected/codex.env
 prompt_file=/path/to/reviewed-task.md
