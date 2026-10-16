@@ -144,6 +144,27 @@ Discover the login environment and inspect candidate paths:
 
 ```console
 hpc --profile example site-env
+```
+
+Before inspecting storage, review the paths you intend to expose and update the
+profile's existing capability settings with the matching list grant and roots.
+Replace the existing capability block rather than appending duplicate TOML
+tables. These example roots match the paths below; use narrower site-approved
+paths and adjust the commands if appropriate:
+
+```toml
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
+scopes = ["remote-filesystem.list"]
+
+[profiles.example.capabilities.remote_roots]
+list = ["$HOME", "$VSC_DATA"]
+```
+
+Then inspect only those permitted paths:
+
+```console
 hpc --profile example storage inspect '$HOME'
 hpc --profile example storage inspect '$VSC_DATA'
 ```
@@ -216,7 +237,23 @@ or incur cost.
 
 ### Install and validate a CPU probe
 
-Preview the remote write first:
+Before previewing or installing a probe, review the destination and update the
+profile's existing capability settings with the install grant and matching
+root. Replace the existing capability block, using the site-approved
+destination you intend to use:
+
+```toml
+[profiles.example.capabilities]
+version = 1
+max_level = "cluster-discovery"
+scopes = ["remote-filesystem.list", "remote-install.write"]
+
+[profiles.example.capabilities.remote_roots]
+list = ["$HOME", "$VSC_DATA"]
+install = ["$VSC_DATA/hpc-probes"]
+```
+
+Preview the remote write after updating the policy:
 
 ```console
 hpc --profile example --dry-run install-probe \
@@ -247,10 +284,47 @@ hpc --profile example install-probe \
 
 Validate it before a real submission:
 
+Test-only validation requires C2 and `job.validate`; update the profile's
+existing capability settings before running it, retaining only the filesystem
+grants and roots you still need:
+
+```toml
+[profiles.example.capabilities]
+version = 1
+max_level = "job-inspection"
+scopes = ["remote-filesystem.list", "remote-install.write", "job.validate"]
+
+[profiles.example.capabilities.remote_roots]
+list = ["$HOME", "$VSC_DATA"]
+install = ["$VSC_DATA/hpc-probes"]
+```
+
 ```console
 hpc --profile example submit \
     --directory '$VSC_DATA/hpc-probes' \
     --test-only \
+    hardware_probe.sbatch
+```
+
+An actual submission requires C3. Only after reviewing the job and confirming
+its account and resource settings, update the existing capability settings to
+`job-lifecycle`, keeping only the scopes and roots needed for the remaining
+workflow:
+
+```toml
+[profiles.example.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = ["remote-filesystem.list", "remote-install.write"]
+
+[profiles.example.capabilities.remote_roots]
+list = ["$HOME", "$VSC_DATA"]
+install = ["$VSC_DATA/hpc-probes"]
+```
+
+```console
+hpc --profile example submit \
+    --directory '$VSC_DATA/hpc-probes' \
     hardware_probe.sbatch
 ```
 
