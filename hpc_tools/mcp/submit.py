@@ -429,11 +429,13 @@ def hpc_submit_job(
             raise delegation.DelegationError(
                 "restricted submission requires an idempotency_key"
             )
+        quoted_credit = _quoted_credit_reservation(checked_quote, budget)
         ledger = delegation.DelegationLedger(runtime.ledger_path)
         reservation = ledger.reserve_submission(
             runtime.manifest,
             idempotency_key=idempotency_key,
             shape=shape,
+            quoted_credit=quoted_credit,
         )
         if reservation["status"] == "submitted":
             return preview | {
@@ -713,6 +715,21 @@ def _credit_budget(
     if runtime is None:
         return None
     return runtime.controller_authority.credit_budget
+
+
+def _quoted_credit_reservation(
+    evidence: slurm_contracts.ValidatedEvidence,
+    budget: delegation.CreditBudget | None,
+) -> delegation.QuotedCreditReservation | None:
+    if budget is None:
+        return None
+    if evidence.quoted_cost is None or evidence.expires_at is None:
+        raise ConfigError("validated quote is missing quoted-credit authority")
+    return delegation.QuotedCreditReservation(
+        cost=evidence.quoted_cost,
+        evidence_token=evidence.evidence_token,
+        expires_at=evidence.expires_at,
+    )
 
 
 def _require_quote_dimensions(

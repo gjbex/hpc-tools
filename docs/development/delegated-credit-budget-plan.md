@@ -425,6 +425,50 @@ uncertainty and release only definite pre-acceptance failures.
 Exit criteria: concurrent callers cannot overspend the final count, resource,
 or credit allowance; exact replay consumes nothing twice.
 
+Implementation artifacts:
+
+- `hpc_tools/delegation.py` bumps the protected ledger to schema version 4 and
+  rejects schema version 3 without migration. Submission rows now retain the
+  fixed-point quoted maximum, unit, scale, evidence identity, expiry, and the
+  existing reservation status;
+- `QuotedCreditReservation` is the typed boundary between validated evidence
+  and the ledger. Credit-enabled manifests require it, resource-only manifests
+  reject it, and its unit, scale, value, identity, and timestamp are validated
+  before persistence;
+- `DelegationLedger.reserve_submission()` includes quote cost, identity, and
+  expiry in the idempotency digest, prevents reuse of one quote identity under
+  another key, and rechecks expiry immediately before a new reservation;
+- per-job credits, cumulative credits, logical submission count, active jobs,
+  and aggregate requested resources are checked with the insert under the same
+  existing `BEGIN IMMEDIATE` transaction;
+- definite pre-acceptance failures retain their audit row but release count,
+  resources, and credits, while submitted, uncertain, terminal, and cancelled
+  work remains consumed; and
+- `hpc_tools/mcp/submit.py` passes only the typed cost and identity recovered
+  from the validated WP4 quote into that reservation boundary.
+
+Validation record:
+
+- The complete locked suite passes 473 tests outside the restricted command
+  sandbox. The in-sandbox run passed all other tests and was denied only the
+  loopback HTTP and Unix-socket binds used by two acceptance cases.
+- Concurrency tests independently exercise the final submission-count,
+  aggregate-node, and quoted-credit units. Each simultaneous pair leaves one
+  accepted reservation and one rejection; exact replay maps to that same
+  single reservation.
+- A zero-cost quote test proves `budget.max_submissions` remains an independent
+  limit. Additional cases cover per-job and exact-total boundaries, one-unit
+  overspend, expiry at the boundary, identity/cost mismatch, definite release,
+  uncertain retention, terminal retention, and MCP-to-ledger persistence.
+- Locked dependency checking and synchronization, plugin and skill validation,
+  Python compilation, focused Ruff checks, strict MkDocs construction, and
+  `git diff --check` pass.
+- `tools/check_repo_hygiene.py` remains blocked by the pre-existing ignored
+  caches, build output, and egg-info already recorded by earlier work packages;
+  those unrelated generated artifacts were preserved.
+- Public runtime remaining-credit summaries, structured MCP denial responses,
+  and operator audit presentation remain owned by WP6.
+
 ## WP6: MCP, runtime, launcher, and audit integration
 
 Preserve the seven-tool `slurm-job` surface and the ordered quote -> validate ->

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
+from contextlib import closing
 from datetime import datetime
 
 from test_mcp_fixtures import *
@@ -619,6 +621,23 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             uncertain_submit.assert_called_once()
             ledger = delegation.DelegationLedger(ledger_path)
             self.assertTrue(ledger.owns_job("delegate-1", "60351238", "wice"))
+            with closing(sqlite3.connect(ledger_path)) as connection:
+                recorded_credit = connection.execute(
+                    """SELECT quoted_cost_value,quoted_cost_scale,
+                              quoted_cost_unit,quote_evidence_token
+                       FROM submission_operations
+                       WHERE delegation_id='delegate-1'
+                         AND idempotency_key='request-1'"""
+                ).fetchone()
+            self.assertEqual(
+                (
+                    2730,
+                    0,
+                    "credits",
+                    quote["quote_evidence"]["evidence_token"],
+                ),
+                recorded_credit,
+            )
             self.assertTrue(uncertain["ledger_recorded"])
             self.assertEqual("uncertain", uncertain["ledger_status"])
             self.assertEqual("audit unavailable", uncertain["ledger_error"])

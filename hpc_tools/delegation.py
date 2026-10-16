@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -32,10 +32,13 @@ from hpc_tools.credit_quotes import (
     MAX_CREDIT_SCALE,
     MAX_CREDIT_VALUE,
     STRUCTURED_QUOTE_FORMAT_V1,
+    CreditAmount,
+    CreditQuoteError,
+    parse_credit_amount,
 )
 
 MANIFEST_VERSION = 3
-LEDGER_SCHEMA_VERSION = 3
+LEDGER_SCHEMA_VERSION = 4
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
 PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
@@ -111,6 +114,22 @@ class CreditBudget:
             "maximum_total": self.maximum_total,
             "maximum_per_job": self.maximum_per_job,
             "quote_ttl_seconds": self.quote_ttl_seconds,
+        }
+
+
+@dataclass(frozen=True)
+class QuotedCreditReservation:
+    """Validated quote authority consumed by one ledger reservation."""
+
+    cost: CreditAmount
+    evidence_token: str
+    expires_at: datetime
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "quoted_cost": self.cost.to_dict(),
+            "quote_evidence_token": self.evidence_token,
+            "quote_expires_at": _canonical_time(self.expires_at),
         }
 
 
@@ -1066,12 +1085,14 @@ class DelegationLedger:
         *,
         idempotency_key: str,
         shape: dict[str, Any],
+        quoted_credit: QuotedCreditReservation | None = None,
     ) -> dict[str, Any]:
         try:
             return self._reserve_submission(
                 manifest,
                 idempotency_key=idempotency_key,
                 shape=shape,
+                quoted_credit=quoted_credit,
             )
         except DelegationError as error:
             self.record_rejection(
@@ -1087,11 +1108,16 @@ class DelegationLedger:
         *,
         idempotency_key: str,
         shape: dict[str, Any],
+        quoted_credit: QuotedCreditReservation | None,
     ) -> dict[str, Any]:
         validate_idempotency_key(idempotency_key)
         authorize_shape(manifest, shape)
+        credit = _reservation_credit(manifest, quoted_credit)
+        request = {"shape": shape}
+        if credit is not None:
+            request["quoted_credit"] = credit
         request_hash = hashlib.sha256(
-            json.dumps(shape, sort_keys=True, separators=(",", ":")).encode()
+            json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         requested = budget_resources(shape["overrides"])
         with self._transaction() as db:
@@ -1118,22 +1144,74 @@ class DelegationLedger:
                     "job_id": row[2],
                     "cluster": row[3],
                 }
-            used, active, totals = self._usage(db, manifest.identifier)
-            self._check_budget(manifest, used, active, totals, requested)
+            if credit is not None:
+                identity_row = db.execute(
+                    """SELECT idempotency_key FROM submission_operations
+                       WHERE delegation_id=? AND quote_evidence_token=?""",
+                    (
+                        manifest.identifier,
+                        credit["quote_evidence_token"],
+                    ),
+                ).fetchone()
+                if identity_row is not None:
+                    raise DelegationError(
+                        "quoted-credit evidence identity was already reserved"
+                    )
+            if credit is not None and _parse_time(
+                str(credit["quote_expires_at"])
+            ) <= _utc_now():
+                raise DelegationError(
+                    "quoted-credit reservation has expired; quote and validate again"
+                )
+            used, active, totals, quoted_total = self._usage(
+                db,
+                manifest,
+            )
+            self._check_budget(
+                manifest,
+                used,
+                active,
+                totals,
+                requested,
+                quoted_cost=(
+                    int(credit["quoted_cost"]["value"])
+                    if credit is not None
+                    else None
+                ),
+                quoted_total=quoted_total,
+            )
             now = _now()
             db.execute(
                 """INSERT INTO submission_operations
                    (delegation_id,idempotency_key,request_sha256,status,
-                    resource_json,created_at,updated_at)
-                   VALUES (?,?,?,'reserved',?,?,?)""",
+                    resource_json,quoted_cost_value,quoted_cost_scale,
+                    quoted_cost_unit,quote_evidence_token,quote_expires_at,
+                    created_at,updated_at)
+                   VALUES (?,?,?,'reserved',?,?,?,?,?,?,?,?)""",
                 (
                     manifest.identifier, idempotency_key, request_hash,
-                    json.dumps(requested, sort_keys=True), now, now,
+                    json.dumps(requested, sort_keys=True),
+                    credit["quoted_cost"]["value"] if credit is not None else None,
+                    credit["quoted_cost"]["scale"] if credit is not None else None,
+                    credit["quoted_cost"]["unit"] if credit is not None else None,
+                    credit["quote_evidence_token"] if credit is not None else None,
+                    credit["quote_expires_at"] if credit is not None else None,
+                    now,
+                    now,
                 ),
             )
+            audit_detail: dict[str, Any] = {
+                "idempotency_key": idempotency_key,
+                "resources": requested,
+            }
+            if credit is not None:
+                audit_detail["quoted_credit"] = credit
             self._audit(
-                db, manifest.identifier, "reserve_submission", "accepted",
-                {"idempotency_key": idempotency_key, "resources": requested},
+                db,
+                manifest.identifier,
+                "reserve_submission",
+                "accepted",
+                audit_detail,
             )
             return {
                 "idempotent_replay": False,
@@ -1524,7 +1602,7 @@ class DelegationLedger:
     def summary(self, manifest: DelegationManifest) -> dict[str, Any]:
         with self._connection() as db:
             self._active(db, manifest)
-            used, active, totals = self._usage(db, manifest.identifier)
+            used, active, totals, _ = self._usage(db, manifest)
         remaining = {}
         for key, limit in manifest.budget.items():
             consumed = (
@@ -1558,7 +1636,27 @@ class DelegationLedger:
         active: int,
         totals: dict[str, int],
         requested: dict[str, int],
+        *,
+        quoted_cost: int | None,
+        quoted_total: int,
     ) -> None:
+        credit_budget = manifest.credit_budget
+        if credit_budget is not None:
+            if quoted_cost is None:
+                raise DelegationError(
+                    "delegation requires a quoted-credit reservation"
+                )
+            if (
+                credit_budget.maximum_per_job is not None
+                and quoted_cost > credit_budget.maximum_per_job
+            ):
+                raise DelegationError(
+                    "delegation per-job quoted-credit budget is exceeded"
+                )
+            if quoted_total + quoted_cost > credit_budget.maximum_total:
+                raise DelegationError(
+                    "delegation total quoted-credit budget is exhausted"
+                )
         if used >= manifest.budget.get("max_submissions", 2**63 - 1):
             raise DelegationError("delegation submission budget is exhausted")
         if active >= manifest.budget.get("max_active_jobs", 2**63 - 1):
@@ -1570,20 +1668,70 @@ class DelegationLedger:
                     raise DelegationError(f"delegation aggregate {resource} budget is exhausted")
 
     def _usage(
-        self, db: sqlite3.Connection, delegation_id: str
-    ) -> tuple[int, int, dict[str, int]]:
+        self,
+        db: sqlite3.Connection,
+        manifest: DelegationManifest,
+    ) -> tuple[int, int, dict[str, int], int]:
         rows = db.execute(
-            """SELECT status,resource_json FROM submission_operations
+            """SELECT status,resource_json,quoted_cost_value,quoted_cost_scale,
+                      quoted_cost_unit,quote_evidence_token,quote_expires_at
+               FROM submission_operations
                WHERE delegation_id=? AND status != 'failed'""",
-            (delegation_id,),
+            (manifest.identifier,),
         ).fetchall()
         totals: dict[str, int] = {}
-        for _, encoded in rows:
+        quoted_total = 0
+        for (
+            _,
+            encoded,
+            cost_value,
+            cost_scale,
+            cost_unit,
+            evidence_token,
+            quote_expires_at,
+        ) in rows:
             for key, value in json.loads(encoded).items():
                 totals[key] = totals.get(key, 0) + int(value)
+            if manifest.credit_budget is None:
+                if any(
+                    value is not None
+                    for value in (
+                        cost_value,
+                        cost_scale,
+                        cost_unit,
+                        evidence_token,
+                        quote_expires_at,
+                    )
+                ):
+                    raise DelegationError(
+                        "resource-only delegation contains quoted-credit state"
+                    )
+                continue
+            if (
+                type(cost_value) is not int
+                or not 0 <= cost_value <= MAX_CREDIT_VALUE
+                or cost_scale != manifest.credit_budget.scale
+                or cost_unit != manifest.credit_budget.unit
+                or not isinstance(evidence_token, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", evidence_token)
+                or not isinstance(quote_expires_at, str)
+            ):
+                raise DelegationError(
+                    "credit delegation contains malformed quoted-credit state"
+                )
+            try:
+                _parse_time(quote_expires_at)
+            except DelegationError as error:
+                raise DelegationError(
+                    "credit delegation contains malformed quoted-credit state"
+                ) from error
+            quoted_total += cost_value
         used = len(rows)
-        active = sum(status in {"reserved", "submitted", "uncertain"} for status, _ in rows)
-        return used, active, totals
+        active = sum(
+            row[0] in {"reserved", "submitted", "uncertain"}
+            for row in rows
+        )
+        return used, active, totals, quoted_total
 
     def _active(self, db: sqlite3.Connection, manifest: DelegationManifest) -> None:
         row = db.execute(
@@ -1736,9 +1884,25 @@ class DelegationLedger:
                 CREATE TABLE submission_operations (
                     delegation_id TEXT NOT NULL, idempotency_key TEXT NOT NULL,
                     request_sha256 TEXT NOT NULL, status TEXT NOT NULL,
-                    resource_json TEXT NOT NULL, job_id TEXT, cluster TEXT,
+                    resource_json TEXT NOT NULL,
+                    quoted_cost_value INTEGER, quoted_cost_scale INTEGER,
+                    quoted_cost_unit TEXT, quote_evidence_token TEXT,
+                    quote_expires_at TEXT, job_id TEXT, cluster TEXT,
                     error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                     PRIMARY KEY (delegation_id,idempotency_key),
+                    UNIQUE (delegation_id,quote_evidence_token),
+                    CHECK (
+                      (quoted_cost_value IS NULL AND quoted_cost_scale IS NULL AND
+                       quoted_cost_unit IS NULL AND quote_evidence_token IS NULL AND
+                       quote_expires_at IS NULL) OR
+                      (quoted_cost_value IS NOT NULL AND
+                       quoted_cost_value BETWEEN 0 AND 9223372036854775807 AND
+                       quoted_cost_scale IS NOT NULL AND
+                       quoted_cost_scale BETWEEN 0 AND 9 AND
+                       quoted_cost_unit IS NOT NULL AND
+                       quote_evidence_token IS NOT NULL AND
+                       quote_expires_at IS NOT NULL)
+                    ),
                     FOREIGN KEY (delegation_id) REFERENCES delegations(delegation_id)
                 );
                 CREATE TABLE job_ownership (
@@ -1988,6 +2152,53 @@ def _parse_time(value: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
+def _canonical_time(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise DelegationError("quoted-credit expiry must include a UTC offset")
+    return value.astimezone(UTC).isoformat(timespec="seconds")
+
+
+def _reservation_credit(
+    manifest: DelegationManifest,
+    quoted_credit: QuotedCreditReservation | None,
+) -> dict[str, Any] | None:
+    budget = manifest.credit_budget
+    if budget is None:
+        if quoted_credit is not None:
+            raise DelegationError(
+                "resource-only delegation does not accept quoted-credit state"
+            )
+        return None
+    if not isinstance(quoted_credit, QuotedCreditReservation):
+        raise DelegationError("delegation requires a quoted-credit reservation")
+    try:
+        cost = parse_credit_amount(
+            quoted_credit.cost.to_dict(),
+            label="quoted-credit reservation cost",
+        )
+    except (AttributeError, CreditQuoteError) as error:
+        raise DelegationError(f"invalid quoted-credit reservation: {error}") from error
+    if cost.unit != budget.unit:
+        raise DelegationError(
+            "quoted-credit reservation unit does not match the delegation"
+        )
+    if cost.scale != budget.scale:
+        raise DelegationError(
+            "quoted-credit reservation scale does not match the delegation"
+        )
+    if not isinstance(quoted_credit.evidence_token, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", quoted_credit.evidence_token
+    ):
+        raise DelegationError("quoted-credit evidence identity is invalid")
+    if not isinstance(quoted_credit.expires_at, datetime):
+        raise DelegationError("quoted-credit expiry must be a timestamp")
+    return {
+        "quoted_cost": cost.to_dict(),
+        "quote_evidence_token": quoted_credit.evidence_token,
+        "quote_expires_at": _canonical_time(quoted_credit.expires_at),
+    }
+
+
 def _table(data: dict[str, Any], key: str) -> dict[str, Any]:
     value = data.get(key)
     if not isinstance(value, dict):
@@ -2222,4 +2433,8 @@ def _memory_mib(value: Any) -> int:
     return max(1, int(amount * factors[unit]))
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return _utc_now().isoformat()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)

@@ -7,8 +7,9 @@ import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 from hpc_tools import delegation
 from hpc_tools.capabilities import (
@@ -17,7 +18,7 @@ from hpc_tools.capabilities import (
     CapabilityPolicy,
     RemoteRootGrants,
 )
-from hpc_tools.credit_quotes import STRUCTURED_QUOTE_FORMAT_V1
+from hpc_tools.credit_quotes import STRUCTURED_QUOTE_FORMAT_V1, CreditAmount
 
 
 class DelegationTests(unittest.TestCase):
@@ -112,6 +113,20 @@ class DelegationTests(unittest.TestCase):
             + textwrap.dedent(content).strip()
             + "\n",
             encoding="utf-8",
+        )
+
+    @staticmethod
+    def _quoted_credit(
+        value: int,
+        *,
+        token: str = "a" * 64,
+        expires_at: datetime | None = None,
+    ) -> delegation.QuotedCreditReservation:
+        return delegation.QuotedCreditReservation(
+            cost=CreditAmount(value=value, scale=0, unit="credits"),
+            evidence_token=token,
+            expires_at=expires_at
+            or datetime(2098, 1, 1, tzinfo=UTC),
         )
 
     def test_manifest_binds_profile_parent_expiry_and_permissions(self) -> None:
@@ -589,17 +604,17 @@ class DelegationTests(unittest.TestCase):
             self.assertEqual("reconciling", restarted["state"])
             self.assertTrue(restarted["reconciliation_required"])
 
-    def test_old_ledger_schema_is_rejected_without_migration(self) -> None:
+    def test_pre_credit_ledger_schema_is_rejected_without_migration(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             ledger_path = root / "ledger.sqlite3"
             with closing(sqlite3.connect(ledger_path)) as connection:
-                connection.execute("PRAGMA user_version=2")
+                connection.execute("PRAGMA user_version=3")
             ledger_path.chmod(0o600)
             manifest = delegation.load_manifest(
                 self._manifest(root), expected_profile="genius"
             )
-            with self.assertRaisesRegex(delegation.DelegationError, "schema version 2"):
+            with self.assertRaisesRegex(delegation.DelegationError, "schema version 3"):
                 delegation.DelegationLedger(ledger_path).register(manifest)
 
     def test_expired_malformed_and_misspelled_manifests_fail_closed(self) -> None:
@@ -772,6 +787,312 @@ class DelegationTests(unittest.TestCase):
                 ]
             self.assertIn("rejected", decisions)
 
+    def test_credit_ledger_enforces_per_job_total_replay_and_release(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            self._add_credit_budget(
+                path,
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 5000
+                maximum_per_job = 3000
+                quote_ttl_seconds = 300
+                """,
+            )
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            ledger_path = root / "ledger.sqlite3"
+            ledger = delegation.DelegationLedger(ledger_path)
+            ledger.register(manifest)
+
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "requires a quoted-credit reservation"
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="missing-credit",
+                    shape=self._shape(),
+                )
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "per-job quoted-credit"
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="too-expensive",
+                    shape=self._shape(),
+                    quoted_credit=self._quoted_credit(3001),
+                )
+
+            first_credit = self._quoted_credit(3000)
+            first = ledger.reserve_submission(
+                manifest,
+                idempotency_key="request-1",
+                shape=self._shape(),
+                quoted_credit=first_credit,
+            )
+            replay = ledger.reserve_submission(
+                manifest,
+                idempotency_key="request-1",
+                shape=self._shape(),
+                quoted_credit=first_credit,
+            )
+            self.assertFalse(first["idempotent_replay"])
+            self.assertTrue(replay["idempotent_replay"])
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "identity was already reserved"
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="reused-quote",
+                    shape=self._shape(),
+                    quoted_credit=first_credit,
+                )
+            for changed_credit in (
+                self._quoted_credit(3000, token="b" * 64),
+                self._quoted_credit(2999),
+            ):
+                with self.assertRaisesRegex(
+                    delegation.DelegationError, "different request"
+                ):
+                    ledger.reserve_submission(
+                        manifest,
+                        idempotency_key="request-1",
+                        shape=self._shape(),
+                        quoted_credit=changed_credit,
+                    )
+
+            ledger.record_submission(
+                manifest,
+                idempotency_key="request-1",
+                job_id="12345",
+                cluster="wice",
+            )
+            ledger.reconcile_job(
+                manifest,
+                job_id="12345",
+                cluster="wice",
+                state="COMPLETED",
+            )
+            ledger.reserve_submission(
+                manifest,
+                idempotency_key="request-2",
+                shape=self._shape(nodes="2"),
+                quoted_credit=self._quoted_credit(2000, token="c" * 64),
+            )
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "total quoted-credit"
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="over-total",
+                    shape=self._shape(),
+                    quoted_credit=self._quoted_credit(1, token="d" * 64),
+                )
+            ledger.release_reservation(
+                manifest,
+                idempotency_key="request-2",
+                reason="definite pre-acceptance failure",
+            )
+            replacement = ledger.reserve_submission(
+                manifest,
+                idempotency_key="replacement",
+                shape=self._shape(nodes="2"),
+                quoted_credit=self._quoted_credit(2000, token="e" * 64),
+            )
+
+            with closing(sqlite3.connect(ledger_path)) as connection:
+                stored = connection.execute(
+                    """SELECT quoted_cost_value,quoted_cost_scale,
+                              quoted_cost_unit,quote_evidence_token,quote_expires_at
+                       FROM submission_operations
+                       WHERE idempotency_key='request-1'"""
+                ).fetchone()
+
+        self.assertEqual("reserved", replacement["status"])
+        self.assertEqual(3000, stored[0])
+        self.assertEqual(0, stored[1])
+        self.assertEqual("credits", stored[2])
+        self.assertEqual("a" * 64, stored[3])
+        self.assertEqual("2098-01-01T00:00:00+00:00", stored[4])
+
+    def test_credit_count_budget_remains_independent_of_zero_cost_quotes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    "max_submissions = 2", "max_submissions = 1"
+                ),
+                encoding="utf-8",
+            )
+            self._add_credit_budget(
+                path,
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 100
+                quote_ttl_seconds = 300
+                """,
+            )
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            ledger.reserve_submission(
+                manifest,
+                idempotency_key="request-1",
+                shape=self._shape(),
+                quoted_credit=self._quoted_credit(0),
+            )
+            ledger.record_submission(
+                manifest,
+                idempotency_key="request-1",
+                job_id="12345",
+                cluster="wice",
+            )
+            ledger.reconcile_job(
+                manifest,
+                job_id="12345",
+                cluster="wice",
+                state="COMPLETED",
+            )
+
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "submission budget"
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="request-2",
+                    shape=self._shape(),
+                    quoted_credit=self._quoted_credit(0, token="b" * 64),
+                )
+
+    def test_uncertain_credit_remains_consumed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            self._add_credit_budget(
+                path,
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 5000
+                quote_ttl_seconds = 300
+                """,
+            )
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+            ledger.register(manifest)
+            ledger.reserve_submission(
+                manifest,
+                idempotency_key="uncertain",
+                shape=self._shape(),
+                quoted_credit=self._quoted_credit(3000),
+            )
+            ledger.release_reservation(
+                manifest,
+                idempotency_key="uncertain",
+                reason="scheduler acceptance is unknown",
+                uncertain=True,
+            )
+
+            with self.assertRaisesRegex(
+                delegation.DelegationError, "total quoted-credit"
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="would-overspend",
+                    shape=self._shape(),
+                    quoted_credit=self._quoted_credit(2001, token="b" * 64),
+                )
+
+    def test_expired_credit_is_rejected_without_a_reservation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            self._add_credit_budget(path)
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            ledger_path = root / "ledger.sqlite3"
+            ledger = delegation.DelegationLedger(ledger_path)
+            ledger.register(manifest)
+            now = datetime(2026, 10, 16, 12, 5, tzinfo=UTC)
+            with (
+                mock.patch("hpc_tools.delegation._utc_now", return_value=now),
+                self.assertRaisesRegex(
+                    delegation.DelegationError, "has expired"
+                ),
+            ):
+                ledger.reserve_submission(
+                    manifest,
+                    idempotency_key="expired",
+                    shape=self._shape(),
+                    quoted_credit=self._quoted_credit(
+                        1,
+                        expires_at=now,
+                    ),
+                )
+            with closing(sqlite3.connect(ledger_path)) as connection:
+                operations = connection.execute(
+                    "SELECT COUNT(*) FROM submission_operations"
+                ).fetchone()[0]
+
+        self.assertEqual(0, operations)
+
+    def test_concurrent_credit_reservations_cannot_overspend_final_unit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self._manifest(root)
+            path.write_text(
+                path.read_text(encoding="utf-8").replace(
+                    "max_active_jobs = 1", "max_active_jobs = 2"
+                ),
+                encoding="utf-8",
+            )
+            self._add_credit_budget(
+                path,
+                """
+                [credit_budget]
+                unit = "credits"
+                scale = 0
+                maximum_total = 5000
+                maximum_per_job = 3000
+                quote_ttl_seconds = 300
+                """,
+            )
+            manifest = delegation.load_manifest(path, expected_profile="genius")
+            ledger_path = root / "ledger.sqlite3"
+            ledger = delegation.DelegationLedger(ledger_path)
+            ledger.register(manifest)
+
+            def reserve(index: int) -> str:
+                try:
+                    ledger.reserve_submission(
+                        manifest,
+                        idempotency_key=f"request-{index}",
+                        shape=self._shape(),
+                        quoted_credit=self._quoted_credit(
+                            3000,
+                            token=f"{index}" * 64,
+                        ),
+                    )
+                except delegation.DelegationError:
+                    return "rejected"
+                return "accepted"
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                decisions = list(pool.map(reserve, (1, 2)))
+            with closing(sqlite3.connect(ledger_path)) as connection:
+                consumed = connection.execute(
+                    """SELECT COUNT(*),SUM(quoted_cost_value)
+                       FROM submission_operations WHERE status != 'failed'"""
+                ).fetchone()
+
+        self.assertEqual(["accepted", "rejected"], sorted(decisions))
+        self.assertEqual((1, 3000), consumed)
+
     def test_array_elements_consume_cumulative_node_budget(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -819,6 +1140,53 @@ class DelegationTests(unittest.TestCase):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 decisions = list(pool.map(reserve, ("request-1", "request-2")))
             self.assertEqual(["accepted", "rejected"], sorted(decisions))
+
+    def test_concurrent_count_and_resource_limits_are_atomic(self) -> None:
+        cases = {
+            "count": {
+                "max_submissions = 2": "max_submissions = 1",
+                "max_active_jobs = 1": "max_active_jobs = 2",
+            },
+            "resources": {
+                "max_active_jobs = 1": "max_active_jobs = 2",
+                "max_total_nodes = 3": "max_total_nodes = 1",
+            },
+        }
+        for label, replacements in cases.items():
+            with self.subTest(limit=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                path = self._manifest(root)
+                content = path.read_text(encoding="utf-8")
+                for old, new in replacements.items():
+                    content = content.replace(old, new)
+                path.write_text(content, encoding="utf-8")
+                manifest = delegation.load_manifest(
+                    path,
+                    expected_profile="genius",
+                )
+                ledger = delegation.DelegationLedger(root / "ledger.sqlite3")
+                ledger.register(manifest)
+                barrier = threading.Barrier(2)
+
+                def reserve(index: int) -> str:
+                    barrier.wait()
+                    try:
+                        ledger.reserve_submission(
+                            manifest,
+                            idempotency_key=f"request-{index}",
+                            shape=self._shape(),
+                        )
+                    except delegation.DelegationError:
+                        return "rejected"
+                    return "accepted"
+
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    decisions = list(pool.map(reserve, (1, 2)))
+
+                self.assertEqual(["accepted", "rejected"], sorted(decisions))
+                summary = ledger.summary(manifest)
+                self.assertEqual(1, summary["used_submissions"])
+                self.assertEqual(1, summary["requested_resources"]["nodes"])
 
     def test_concurrent_duplicate_key_submits_once_and_budget_stays_capped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
