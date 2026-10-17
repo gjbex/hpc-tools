@@ -983,11 +983,13 @@ uv sync --locked --all-extras --all-groups
 uv run --locked --no-sync python -m unittest discover -s tests
 ```
 
-For capability-policy or release acceptance, also run the focused nine-scenario
-tier and validate both distribution formats from isolated pipx homes:
+For capability-policy, delegated credit-budget, or release acceptance, also run
+the focused tiers and validate both distribution formats from isolated pipx
+homes:
 
 ```bash
 uv run --locked --no-sync python tools/run_capability_acceptance.py
+uv run --locked --no-sync python tools/run_credit_budget_acceptance.py
 uv build --out-dir dist
 uv run --locked --no-sync python tools/check_capability_distribution.py \
   --wheel dist/hpc_tools-<version>-py3-none-any.whl \

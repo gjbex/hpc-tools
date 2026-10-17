@@ -1,7 +1,7 @@
 # Delegated MCP credit-budget implementation plan
 
-Status: WP1--WP6 implemented on 2026-10-16 and WP7 implemented on 2026-10-17;
-WP8 is proposed and not yet implemented.
+Status: WP1--WP6 implemented on 2026-10-16; WP7 and WP8 implemented on
+2026-10-17.
 
 This plan adds server-owned quoted-credit enforcement to the restricted
 `slurm-job` MCP topology. It complements, rather than replaces, the existing
@@ -575,6 +575,8 @@ Validation record:
 
 ## WP8: Acceptance and handoff
 
+Status: implemented on 2026-10-17.
+
 Add fake-helper, concurrent-ledger, real stdio MCP, restricted bridge,
 clean-install wheel/sdist, and separately reported live-site qualification.
 Required cases include exact-boundary acceptance, one-minor-unit rejection,
@@ -588,3 +590,47 @@ native quote semantics.
 
 Exit criteria: WP1--WP8 have literal evidence, all budgets are bound end to end,
 and the container boundary remains intact.
+
+Implementation artifacts:
+
+- `tests/test_credit_budget_acceptance.py` starts a real `slurm-job` FastMCP
+  server behind the private Unix-socket relay, talks to it with the MCP stdio
+  client, and drives real local quote and `sbatch` fake helpers. It proves the
+  seven-tool/four-resource boundary, full array-shaped quote propagation,
+  exact-total acceptance, a one-minor-unit total-credit denial while one
+  logical submission remains, idempotent replay, runtime accounting, and
+  protected manifest/ledger omission;
+- `hpc_tools/mcp_bridge.py` now flushes socket-to-child requests and uses
+  incremental pipe reads. The end-to-end MCP test exposed that the prior
+  one-shot byte-copy implementation waited for EOF and therefore could not
+  carry an interactive MCP initialization exchange;
+- `tools/run_credit_budget_acceptance.py` selects 20 tests in seven named
+  scenarios covering fixed-point boundaries, independent count and credit
+  exhaustion, array/resource multiplication, atomic concurrent reservations,
+  expiry and restart, definite failure, uncertain acceptance, audit state, and
+  containment. CI and the README run this tier alongside capability and
+  distribution acceptance; and
+- `docs/development/real-cluster-qualification.md` separates native quote and
+  site-accounting qualification from local fake-helper evidence, including
+  exact-boundary, count-first, credit-first, array, expiry, failure-retention,
+  and eventual-charge reconciliation checks.
+
+Validation record:
+
+- The required lock, plugin, skill, synchronization, and Python compilation
+  checks pass. The full locked suite passes 478 tests; the capability tier
+  passes 27 tests in nine scenarios; the delegated-credit tier passes 20 tests
+  in seven scenarios; strict MkDocs construction and `git diff --check` pass.
+  Unix-socket and loopback cases were run outside the restricted command
+  sandbox after its local-bind policy rejected the socket before product code
+  started.
+- A fresh wheel and source archive were built with the locked toolchain under
+  `/tmp`. Isolated pipx homes verified the wheel's CLI-only dependency surface,
+  the source archive's optional MCP installation, packaged delegated-agent
+  assets, and real stdio MCP discovery, tool calls, and resource reads.
+- `tools/check_repo_hygiene.py` remains blocked by the pre-existing ignored
+  caches, build output, and egg-info recorded by earlier packages. They are
+  unrelated to WP8 and were preserved.
+- No live Slurm job or site accounting request was made. Local helpers prove
+  the adapter and enforcement contracts but do not qualify a site's native
+  quote semantics; that evidence remains an operator-run deployment gate.

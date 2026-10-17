@@ -57,6 +57,9 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
             "afterany:<parent-job-id>",
             "Apptainer",
             "unrelated control job",
+            "Qualify native quoted-credit accounting",
+            "count-first and credit-first refusal behavior",
+            "actual charge is evidence for site review",
             "hpc agent export",
             "qualified with restrictions",
         ):
@@ -146,6 +149,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
             validation.index("uv sync --locked --all-extras --all-groups"),
         )
         self.assertIn("tools/run_capability_acceptance.py", validation)
+        self.assertIn("tools/run_credit_budget_acceptance.py", validation)
         self.assertIn("uv build --out-dir dist", validation)
         self.assertIn("tools/check_capability_distribution.py", validation)
         self.assertIn("--wheel dist/*.whl", validation)
@@ -209,6 +213,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("hpc_tools/data/cuda/", text)
         self.assertIn("pipx uninstall hpc-tools", text)
         self.assertIn("tools/run_capability_acceptance.py", text)
+        self.assertIn("tools/run_credit_budget_acceptance.py", text)
         self.assertIn("tools/check_capability_distribution.py", text)
         self.assertNotIn("ln -s /home", text)
 
