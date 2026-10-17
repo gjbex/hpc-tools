@@ -37,7 +37,9 @@
     "structured_quote_supported": true,
     "structured_submission_denial_codes": [
       "quote.format",
+      "quote.failed",
       "quote.expired",
+      "validation.failed",
       "budget.per_job_credit",
       "budget.total_credits",
       "budget.submission_count",

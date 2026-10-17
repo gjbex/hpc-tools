@@ -115,6 +115,9 @@ For a job array, read [arrays.md](references/arrays.md) before quoting it.
   `quote.expired` as permission only to restart the complete quote, validation,
   and submission chain when the original logical job is still required and the
   deadline permits. Never edit or reuse expired evidence.
+- Treat `quote.failed` and `validation.failed` as safe operational failures.
+  Retry only with bounded backoff while the original logical job and deadline
+  remain valid; otherwise finish as blocked without changing the request.
 - A definite submission failure releases its reservation. Successful,
   uncertain, terminal, and cancelled jobs retain cumulative count and quoted
   credit; do not assume completion or cancellation refunds either.

@@ -142,7 +142,9 @@ def prepare_job(
             prefix="validation-", dir=state_root
         )
         state_directory = Path(temporary_directory.name)
-        output_directory = state_directory / "output"
+        # Quote and validation use disposable control files, but their Slurm
+        # arguments must describe the exact persistent submission request.
+        output_directory = public_output_directory
     else:
         state_directory = persistent_state_directory
         output_directory = public_output_directory
@@ -165,7 +167,8 @@ def prepare_job(
                 _secure_private_root(output_root, "filesystem.output_root")
                 _mkdir_private(state_root / "jobs")
             _mkdir_private(state_directory)
-            _mkdir_private(output_directory)
+            if not temporary:
+                _mkdir_private(output_directory)
             _write_exact(staged_payload, payload, mode=0o500)
             wrapper = _render_wrapper(
                 policy,

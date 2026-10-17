@@ -528,11 +528,51 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 self.assertNotIn("private helper diagnostic", str(malformed))
                 self.assertNotIn(str(runtime.ledger_path), str(malformed))
 
+                failed_quote_result = mock.Mock(
+                    returncode=7,
+                    stdout="private quote output\n",
+                    stderr="private quote diagnostic\n",
+                )
                 with mock.patch(
                     "hpc_tools.mcp.common.run_command_capture",
-                    side_effect=[quote_result, validation_result],
+                    return_value=failed_quote_result,
+                ):
+                    failed_quote = mcp_server.hpc_quote_job(**arguments)
+                self.assertFalse(failed_quote["allowed"])
+                self.assertEqual("quote", failed_quote["stage"])
+                self.assertEqual("quote.failed", failed_quote["denial"]["code"])
+                self.assertNotIn("command", failed_quote)
+                self.assertNotIn("private quote", str(failed_quote))
+
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=quote_result,
                 ):
                     quote = mcp_server.hpc_quote_job(**arguments)
+                failed_validation_result = mock.Mock(
+                    returncode=8,
+                    stdout="private validation output\n",
+                    stderr="private validation diagnostic\n",
+                )
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=failed_validation_result,
+                ):
+                    failed_validation = mcp_server.hpc_validate_job(
+                        **(arguments | {"quote_evidence": quote["quote_evidence"]})
+                    )
+                self.assertFalse(failed_validation["allowed"])
+                self.assertEqual("validation", failed_validation["stage"])
+                self.assertEqual(
+                    "validation.failed", failed_validation["denial"]["code"]
+                )
+                self.assertNotIn("command", failed_validation)
+                self.assertNotIn("private validation", str(failed_validation))
+
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=validation_result,
+                ):
                     validation = mcp_server.hpc_validate_job(
                         **(arguments | {"quote_evidence": quote["quote_evidence"]})
                     )

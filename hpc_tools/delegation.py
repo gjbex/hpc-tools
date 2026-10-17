@@ -56,7 +56,9 @@ class SubmissionDenialCode(StrEnum):
     """Stable public reasons for rejecting a delegated submission."""
 
     QUOTE_FORMAT = "quote.format"
+    QUOTE_FAILED = "quote.failed"
     QUOTE_EXPIRED = "quote.expired"
+    VALIDATION_FAILED = "validation.failed"
     PER_JOB_CREDIT = "budget.per_job_credit"
     TOTAL_CREDITS = "budget.total_credits"
     SUBMISSION_COUNT = "budget.submission_count"

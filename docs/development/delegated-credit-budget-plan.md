@@ -494,9 +494,10 @@ read-only public state, while only the host process can mutate authority.
 Implementation artifacts:
 
 - `hpc_tools/delegation.py` defines stable public denial codes for quote
-  format, quote expiry, per-job credits, total credits, logical submission
-  count, active jobs, and requested resources. The typed exception retains the
-  existing internal error text while exposing only a safe public summary;
+  format, quote-command failure, quote expiry, validation-command failure,
+  per-job credits, total credits, logical submission count, active jobs, and
+  requested resources. The typed exception retains the existing internal error
+  text while exposing only a safe public summary;
 - `hpc_tools/mcp/submit.py` returns those structured denials at the quote,
   validation, or submission stage with `allowed = false` and no command,
   protected path, or job-submission effect. Successful quote, validation,
@@ -614,6 +615,12 @@ Implementation artifacts:
   site-accounting qualification from local fake-helper evidence, including
   exact-boundary, count-first, credit-first, array, expiry, failure-retention,
   and eventual-charge reconciliation checks.
+
+Post-review consistency repairs ensure the quote helper receives the same
+effective `sbatch` argument vector as submission even though its control files
+are staged temporarily, and map nonzero quote or validation commands to safe
+`quote.failed` or `validation.failed` responses without returning raw command
+or diagnostic fields.
 
 Validation record:
 

@@ -132,6 +132,8 @@ class CreditBudgetAcceptanceTests(unittest.TestCase):
             self.assertEqual(3, len(sbatch_calls))
             self.assertEqual(2, sum("--test-only" in call for call in sbatch_calls))
             self.assertEqual(1, sum("--test-only" not in call for call in sbatch_calls))
+            submitted = next(call for call in sbatch_calls if "--test-only" not in call)
+            self.assertEqual(quote_calls[0].removeprefix("sbatch "), submitted)
 
             public_payload = json.dumps(observations, sort_keys=True)
             for protected in (paths["manifest"], paths["ledger"]):

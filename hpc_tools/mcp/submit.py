@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -106,18 +107,23 @@ def hpc_quote_job(
     except delegation.SubmissionDenied as denial:
         return _submission_denial("quote", denial)
     shape = prepared.shape
-    quote_jobscript = (
-        str(Path(prepared.directory) / prepared.jobscript)
-        if runtime is not None
-        else prepared.jobscript
-    )
-    quote_args = _quote_args_for_submit(quote_jobscript, prepared.overrides)
+    quote_args = _quote_args_for_submit(prepared.jobscript, prepared.overrides)
     command = _sam_quote_command(resolved.sam_quote_command, quote_args)
+    if runtime is not None:
+        command = f"cd {shlex.quote(prepared.directory)} && {command}"
     try:
         result = _remote_read_result(resolved, command, dry_run=dry_run)
     finally:
         prepared.cleanup()
     budget = _credit_budget(runtime)
+    if runtime is not None and not result["dry_run"] and result["returncode"] != 0:
+        return _submission_denial(
+            "quote",
+            delegation.SubmissionDenied(
+                delegation.SubmissionDenialCode.QUOTE_FAILED,
+                "the authoritative quote command did not succeed",
+            ),
+        )
     structured_quote = None
     if (
         resolved.sam_quote_format is not None
@@ -313,6 +319,14 @@ def hpc_validate_job(
                 return _quote_evidence_denial("validation", expired=False)
     finally:
         prepared.cleanup()
+    if runtime is not None and not result["dry_run"] and result["returncode"] != 0:
+        return _submission_denial(
+            "validation",
+            delegation.SubmissionDenied(
+                delegation.SubmissionDenialCode.VALIDATION_FAILED,
+                "the scheduler validation command did not succeed",
+            ),
+        )
     evidence = _submission_evidence(
         "validation",
         shape,

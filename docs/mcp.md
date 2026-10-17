@@ -460,9 +460,10 @@ releases the reservation; successful, uncertain, terminal, and cancelled jobs
 retain cumulative count and quoted credit. A zero-cost quote still consumes a
 submission.
 
-Public delegated denials use stable codes: `quote.format`, `quote.expired`,
-`budget.per_job_credit`, `budget.total_credits`,
-`budget.submission_count`, `budget.active_jobs`, and `budget.resources`.
+Public delegated denials use stable codes: `quote.format`, `quote.failed`,
+`quote.expired`, `validation.failed`, `budget.per_job_credit`,
+`budget.total_credits`, `budget.submission_count`, `budget.active_jobs`, and
+`budget.resources`.
 `hpc://runtime` reports consumed and remaining quoted maxima without exposing
 the protected ledger, quote command, actual account balance, or actual charge.
 

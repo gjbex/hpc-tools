@@ -338,6 +338,25 @@ class RestrictedBoundaryTests(unittest.TestCase):
             temporary_state = Path(prepared.directory)
             self.assertTrue(temporary_state.is_dir())
             self.assertFalse(Path(prepared.output_directory).exists())
+            self.assertEqual(paths["output"], Path(prepared.output_directory).parent)
+            self.assertTrue(
+                str(prepared.overrides["output"]).startswith(
+                    prepared.output_directory
+                )
+            )
+            persistent = restricted_jobs.prepare_job(
+                runtime,
+                profile=self._profile(),
+                jobscript="job.sh",
+                directory=str(paths["run"]),
+                container=str(paths["container"]),
+                idempotency_key="request-1",
+                overrides={"account": "project", "cluster": "alpha"},
+                stage=False,
+            )
+            self.assertEqual(prepared.jobscript, persistent.jobscript)
+            self.assertEqual(prepared.overrides, persistent.overrides)
+            self.assertEqual(prepared.output_directory, persistent.output_directory)
             prepared.cleanup()
             self.assertFalse(temporary_state.exists())
             self.assertEqual([], list(paths["output"].iterdir()))
