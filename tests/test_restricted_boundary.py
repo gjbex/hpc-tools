@@ -196,6 +196,10 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertIn(f"`{name}`", skill)
         for uri in mcp_registry.SLURM_JOB_RESOURCE_URIS:
             self.assertIn(f"`{uri}`", skill)
+        self.assertIn("credit_budget.maximum_total", skill)
+        self.assertIn("quote.expired", skill)
+        self.assertIn("zero-cost quote", skill)
+        self.assertIn("do not convert, round, or infer", skill)
         for forbidden in ("hpc --profile", "sbatch ", "squeue ", "ssh "):
             self.assertNotIn(forbidden, skill)
         for reference in ("job-design.md", "arrays.md", "result-validation.md"):

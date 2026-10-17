@@ -1,0 +1,35 @@
+# Minimal credit-bearing delegation for one unattended restricted-agent run.
+# Replace every illustrative identity and path before use.
+format_version = 3
+id = "agent-example-minimal"
+issuer = "operator@example.org"
+profile = "example"
+parent_job_id = "123456"
+issued_at = "2026-10-17T08:00:00Z"
+expires_at = "2099-01-01T00:00:00Z"
+
+[allowed]
+accounts = ["project123"]
+clusters = ["example-cluster"]
+partitions = ["batch"]
+qos = []
+reservations = []
+containers = ["/project/project123/images/worker.sif"]
+script_sha256 = []
+roots = ["/scratch/project123/agent-example/work"]
+
+[budget]
+max_submissions = 4
+
+[credit_budget]
+unit = "credits"
+scale = 0
+maximum_total = 10000
+quote_ttl_seconds = 300
+
+[filesystem]
+state_root = "/scratch/project123/agent-example-private"
+work_root = "/scratch/project123/agent-example/work"
+output_root = "/scratch/project123/agent-example-output"
+input_roots = ["/project/project123/inputs"]
+apptainer_path = "/usr/bin/apptainer"

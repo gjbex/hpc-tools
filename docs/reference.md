@@ -306,8 +306,8 @@ capability table.
 | `queue_command` | string | Site-specific queue-summary command. |
 | `sam_balance_command` | string | Site-specific account-balance command. |
 | `sam_statement_command` | string | Site-specific account-statement command prefix. |
-| `sam_quote_command` | string | Site-specific cost/credit quote command prefix. |
-| `sam_quote_format` | string | Optional strict quote-output selector; currently only `hpc-tools-credit-quote-v1`. |
+| `sam_quote_command` | string | Site-specific cost/credit quote command prefix. A credit-bearing restricted delegation requires it. |
+| `sam_quote_format` | string | Optional strict quote-output selector; currently only `hpc-tools-credit-quote-v1`. A credit-bearing restricted delegation requires this exact value. |
 | `hardware_reference` | string | Local hardware reference file. |
 | `hardware_url` | string | Source or supporting hardware URL. |
 | `slurm_reference` | string | Local Slurm limits/policy reference file. |
@@ -332,6 +332,22 @@ no cluster query and no write.
 See [Configure cluster profiles](configuration.md) for complete examples and
 SSH quoting guidance, and [Capability policy](capabilities.md) for the C0--C3
 authority model and role-based templates.
+
+## Delegation manifest schema and examples
+
+Version-3 delegation manifests are strict TOML documents. The canonical parsed
+object schema is `examples/delegations/delegation-manifest-v3.schema.json`.
+`restricted-agent-credit-minimal.toml` in the same directory shows the minimum
+credit and logical-job ceilings for the container workflow; the `full` example
+adds per-job, aggregate-resource, filesystem, and lifecycle limits. Replace all
+illustrative identities, times, and absolute paths before use.
+
+The JSON Schema validates structure and scalar bounds. The hpc-tools loader is
+also authoritative for checks JSON Schema cannot express conveniently:
+protected-file ownership and mode, current expiry, selected profile and parent
+job, non-overlapping/symlink-free filesystem roots, work-root authorization,
+and `maximum_per_job <= maximum_total`. Unknown keys are rejected at every
+manifest table implemented by version 3.
 
 ## Slurm submit override options
 

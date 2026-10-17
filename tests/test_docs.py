@@ -105,8 +105,9 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
 
         mcp = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
         self.assertIn("hpc_quote_job → hpc_validate_job → hpc_submit_job", mcp)
-        self.assertIn("currently has no maximum-age check", mcp)
-        self.assertIn("not a hash of its contents", mcp)
+        self.assertIn("quote_ttl_seconds", mcp)
+        self.assertIn("budget.submission_count", mcp)
+        self.assertIn("snapshots the payload and binds its digest", mcp)
         self.assertIn("confirm=true", mcp)
         self.assertIn("dry_run=false", mcp)
 
@@ -252,9 +253,31 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("job_ownership", delegation_text)
         self.assertIn("lifecycle_operations", delegation_text)
         self.assertIn("## Restricted lifecycle authorization", delegation_text)
+        self.assertIn("PRAGMA user_version = 4", delegation_text)
+        self.assertIn("A zero-cost quote still consumes one", delegation_text)
         mcp_text = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
         self.assertIn("hpc_job_accounting", mcp_text)
         self.assertIn("only ledger-owned active jobs", mcp_text)
+
+    def test_credit_budget_operator_material_is_synchronized(self) -> None:
+        configuration = (ROOT / "docs" / "configuration.md").read_text(
+            encoding="utf-8"
+        )
+        restricted = (ROOT / "docs" / "restricted-agent.md").read_text(
+            encoding="utf-8"
+        )
+        reference = (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+        self.assertIn("hpc-tools-credit-quote-v1", configuration)
+        self.assertIn("exactly one UTF-8 JSON object", configuration)
+        self.assertIn("whichever limit is reached first", restricted)
+        self.assertIn("A zero-cost job still consumes one", restricted)
+        self.assertIn("delegation-manifest-v3.schema.json", reference)
+        for name in (
+            "delegation-manifest-v3.schema.json",
+            "restricted-agent-credit-minimal.toml",
+            "restricted-agent-credit-full.toml",
+        ):
+            self.assertTrue((ROOT / "examples" / "delegations" / name).is_file())
 
     def test_submissions_doc_covers_action_semantics_and_diagram(self) -> None:
         text = SUBMISSIONS_DOC.read_text(encoding="utf-8")

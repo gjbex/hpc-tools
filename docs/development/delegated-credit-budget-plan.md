@@ -1,7 +1,7 @@
 # Delegated MCP credit-budget implementation plan
 
-Status: WP1--WP6 implemented on 2026-10-16; WP7--WP8 are proposed and not yet
-implemented.
+Status: WP1--WP6 implemented on 2026-10-16 and WP7 implemented on 2026-10-17;
+WP8 is proposed and not yet implemented.
 
 This plan adds server-owned quoted-credit enforcement to the restricted
 `slurm-job` MCP topology. It complements, rather than replaces, the existing
@@ -530,6 +530,8 @@ Validation record:
 
 ## WP7: Documentation, examples, image skill, and packaging
 
+Status: implemented on 2026-10-17.
+
 Update configuration, restricted-agent, MCP, delegation-internals, examples,
 schemas, and the image-only `hpc-delegated-slurm` skill. Document count-versus-
 credit semantics, arrays, quote expiry, failure retention, and operator setup.
@@ -539,6 +541,37 @@ Codex-plugin installation surfaces.
 
 Exit criteria: an operator can configure the pair without reading source, and
 the unattended skill cannot imply authority absent from MCP.
+
+Implementation artifacts:
+
+- configuration, MCP, restricted-agent, delegation-internals, reference, and
+  README material now describe the structured quote adapter, independent
+  logical-count and quoted-credit ceilings, array accounting, quote expiry,
+  failure retention, public denial codes, and the operator setup sequence;
+- `examples/delegations/` supplies minimal and full version-3 credit-bearing
+  manifests plus a strict JSON Schema for the parsed TOML object. Parser-backed
+  tests keep the examples aligned with the runtime contract;
+- the image-only `hpc-delegated-slurm` skill reads logical and quoted-credit
+  state separately, treats fixed-point values without conversion, restarts the
+  complete evidence chain after expiry, and stops on authority or budget
+  denials rather than implying a workaround; and
+- `MANIFEST.in` and `tools/check_capability_distribution.py` keep distribution
+  surfaces explicit. Wheels contain Python runtime and agent-image assets but
+  not the interactive Codex-plugin skill tree. Source archives additionally
+  contain operator docs, examples/schema, and the plugin source assets.
+
+Validation record:
+
+- both example manifests pass `DelegationManifest` parsing, focused docs,
+  generated-container, image-skill, compilation, strict MkDocs, and whitespace
+  checks pass; the complete locked suite passes 477 tests;
+- a clean wheel and source archive were built with the locked toolchain. The
+  archive contract verified every synchronized asset and excluded the large
+  recorded probe-result corpus; and
+- isolated pipx installation from both artifacts passed. The wheel retained
+  the CLI-only dependency surface, the source archive installed the optional
+  MCP surface, and the installed agent-image skill and stdio MCP protocol were
+  exercised successfully. No live cluster or accounting service was used.
 
 ## WP8: Acceptance and handoff
 

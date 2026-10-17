@@ -192,6 +192,47 @@ The available fields fall into four groups.
 | Defaults and identity | `default_cluster`, `email` | `default_cluster` narrows cluster-aware Slurm queries. `email` can supply a notification address to generated scripts. |
 | Capability policy | `capabilities.version`, `capabilities.max_level`, `capabilities.scopes`, `capabilities.remote_roots` | Mandatory, strict per-profile policy. Scopes and roots are additive constraints independent of the maximum level. |
 
+### Structured credit quotes
+
+A credit-bearing restricted delegation requires both profile fields below. The
+command is a trusted host-side adapter to the site's authoritative quote
+service; it receives the same closed set of validated submit arguments as the
+proposed job.
+
+```toml
+[profiles.example]
+sam_quote_command = "/opt/site/bin/hpc-tools-credit-quote"
+sam_quote_format = "hpc-tools-credit-quote-v1"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = []
+```
+
+On success the adapter must write at most 4096 bytes to stdout containing
+exactly one UTF-8 JSON object:
+
+```json
+{
+  "format_version": 1,
+  "maximum_cost": {
+    "value": 2730,
+    "scale": 0,
+    "unit": "credits"
+  }
+}
+```
+
+The amount represents `value * 10^-scale` units. `value` is an integer from 0
+through `2^63 - 1`, `scale` is 0 through 9, and `unit` is a normalized
+lowercase identifier. The delegation and every quote must use exactly the same
+scale and unit; hpc-tools never rounds or converts them. Unknown or duplicate
+keys, trailing output, invalid UTF-8, floats, and unsupported versions fail
+closed. Put human diagnostics on stderr. If the native site command emits a
+report, the adapter must translate it; do not make the MCP client infer a cost
+from human text.
+
 For example:
 
 ```toml

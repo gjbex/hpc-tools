@@ -446,9 +446,25 @@ When a profile also sets
 emit the strict JSON envelope documented in the configuration reference.
 `hpc_quote_job` returns its parsed fixed-point value as `structured_quote`.
 Malformed, duplicate-key, oversized, unsupported, or trailing output fails
-closed. Diagnostic text belongs on stderr. This parsed WP2 field is
-informational: it is not accepted by `hpc_submit_job` and does not become budget
-authority until signed cost evidence and ledger reservation are implemented.
+closed. Diagnostic text belongs on stderr. For a credit-bearing delegation,
+the server signs the typed maximum and server-issued expiry into quote
+evidence, binds validation to that exact quote, and atomically reserves the
+quoted maximum with the logical submission count and requested resources.
+
+`budget.max_submissions` and `credit_budget.maximum_total` are independent.
+Whichever applicable count, active-job, resource, per-job-credit, or
+total-credit limit is reached denies the request. One array is one logical
+submission, but its full shape reaches the quote helper and its resources are
+multiplied by the number of array elements. A definite scheduler failure
+releases the reservation; successful, uncertain, terminal, and cancelled jobs
+retain cumulative count and quoted credit. A zero-cost quote still consumes a
+submission.
+
+Public delegated denials use stable codes: `quote.format`, `quote.expired`,
+`budget.per_job_credit`, `budget.total_credits`,
+`budget.submission_count`, `budget.active_jobs`, and `budget.resources`.
+`hpc://runtime` reports consumed and remaining quoted maxima without exposing
+the protected ledger, quote command, actual account balance, or actual charge.
 
 ## Understand what evidence does not prove
 
@@ -459,12 +475,14 @@ evidence.
 
 Important limitations remain:
 
-- the timestamp is recorded but currently has no maximum-age check;
-- "stale" enforcement means the shape no longer matches, not that a fixed
-  number of minutes elapsed;
+- a credit-bearing delegation gives quote evidence the manifest's
+  `quote_ttl_seconds`; ordinary non-credit evidence has no separate age limit;
+- expiry requires a completely fresh quote -> validate -> submit chain;
 - the process-local signing secret changes when the server restarts, so old
   evidence will no longer verify in a new process;
-- the shape records the job-script path, not a hash of its contents;
+- ordinary mode binds the job-script path but not its contents; restricted mode
+  snapshots the payload and binds its digest, container, idempotency key, and
+  controller generation;
 - quote and `sbatch --test-only` results can become outdated as scheduler state
   or site policy changes;
 - neither result proves that inputs exist, the application runs correctly, or

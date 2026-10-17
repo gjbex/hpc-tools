@@ -1,0 +1,11 @@
+include .mcp.json
+include mkdocs.yml
+recursive-include .codex-plugin *
+recursive-include docs *.md
+include examples/*.toml
+recursive-include examples/cuda *
+recursive-include examples/delegations *
+recursive-include examples/job-scripts *.slurm
+recursive-include examples/references *.md
+recursive-include skills *.md
+prune examples/probe-results

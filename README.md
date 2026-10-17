@@ -260,6 +260,17 @@ mode also requires `confirm=true`; delegated mode requires host-side policy,
 available budget, and an idempotency key.
 Stale or dry-run evidence is rejected.
 
+A restricted delegation can combine the independent
+`budget.max_submissions` logical-job ceiling with a fixed-point
+`credit_budget.maximum_total` and optional `maximum_per_job`; whichever limit
+is reached first stops submission. Credit mode also requires the profile's
+`sam_quote_command` and
+`sam_quote_format = "hpc-tools-credit-quote-v1"`. Start from the manifests and
+parsed-object schema under `examples/delegations/`, then follow the
+[restricted-agent deployment guide](docs/restricted-agent.md). The Codex plugin
+still supplies skills only: install the Python package separately to obtain the
+CLI, MCP server, launcher, and packaged agent-image assets.
+
 For an unattended Slurm allocation, `hpc-agent-launch` keeps `hpc-mcp`, the
 manifest, ledger, Slurm clients, and credentials outside the Apptainer agent
 image. The in-container `hpc-mcp-relay` reaches that restricted server over a

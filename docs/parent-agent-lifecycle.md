@@ -219,7 +219,7 @@ separately from the delegation's compute-job budget.
 
 ## Ledger implementation
 
-Manifest format version 3 and ledger schema version 3 provide:
+Manifest format version 3 and ledger schema version 4 provide:
 
 - lifecycle policy in `DelegationManifest` and its public runtime summary;
 - a `controller_attempts` table containing generation, parent job ID, state,

@@ -158,6 +158,72 @@ per-job directories are mode `0700`. Put the SQLite ledger on a filesystem with
 known-correct locking rather than assuming every cluster network filesystem is
 safe for SQLite.
 
+## Configure count and quoted-credit budgets
+
+Start with
+`examples/delegations/restricted-agent-credit-minimal.toml`, or use the full
+example beside it when per-job, aggregate-resource, and lifecycle ceilings are
+needed. The parsed-object contract is
+`examples/delegations/delegation-manifest-v3.schema.json`. Replace every
+illustrative identity, timestamp, account, cluster, container, and path; then
+make the manifest private before launch:
+
+```console
+chmod 600 /protected/agent-001.toml
+```
+
+Configure the selected profile with a trusted site adapter:
+
+```toml
+[profiles.example]
+sam_quote_command = "/opt/site/bin/hpc-tools-credit-quote"
+sam_quote_format = "hpc-tools-credit-quote-v1"
+
+[profiles.example.capabilities]
+version = 1
+max_level = "job-lifecycle"
+scopes = []
+```
+
+The adapter must emit the strict maximum-cost JSON envelope documented in
+[Configure cluster profiles](configuration.md). Its unit and scale must exactly
+match `[credit_budget]`; hpc-tools performs no conversion. The server refuses
+to start a credit-bearing controller when either quote setting is missing or
+incompatible.
+
+Use both ceilings when the operator needs both kinds of limit:
+
+```toml
+[budget]
+max_submissions = 20
+
+[credit_budget]
+unit = "credits"
+scale = 0
+maximum_total = 20000
+maximum_per_job = 5000
+quote_ttl_seconds = 300
+```
+
+They are independent, and whichever limit is reached first refuses another
+submission. A zero-cost job still consumes one logical submission. One Slurm
+array also consumes one logical submission, but its complete array shape is
+quoted and its resource use is multiplied by the number of elements. An exact
+idempotent replay consumes neither again.
+
+`quote_ttl_seconds` is the interval during which server-issued quote evidence
+may authorize a new reservation. It is not a runtime, queue-wait limit, lease,
+or reset interval. Expiry requires a fresh quote -> validate -> submit chain;
+it does not release a reservation already recorded. A definite scheduler
+failure releases count, resources, and quoted maximum. Successful, uncertain,
+terminal, and cancelled jobs retain cumulative count and quoted credit for the
+delegation lifetime.
+
+The public runtime summary exposes logical usage and consumed/remaining quoted
+maxima so the harness can stop deterministically. It intentionally does not
+expose the protected ledger, quote command, account balance, or actual charge.
+Use `hpc agent audit` or `hpc agent export` from the host for the operator view.
+
 ## Start the parent allocation
 
 Adapt the generated `restricted-agent.slurm` and `task.md`. Keep the explicit

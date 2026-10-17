@@ -134,11 +134,11 @@ both `sam_quote_command` and
 manifests remain valid without either field. Version-2 manifests are rejected
 rather than migrated implicitly.
 
-WP3 establishes this manifest and startup-admission contract. Cost-bearing
-evidence and atomic ledger enforcement remain owned by WP4--WP6 of the
-[credit-budget implementation plan](development/delegated-credit-budget-plan.md);
-until those packages are complete, this branch is not an end-to-end credit
-guardrail.
+Cost-bearing evidence, atomic reservation, public denial state, and audit
+reporting are implemented as described in the
+[credit-budget implementation plan](development/delegated-credit-budget-plan.md).
+The MCP ledger enforces quoted maxima; it does not query or represent the
+account's actual balance or eventual charge.
 
 The manifest's `issuer` is audit metadata, not a cryptographic signature.
 Authority comes from the operator selecting a protected host-side file when
@@ -199,16 +199,33 @@ elements, so an array cannot consume a one-job node budget while launching many
 equivalent elements. These MCP budgets are optional delegation ceilings, not
 Slurm account balances.
 
+Quoted credit is another independent cumulative ceiling. The fixed-point
+`maximum_cost` from the signed quote is reserved in the same transaction as
+the logical count and resources. A zero-cost quote still consumes one
+submission. An array consumes one submission, while its complete array shape
+is sent to the site quote helper and its resources are multiplied by the array
+size. Passing a credit check never overrides `max_submissions`, and passing the
+count check never overrides credit or resource limits: any exhausted limit
+denies the operation.
+
+A definite failure releases its count, resources, and quoted maximum. A
+successful, uncertain, terminal, or cancelled operation retains cumulative
+count and quoted credit for the delegation lifetime. Exact idempotent replay
+does not reserve either again. `quote_ttl_seconds` authorizes only the start of
+a new reservation: the server timestamps a valid quote, expires it at that
+many seconds, and requires a fresh quote -> validate -> submit chain after
+expiry. It is not a job runtime, queue limit, lease, or budget-reset period.
+
 ## Ledger schema
 
 The authorization ledger is separate from `submissions.sqlite3`. The latter
 is agent-readable lifecycle history and must not be used as authorization
-state. Ledger schema version 3 uses `PRAGMA user_version = 3` and these tables:
+state. Ledger schema version 4 uses `PRAGMA user_version = 4` and these tables:
 
 | Table | Purpose |
 | --- | --- |
 | `delegations` | Manifest digest, issuer, profile, parent allocation, expiry, and revocation state. |
-| `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, and resulting job identity. |
+| `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, quoted maximum and evidence identity/expiry, and resulting job identity. |
 | `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization; a job/cluster pair is globally unique in one ledger. |
 | `lifecycle_operations` | Idempotent cancellation reservations and scheduler results. |
 | `delegation_audit` | Append-only accepted and rejected mutation decisions. |
@@ -223,7 +240,7 @@ distributed multi-node database.
 
 There is no schema migration because this authorization format has not entered
 production and existing delegation data was explicitly out of scope. A
-non-version-3 ledger is rejected rather than modified implicitly.
+non-version-4 ledger is rejected rather than modified implicitly.
 
 The first accepted controller start adds one `controller_authority` audit row.
 It contains the complete C3 profile-policy snapshot, its digest, the path and
