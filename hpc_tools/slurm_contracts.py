@@ -286,6 +286,7 @@ def validate_evidence(
     credit_unit: str | None = None,
     credit_scale: int | None = None,
     quote_ttl_seconds: int | None = None,
+    allow_expired_quote: bool = False,
     expected_quote_evidence_token: str | None = None,
     not_before: datetime | None = None,
 ) -> ValidatedEvidence:
@@ -365,7 +366,7 @@ def validate_evidence(
         expected_expiry = timestamp + timedelta(seconds=quote_ttl_seconds)
         if expires_at != expected_expiry:
             raise ConfigError("quote evidence expiry does not match the configured TTL")
-        if checked_at >= expires_at:
+        if checked_at >= expires_at and not allow_expired_quote:
             raise QuoteEvidenceExpiredError(
                 "quote evidence has expired; quote and validate again"
             )

@@ -452,6 +452,9 @@ def hpc_submit_job(
             quote_ttl_seconds=(
                 budget.quote_ttl_seconds if budget is not None else None
             ),
+            allow_expired_quote=(
+                budget is not None and runtime is not None and not dry_run
+            ),
         )
         _require_evidence(
             "validation",
@@ -764,6 +767,7 @@ def _require_evidence(
     credit_unit: str | None = None,
     credit_scale: int | None = None,
     quote_ttl_seconds: int | None = None,
+    allow_expired_quote: bool = False,
     expected_quote_evidence_token: str | None = None,
     not_before: datetime | None = None,
 ) -> slurm_contracts.ValidatedEvidence:
@@ -776,6 +780,7 @@ def _require_evidence(
         credit_unit=credit_unit,
         credit_scale=credit_scale,
         quote_ttl_seconds=quote_ttl_seconds,
+        allow_expired_quote=allow_expired_quote,
         expected_quote_evidence_token=expected_quote_evidence_token,
         not_before=not_before,
     )

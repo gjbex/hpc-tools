@@ -585,8 +585,9 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                         return_value=expired_at,
                     ),
                     mock.patch(
-                        "hpc_tools.mcp.submit.delegation.DelegationLedger"
-                    ) as expired_ledger,
+                        "hpc_tools.delegation._utc_now",
+                        return_value=expired_at,
+                    ),
                     mock.patch(
                         "hpc_tools.mcp.submit.run_command_capture"
                     ) as expired_submit,
@@ -608,7 +609,6 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 self.assertEqual("quote.expired", expired["denial"]["code"])
                 self.assertNotIn(str(runtime.ledger_path), str(expired))
                 self.assertNotIn("sbatch", str(expired))
-                expired_ledger.assert_not_called()
                 expired_submit.assert_not_called()
                 for code in (
                     delegation.SubmissionDenialCode.PER_JOB_CREDIT,
@@ -664,7 +664,13 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                         "dry_run": False,
                     }
                     result = mcp_server.hpc_submit_job(**submit_arguments)
-                    replay = mcp_server.hpc_submit_job(**submit_arguments)
+                    with mock.patch(
+                        "hpc_tools.mcp.submit._utc_now",
+                        return_value=datetime.fromisoformat(
+                            quote["quote_evidence"]["expires_at"]
+                        ),
+                    ):
+                        replay = mcp_server.hpc_submit_job(**submit_arguments)
 
                 uncertain_arguments = arguments | {"idempotency_key": "request-2"}
                 with mock.patch(
