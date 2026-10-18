@@ -182,7 +182,7 @@ sam_quote_format = "hpc-tools-credit-quote-v1"
 [profiles.example.capabilities]
 version = 1
 max_level = "job-lifecycle"
-scopes = []
+scopes = ["accounting.read", "job.validate"]
 ```
 
 The adapter must emit the strict maximum-cost JSON envelope documented in

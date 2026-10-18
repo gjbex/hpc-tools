@@ -207,7 +207,7 @@ sam_quote_format = "hpc-tools-credit-quote-v1"
 [profiles.example.capabilities]
 version = 1
 max_level = "job-lifecycle"
-scopes = []
+scopes = ["accounting.read", "job.validate"]
 ```
 
 On success the adapter must write at most 4096 bytes to stdout containing
