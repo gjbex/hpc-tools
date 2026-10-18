@@ -1806,6 +1806,19 @@
         "default": null,
         "title": "Partition"
       },
+      "quote_evidence": {
+        "anyOf": [
+          {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Quote Evidence"
+      },
       "reservation": {
         "anyOf": [
           {

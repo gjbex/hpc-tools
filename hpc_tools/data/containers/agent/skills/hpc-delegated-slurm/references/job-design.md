@@ -26,6 +26,12 @@ or multiple nodes unless `hpc://runtime` and the server explicitly expose a
 reviewed extension that supports them. Use an array for independent repeated
 work.
 
+Count and credit are independent. A normal job and a job array each consume
+one logical submission, including when the authoritative quote is zero. The
+array's complete shape is still quoted by the site, and aggregate resources
+are multiplied by the number of elements. Never split or reshape work merely
+to evade a count, resource, or quoted-credit denial.
+
 ## Prepare the Payload
 
 Write the job script as a regular, non-symlink file below the delegated work
@@ -54,3 +60,11 @@ If script content, directory, container, array range, account, cluster,
 partition, walltime, CPU, memory, or any other resource input changes, start a
 new quote and validation chain. A corrected workload is a new logical job and
 requires a new idempotency key plus explicit corrective-resubmission authority.
+
+For a credit-bearing delegation, the server gives quote evidence a fixed
+expiry from its own clock. `quote_ttl_seconds` is only the time available to
+complete validation and start a durable reservation; it is not a job runtime,
+queue limit, or budget reset. On `quote.expired`, keep the same idempotency key
+for the unchanged logical job and restart the complete quote -> validate ->
+submit chain. Do not copy or modify evidence. Treat `quote.format` as blocked:
+the skill has no authority to infer cost from human output.

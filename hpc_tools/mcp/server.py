@@ -480,6 +480,8 @@ def create_server(
                 profile_policy=effective_policy,
                 config_path=config_path,
                 config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
+                sam_quote_command=selected.sam_quote_command,
+                sam_quote_format=selected.sam_quote_format,
             )
             effective_policy = intersect_policies(
                 effective_policy,

@@ -7,19 +7,26 @@ import tempfile
 import textwrap
 import unittest
 from contextlib import closing
+from datetime import UTC, datetime
 from pathlib import Path
 
 from hpc_tools import agent_audit, delegation, submissions
 from hpc_tools.config import ConfigError
+from hpc_tools.credit_quotes import CreditAmount
 
 
 class AgentAuditTests(unittest.TestCase):
-    def _manifest(self, root: Path) -> delegation.DelegationManifest:
+    def _manifest(
+        self,
+        root: Path,
+        *,
+        credit: bool = False,
+    ) -> delegation.DelegationManifest:
         path = root / "delegation.toml"
         path.write_text(
             textwrap.dedent(
                 """
-                format_version = 2
+                format_version = 3
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "cluster"
@@ -47,6 +54,22 @@ class AgentAuditTests(unittest.TestCase):
             + "\n",
             encoding="utf-8",
         )
+        if credit:
+            path.write_text(
+                path.read_text(encoding="utf-8")
+                + textwrap.dedent(
+                    """
+
+                    [credit_budget]
+                    unit = "credits"
+                    scale = 0
+                    maximum_total = 10000
+                    maximum_per_job = 5000
+                    quote_ttl_seconds = 300
+                    """
+                ),
+                encoding="utf-8",
+            )
         return delegation.load_manifest(path, expected_profile="cluster")
 
     def test_report_joins_ledger_artifacts_outputs_and_submission_events(self) -> None:
@@ -134,6 +157,80 @@ class AgentAuditTests(unittest.TestCase):
             )
             self.assertEqual("submitted", operation["submission_events"][0]["event"])
             self.assertIn("audit_events:", agent_audit.format_report(report))
+
+    def test_report_exposes_quote_maxima_without_mutating_the_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = self._manifest(root, credit=True)
+            ledger_path = root / "delegations.sqlite3"
+            ledger = delegation.DelegationLedger(ledger_path)
+            ledger.register(manifest)
+            shape = {
+                "profile": "cluster",
+                "jobscript": "job.slurm",
+                "directory": "/work",
+                "overrides": {
+                    "account": "project",
+                    "cluster": "alpha",
+                    "partition": "batch",
+                    "nodes": "1",
+                },
+                "shape_token": "token",
+            }
+
+            def quote(value: int, token: str) -> delegation.QuotedCreditReservation:
+                return delegation.QuotedCreditReservation(
+                    cost=CreditAmount(value=value, scale=0, unit="credits"),
+                    evidence_token=token * 64,
+                    expires_at=datetime(2098, 1, 1, tzinfo=UTC),
+                )
+
+            ledger.reserve_submission(
+                manifest,
+                idempotency_key="consumed",
+                shape=shape,
+                quoted_credit=quote(3000, "a"),
+            )
+            ledger.reserve_submission(
+                manifest,
+                idempotency_key="released",
+                shape=shape,
+                quoted_credit=quote(2000, "b"),
+            )
+            ledger.release_reservation(
+                manifest,
+                idempotency_key="released",
+                reason="definite failure",
+            )
+            before = ledger_path.read_bytes()
+
+            report = agent_audit.build_report(
+                ledger_path,
+                submissions_database=root / "missing-submissions.sqlite3",
+            )
+
+            self.assertEqual(2, report["format_version"])
+            item = report["delegations"][0]
+            self.assertEqual(
+                {"value": 3000, "scale": 0, "unit": "credits"},
+                item["quoted_credit"]["consumed_quoted_maximum"],
+            )
+            self.assertEqual(
+                {"value": 2000, "scale": 0, "unit": "credits"},
+                item["quoted_credit"]["released_quoted_maximum"],
+            )
+            self.assertEqual(
+                {"value": 7000, "scale": 0, "unit": "credits"},
+                item["quoted_credit"]["remaining_quoted_maximum"],
+            )
+            self.assertEqual(
+                "a" * 64,
+                item["submission_operations"][0]["quote"]["evidence_token"],
+            )
+            rendered = agent_audit.format_report(report)
+            self.assertIn("quoted_maximum=3000e-0 credits", rendered)
+            self.assertIn("remaining_quoted_maximum: 7000e-0 credits", rendered)
+            self.assertEqual(before, ledger_path.read_bytes())
 
     def test_export_is_private_and_refuses_overwrite_without_force(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

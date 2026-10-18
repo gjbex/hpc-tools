@@ -260,6 +260,17 @@ mode also requires `confirm=true`; delegated mode requires host-side policy,
 available budget, and an idempotency key.
 Stale or dry-run evidence is rejected.
 
+A restricted delegation can combine the independent
+`budget.max_submissions` logical-job ceiling with a fixed-point
+`credit_budget.maximum_total` and optional `maximum_per_job`; whichever limit
+is reached first stops submission. Credit mode also requires the profile's
+`sam_quote_command` and
+`sam_quote_format = "hpc-tools-credit-quote-v1"`. Start from the manifests and
+parsed-object schema under `examples/delegations/`, then follow the
+[restricted-agent deployment guide](docs/restricted-agent.md). The Codex plugin
+still supplies skills only: install the Python package separately to obtain the
+CLI, MCP server, launcher, and packaged agent-image assets.
+
 For an unattended Slurm allocation, `hpc-agent-launch` keeps `hpc-mcp`, the
 manifest, ledger, Slurm clients, and credentials outside the Apptainer agent
 image. The in-container `hpc-mcp-relay` reaches that restricted server over a
@@ -972,11 +983,13 @@ uv sync --locked --all-extras --all-groups
 uv run --locked --no-sync python -m unittest discover -s tests
 ```
 
-For capability-policy or release acceptance, also run the focused nine-scenario
-tier and validate both distribution formats from isolated pipx homes:
+For capability-policy, delegated credit-budget, or release acceptance, also run
+the focused tiers and validate both distribution formats from isolated pipx
+homes:
 
 ```bash
 uv run --locked --no-sync python tools/run_capability_acceptance.py
+uv run --locked --no-sync python tools/run_credit_budget_acceptance.py
 uv build --out-dir dist
 uv run --locked --no-sync python tools/check_capability_distribution.py \
   --wheel dist/hpc_tools-<version>-py3-none-any.whl \

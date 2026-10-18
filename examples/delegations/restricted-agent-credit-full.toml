@@ -1,0 +1,58 @@
+# Full example. Values are illustrative and deliberately conservative.
+format_version = 3
+id = "agent-example-full"
+issuer = "operator@example.org"
+profile = "example"
+parent_job_id = "123456"
+issued_at = "2026-10-17T08:00:00Z"
+expires_at = "2099-01-01T00:00:00Z"
+
+[allowed]
+accounts = ["project123"]
+clusters = ["example-cluster"]
+partitions = ["batch"]
+qos = ["normal"]
+reservations = []
+containers = ["/project/project123/images/worker.sif"]
+script_sha256 = []
+roots = ["/scratch/project123/agent-example/work"]
+
+[per_job_limits]
+nodes = 1
+tasks = 1
+cpus_per_task = 8
+array_tasks = 100
+array_concurrency = 20
+wall_seconds = 14400
+memory_mib = 262144
+
+[budget]
+max_submissions = 20
+max_active_jobs = 4
+max_total_nodes = 20
+max_total_array_tasks = 500
+max_total_wall_seconds = 172800
+
+[credit_budget]
+unit = "credits"
+scale = 0
+maximum_total = 20000
+maximum_per_job = 5000
+quote_ttl_seconds = 300
+
+[filesystem]
+state_root = "/scratch/project123/agent-example-private"
+work_root = "/scratch/project123/agent-example/work"
+output_root = "/scratch/project123/agent-example-output"
+input_roots = ["/project/project123/inputs"]
+apptainer_path = "/usr/bin/apptainer"
+max_file_blocks = 2097152
+max_open_files = 1024
+
+[lifecycle]
+on_cancel = "cancel"
+on_timeout = "requeue-or-cancel"
+on_failure = "cancel"
+on_normal_exit_with_active_jobs = "cancel"
+max_requeues = 3
+warning_seconds = 600

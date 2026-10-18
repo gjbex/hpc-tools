@@ -62,8 +62,11 @@ of guessing. There is no human available to answer a question during this run.
 
 1. Read `hpc://runtime`. Require `preset: slurm-job`, a configured unexpired
    delegation, and a filesystem policy. Record allowlists, per-job limits, work
-   and output roots, aggregate budget, active-job capacity, usage, expiry, and
-   the lifecycle/controller state.
+   and output roots, logical-submission and resource budgets, active-job
+   capacity, the fixed-point credit policy and quoted-credit usage when
+   configured, expiry, and the lifecycle/controller state. Treat the quoted
+   maximum as `(value, scale, unit)`; do not convert, round, or infer an account
+   balance or actual charge.
    If startup reconciliation is required, call `hpc_jobs` and do not prepare a
    submission until it reports that reconciliation completed.
    If active-job capacity is exhausted, reconcile and observe the owned active
@@ -100,10 +103,24 @@ For a job array, read [arrays.md](references/arrays.md) before quoting it.
   MCP failure into shell access or another transport.
 - Do not submit a corrected job after terminal failure unless the task contract
   explicitly permits corrective resubmission and remaining budget covers it.
-- An allowlist, per-job, or aggregate-budget denial is a stopping condition,
+- `budget.max_submissions` and `credit_budget.maximum_total` are independent.
+  A zero-cost quote and an array each consume one logical submission; an array's
+  full shape still consumes multiplied resources and is priced by the site.
+- An allowlist, per-job, submission-count, resource, per-job-credit, or
+  total-credit denial is a stopping condition,
   not a reason to shrink, split, cancel, or disguise work to evade the limit.
   An active-job limit is a reason to observe existing owned work until capacity
   changes or the stopping condition is reached.
+- Treat `quote.format` as blocked rather than guessing a cost. Treat
+  `quote.expired` as permission only to restart the complete quote, validation,
+  and submission chain when the original logical job is still required and the
+  deadline permits. Never edit or reuse expired evidence.
+- Treat `quote.failed` and `validation.failed` as safe operational failures.
+  Retry only with bounded backoff while the original logical job and deadline
+  remain valid; otherwise finish as blocked without changing the request.
+- A definite submission failure releases its reservation. Successful,
+  uncertain, terminal, and cancelled jobs retain cumulative count and quoted
+  credit; do not assume completion or cancellation refunds either.
 - Never cancel a job merely to make active-job budget available for unrelated
   work.
 - Requeue, terminal cleanup, and the decision to preserve active jobs belong to
@@ -119,7 +136,7 @@ Return one concise final report in this form:
 outcome: success | failed | blocked | budget-exhausted | deadline-reached
 objective: <short description>
 jobs: <IDs, clusters, states, and output directories>
-budget: <consumed and remaining delegation budget>
+budget: <logical submissions, active/resource usage, and quoted maxima separately>
 artifacts: <expected and verified artifacts>
 actions: <submissions, replays, corrective attempts, and cancellations>
 limitations: <anything incomplete or not verified>

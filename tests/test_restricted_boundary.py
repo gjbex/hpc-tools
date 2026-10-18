@@ -14,18 +14,19 @@ import textwrap
 import threading
 import time
 import unittest
+from dataclasses import replace
 from importlib import resources
 from pathlib import Path
 from unittest import mock
 
+from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
 from hpc_tools.capabilities import (
     POLICY_VERSION,
     CapabilityLevel,
     CapabilityPolicy,
     RemoteRootGrants,
 )
-from hpc_tools import delegation, mcp_bridge, restricted_jobs, restricted_launch
-from hpc_tools.config import Profile
+from hpc_tools.config import ConfigError, Profile
 from hpc_tools.mcp import server as mcp_registry
 
 
@@ -52,7 +53,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
         manifest_path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 2
+                format_version = 3
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "cluster"
@@ -125,6 +126,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
             login_shell=("bash", "-l", "-c"), projects_dir=None,
             quota_command=None, queue_command=None, sam_balance_command=None,
             sam_statement_command=None, sam_quote_command="quote",
+            sam_quote_format=None,
             hardware_reference=None, hardware_url=None, slurm_reference=None,
             slurm_url=None, storage_reference=None, storage_url=None,
             status_url=None, reference_set=None, default_cluster="alpha", email=None,
@@ -194,6 +196,10 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertIn(f"`{name}`", skill)
         for uri in mcp_registry.SLURM_JOB_RESOURCE_URIS:
             self.assertIn(f"`{uri}`", skill)
+        self.assertIn("credit_budget.maximum_total", skill)
+        self.assertIn("quote.expired", skill)
+        self.assertIn("zero-cost quote", skill)
+        self.assertIn("do not convert, round, or infer", skill)
         for forbidden in ("hpc --profile", "sbatch ", "squeue ", "ssh "):
             self.assertNotIn(forbidden, skill)
         for reference in ("job-design.md", "arrays.md", "result-validation.md"):
@@ -269,8 +275,14 @@ class RestrictedBoundaryTests(unittest.TestCase):
             ledger.begin_draining(runtime.manifest, reason="SIGUSR1")
             ledger.request_requeue(runtime.manifest)
             ledger.record_requeue_result(runtime.manifest, accepted=True)
-            ledger.begin_controller(runtime.manifest, restart_count=1)
-            after = restricted_jobs.prepare_job(**arguments)
+            restarted = ledger.begin_controller(runtime.manifest, restart_count=1)
+            restarted_runtime = replace(
+                runtime,
+                controller_generation=int(restarted["generation"]),
+            )
+            after = restricted_jobs.prepare_job(
+                **(arguments | {"runtime": restarted_runtime})
+            )
 
             self.assertEqual(1, before.shape["controller_generation"])
             self.assertEqual(2, after.shape["controller_generation"])
@@ -326,6 +338,25 @@ class RestrictedBoundaryTests(unittest.TestCase):
             temporary_state = Path(prepared.directory)
             self.assertTrue(temporary_state.is_dir())
             self.assertFalse(Path(prepared.output_directory).exists())
+            self.assertEqual(paths["output"], Path(prepared.output_directory).parent)
+            self.assertTrue(
+                str(prepared.overrides["output"]).startswith(
+                    prepared.output_directory
+                )
+            )
+            persistent = restricted_jobs.prepare_job(
+                runtime,
+                profile=self._profile(),
+                jobscript="job.sh",
+                directory=str(paths["run"]),
+                container=str(paths["container"]),
+                idempotency_key="request-1",
+                overrides={"account": "project", "cluster": "alpha"},
+                stage=False,
+            )
+            self.assertEqual(prepared.jobscript, persistent.jobscript)
+            self.assertEqual(prepared.overrides, persistent.overrides)
+            self.assertEqual(prepared.output_directory, persistent.output_directory)
             prepared.cleanup()
             self.assertFalse(temporary_state.exists())
             self.assertEqual([], list(paths["output"].iterdir()))
@@ -520,6 +551,43 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertIn("--containall", rendered)
             self.assertNotIn(str(paths["state"]), rendered)
             self.assertNotIn(str(runtime.ledger_path), rendered)
+
+    def test_launcher_rejects_credit_budget_before_preparing_container(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, paths = self._fixture(root)
+            paths["manifest"].write_text(
+                paths["manifest"].read_text(encoding="utf-8")
+                + textwrap.dedent(
+                    """
+                    [credit_budget]
+                    unit = "credits"
+                    scale = 0
+                    maximum_total = 20000
+                    quote_ttl_seconds = 300
+                    """
+                ),
+                encoding="utf-8",
+            )
+            with (
+                mock.patch.dict(os.environ, {"SLURM_JOB_ID": "9001"}, clear=True),
+                mock.patch(
+                    "hpc_tools.restricted_launch._prepare_policy_paths"
+                ) as prepare_paths,
+                self.assertRaisesRegex(ConfigError, "sam_quote_format"),
+            ):
+                restricted_launch.launch(
+                    manifest_path=paths["manifest"],
+                    ledger_path=runtime.ledger_path,
+                    profile="cluster",
+                    agent_image=paths["container"],
+                    agent_command=["agent", "--batch"],
+                    runtime_base=root / "runtime",
+                    config_path=paths["config"],
+                    dry_run=True,
+                )
+
+            prepare_paths.assert_not_called()
 
     def test_launcher_registers_one_host_cleanup_job(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

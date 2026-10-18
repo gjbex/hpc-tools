@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
+from contextlib import closing
+from datetime import datetime
 
 from test_mcp_fixtures import *
 
@@ -32,6 +35,108 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         self.assertEqual(evidence["shape_token"], result["resource_shape"]["shape_token"])
         self.assertIn("sam-quote sbatch", result["command"])
         self.assertIn("--account proj", result["command"])
+        self.assertNotIn("structured_quote", result)
+
+    def test_quote_job_parses_configured_structured_stdout_only_after_success(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
+            completed = mock.Mock(
+                returncode=0,
+                stdout=(
+                    '{"format_version":1,"maximum_cost":'
+                    '{"value":2730,"scale":0,"unit":"credits"}}\n'
+                ),
+                stderr="site diagnostic\n",
+            )
+
+            with mock.patch(
+                "hpc_tools.mcp.common.run_command_capture", return_value=completed
+            ):
+                result = mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    directory="$VSC_DATA/Projects/demo",
+                    jobscript="job.slurm",
+                    account="proj",
+                    cluster="wice",
+                )
+
+        self.assertEqual(
+            {
+                "format_version": 1,
+                "maximum_cost": {"value": 2730, "scale": 0, "unit": "credits"},
+            },
+            result["structured_quote"],
+        )
+        self.assertEqual("site diagnostic\n", result["stderr"])
+        self.assertNotIn("quoted_cost", result["quote_evidence"])
+
+    def test_failed_or_dry_run_structured_quote_is_not_parsed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
+            failed = mock.Mock(returncode=1, stdout="not JSON", stderr="denied")
+
+            with mock.patch(
+                "hpc_tools.mcp.common.run_command_capture", return_value=failed
+            ):
+                result = mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    jobscript="job.slurm",
+                    account="proj",
+                    dry_run=False,
+                )
+            preview = mcp_server.hpc_quote_job(
+                config=str(config_path),
+                jobscript="job.slurm",
+                account="proj",
+                dry_run=True,
+            )
+
+        self.assertNotIn("structured_quote", result)
+        self.assertNotIn("structured_quote", preview)
+
+    def test_successful_malformed_structured_quote_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = self._write_config(Path(directory))
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
+            malformed = mock.Mock(returncode=0, stdout="2730\n", stderr="")
+
+            with (
+                mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=malformed,
+                ),
+                self.assertRaisesRegex(ValueError, "must be a JSON object"),
+            ):
+                mcp_server.hpc_quote_job(
+                    config=str(config_path),
+                    jobscript="job.slurm",
+                    account="proj",
+                )
 
     def test_validate_job_returns_shape_bound_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -302,6 +407,14 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = self._write_config(root)
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8").replace(
+                    'sam_quote_command = "sam-quote"',
+                    'sam_quote_command = "sam-quote"\n'
+                    'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                ),
+                encoding="utf-8",
+            )
             state_root = root / "state"
             work_root = root / "work"
             output_root = root / "output"
@@ -322,7 +435,7 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             manifest_path.write_text(
                 textwrap.dedent(
                     f"""
-                    format_version = 2
+                    format_version = 3
                     id = "delegate-1"
                     issuer = "operator"
                     profile = "genius"
@@ -349,6 +462,12 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                     [budget]
                     max_submissions = 2
                     max_active_jobs = 2
+                    [credit_budget]
+                    unit = "credits"
+                    scale = 0
+                    maximum_total = 10000
+                    maximum_per_job = 5000
+                    quote_ttl_seconds = 300
                     """
                 ).strip() + "\n",
                 encoding="utf-8",
@@ -364,8 +483,17 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 ).capabilities,
                 config_path=config_path,
                 config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
+                sam_quote_command="sam-quote",
+                sam_quote_format="hpc-tools-credit-quote-v1",
             )
-            quote_result = mock.Mock(returncode=0, stdout="2730\n", stderr="")
+            quote_result = mock.Mock(
+                returncode=0,
+                stdout=(
+                    '{"format_version":1,"maximum_cost":'
+                    '{"value":2730,"scale":0,"unit":"credits"}}\n'
+                ),
+                stderr="",
+            )
             validation_result = mock.Mock(returncode=0, stdout="sbatch: ok\n", stderr="")
             submission_result = mock.Mock(
                 returncode=0,
@@ -384,12 +512,145 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 "nodes": "1",
             }
             with delegation.delegation_scope(runtime):
+                malformed_quote_result = mock.Mock(
+                    returncode=0,
+                    stdout="not structured JSON\n",
+                    stderr="private helper diagnostic\n",
+                )
                 with mock.patch(
                     "hpc_tools.mcp.common.run_command_capture",
-                    side_effect=[quote_result, validation_result],
+                    return_value=malformed_quote_result,
+                ):
+                    malformed = mcp_server.hpc_quote_job(**arguments)
+                self.assertFalse(malformed["allowed"])
+                self.assertEqual("quote", malformed["stage"])
+                self.assertEqual("quote.format", malformed["denial"]["code"])
+                self.assertNotIn("private helper diagnostic", str(malformed))
+                self.assertNotIn(str(runtime.ledger_path), str(malformed))
+
+                failed_quote_result = mock.Mock(
+                    returncode=7,
+                    stdout="private quote output\n",
+                    stderr="private quote diagnostic\n",
+                )
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=failed_quote_result,
+                ):
+                    failed_quote = mcp_server.hpc_quote_job(**arguments)
+                self.assertFalse(failed_quote["allowed"])
+                self.assertEqual("quote", failed_quote["stage"])
+                self.assertEqual("quote.failed", failed_quote["denial"]["code"])
+                self.assertNotIn("command", failed_quote)
+                self.assertNotIn("private quote", str(failed_quote))
+
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=quote_result,
                 ):
                     quote = mcp_server.hpc_quote_job(**arguments)
-                    validation = mcp_server.hpc_validate_job(**arguments)
+                failed_validation_result = mock.Mock(
+                    returncode=8,
+                    stdout="private validation output\n",
+                    stderr="private validation diagnostic\n",
+                )
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=failed_validation_result,
+                ):
+                    failed_validation = mcp_server.hpc_validate_job(
+                        **(arguments | {"quote_evidence": quote["quote_evidence"]})
+                    )
+                self.assertFalse(failed_validation["allowed"])
+                self.assertEqual("validation", failed_validation["stage"])
+                self.assertEqual(
+                    "validation.failed", failed_validation["denial"]["code"]
+                )
+                self.assertNotIn("command", failed_validation)
+                self.assertNotIn("private validation", str(failed_validation))
+
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    return_value=validation_result,
+                ):
+                    validation = mcp_server.hpc_validate_job(
+                        **(arguments | {"quote_evidence": quote["quote_evidence"]})
+                    )
+                expired_at = datetime.fromisoformat(
+                    quote["quote_evidence"]["expires_at"]
+                )
+                with (
+                    mock.patch(
+                        "hpc_tools.mcp.submit._utc_now",
+                        return_value=expired_at,
+                    ),
+                    mock.patch(
+                        "hpc_tools.delegation._utc_now",
+                        return_value=expired_at,
+                    ),
+                    mock.patch(
+                        "hpc_tools.mcp.submit.run_command_capture"
+                    ) as expired_submit,
+                ):
+                    expired = mcp_server.hpc_submit_job(
+                        **(
+                            arguments
+                            | {
+                                "quote_evidence": quote["quote_evidence"],
+                                "validation_evidence": validation[
+                                    "validation_evidence"
+                                ],
+                                "dry_run": False,
+                            }
+                        )
+                    )
+                self.assertFalse(expired["allowed"])
+                self.assertEqual("submission", expired["stage"])
+                self.assertEqual("quote.expired", expired["denial"]["code"])
+                self.assertNotIn(str(runtime.ledger_path), str(expired))
+                self.assertNotIn("sbatch", str(expired))
+                expired_submit.assert_not_called()
+                for code in (
+                    delegation.SubmissionDenialCode.PER_JOB_CREDIT,
+                    delegation.SubmissionDenialCode.TOTAL_CREDITS,
+                    delegation.SubmissionDenialCode.SUBMISSION_COUNT,
+                    delegation.SubmissionDenialCode.ACTIVE_JOBS,
+                    delegation.SubmissionDenialCode.RESOURCES,
+                ):
+                    with self.subTest(denial_code=code.value), mock.patch(
+                        "hpc_tools.mcp.submit.delegation.DelegationLedger"
+                    ) as denied_ledger, mock.patch(
+                        "hpc_tools.mcp.submit.run_command_capture"
+                    ) as denied_submit:
+                        denied_ledger.return_value.reserve_submission.side_effect = (
+                            delegation.SubmissionDenied(
+                                code,
+                                "submission denied by the delegated budget",
+                                resource=(
+                                    "nodes"
+                                    if code
+                                    is delegation.SubmissionDenialCode.RESOURCES
+                                    else None
+                                ),
+                            )
+                        )
+                        denied = mcp_server.hpc_submit_job(
+                            **(
+                                arguments
+                                | {
+                                    "quote_evidence": quote["quote_evidence"],
+                                    "validation_evidence": validation[
+                                        "validation_evidence"
+                                    ],
+                                    "dry_run": False,
+                                }
+                            )
+                        )
+                    self.assertFalse(denied["allowed"])
+                    self.assertEqual(code.value, denied["denial"]["code"])
+                    self.assertNotIn(str(runtime.ledger_path), str(denied))
+                    self.assertNotIn("sbatch", str(denied))
+                    denied_submit.assert_not_called()
                 with mock.patch(
                     "hpc_tools.mcp.submit.run_command_capture",
                     return_value=submission_result,
@@ -403,7 +664,13 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                         "dry_run": False,
                     }
                     result = mcp_server.hpc_submit_job(**submit_arguments)
-                    replay = mcp_server.hpc_submit_job(**submit_arguments)
+                    with mock.patch(
+                        "hpc_tools.mcp.submit._utc_now",
+                        return_value=datetime.fromisoformat(
+                            quote["quote_evidence"]["expires_at"]
+                        ),
+                    ):
+                        replay = mcp_server.hpc_submit_job(**submit_arguments)
 
                 uncertain_arguments = arguments | {"idempotency_key": "request-2"}
                 with mock.patch(
@@ -412,7 +679,10 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 ):
                     uncertain_quote = mcp_server.hpc_quote_job(**uncertain_arguments)
                     uncertain_validation = mcp_server.hpc_validate_job(
-                        **uncertain_arguments
+                        **(
+                            uncertain_arguments
+                            | {"quote_evidence": uncertain_quote["quote_evidence"]}
+                        )
                     )
                 uncertain_scheduler_result = mock.Mock(
                     returncode=0,
@@ -440,7 +710,55 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                         )
                     )
 
+                exhausted_arguments = arguments | {"idempotency_key": "request-3"}
+                with mock.patch(
+                    "hpc_tools.mcp.common.run_command_capture",
+                    side_effect=[quote_result, validation_result],
+                ):
+                    exhausted_quote = mcp_server.hpc_quote_job(
+                        **exhausted_arguments
+                    )
+                    exhausted_validation = mcp_server.hpc_validate_job(
+                        **(
+                            exhausted_arguments
+                            | {
+                                "quote_evidence": exhausted_quote[
+                                    "quote_evidence"
+                                ]
+                            }
+                        )
+                    )
+                with mock.patch(
+                    "hpc_tools.mcp.submit.run_command_capture"
+                ) as exhausted_submit:
+                    exhausted = mcp_server.hpc_submit_job(
+                        **(
+                            exhausted_arguments
+                            | {
+                                "quote_evidence": exhausted_quote["quote_evidence"],
+                                "validation_evidence": exhausted_validation[
+                                    "validation_evidence"
+                                ],
+                                "dry_run": False,
+                            }
+                        )
+                    )
+                self.assertFalse(exhausted["allowed"])
+                self.assertEqual(
+                    "budget.submission_count", exhausted["denial"]["code"]
+                )
+                exhausted_submit.assert_not_called()
+
             self.assertTrue(result["ledger_recorded"])
+            self.assertEqual(
+                {"value": 2730, "scale": 0, "unit": "credits"},
+                quote["quote_evidence"]["quoted_cost"],
+            )
+            self.assertIn("expires_at", quote["quote_evidence"])
+            self.assertEqual(
+                quote["quote_evidence"]["evidence_token"],
+                validation["validation_evidence"]["quote_evidence_token"],
+            )
             self.assertFalse(result["logged"])
             self.assertEqual("history unavailable", result["database_error"])
             self.assertTrue(replay["idempotent_replay"])
@@ -449,6 +767,23 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
             uncertain_submit.assert_called_once()
             ledger = delegation.DelegationLedger(ledger_path)
             self.assertTrue(ledger.owns_job("delegate-1", "60351238", "wice"))
+            with closing(sqlite3.connect(ledger_path)) as connection:
+                recorded_credit = connection.execute(
+                    """SELECT quoted_cost_value,quoted_cost_scale,
+                              quoted_cost_unit,quote_evidence_token
+                       FROM submission_operations
+                       WHERE delegation_id='delegate-1'
+                         AND idempotency_key='request-1'"""
+                ).fetchone()
+            self.assertEqual(
+                (
+                    2730,
+                    0,
+                    "credits",
+                    quote["quote_evidence"]["evidence_token"],
+                ),
+                recorded_credit,
+            )
             self.assertTrue(uncertain["ledger_recorded"])
             self.assertEqual("uncertain", uncertain["ledger_status"])
             self.assertEqual("audit unavailable", uncertain["ledger_error"])

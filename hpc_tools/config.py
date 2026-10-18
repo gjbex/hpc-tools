@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import os
 import shlex
 import tomllib
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from hpc_tools.capabilities import (
@@ -12,6 +12,7 @@ from hpc_tools.capabilities import (
     CapabilityPolicyError,
     parse_capability_policy,
 )
+from hpc_tools.credit_quotes import SUPPORTED_STRUCTURED_QUOTE_FORMATS
 
 CONFIG_DIR_NAME = "hpc-tools"
 CONFIG_FILE_NAME = "config.toml"
@@ -32,6 +33,7 @@ class Profile:
     sam_balance_command: str | None
     sam_statement_command: str | None
     sam_quote_command: str | None
+    sam_quote_format: str | None
     hardware_reference: str | None
     hardware_url: str | None
     slurm_reference: str | None
@@ -132,6 +134,22 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         capabilities = parse_capability_policy(raw_profile["capabilities"], profile=name)
     except CapabilityPolicyError as error:
         raise ConfigError(str(error)) from error
+    sam_quote_command = _optional_string(
+        raw_profile, "sam_quote_command", profile=name
+    )
+    sam_quote_format = _optional_string(raw_profile, "sam_quote_format", profile=name)
+    if (
+        sam_quote_format is not None
+        and sam_quote_format not in SUPPORTED_STRUCTURED_QUOTE_FORMATS
+    ):
+        supported = ", ".join(sorted(SUPPORTED_STRUCTURED_QUOTE_FORMATS))
+        raise ConfigError(
+            f"profile '{name}' field 'sam_quote_format' must be one of: {supported}"
+        )
+    if sam_quote_format is not None and sam_quote_command is None:
+        raise ConfigError(
+            f"profile '{name}' field 'sam_quote_format' requires sam_quote_command"
+        )
 
     return Profile(
         name=name,
@@ -145,7 +163,8 @@ def _parse_profile(name: str, raw_profile: Any) -> Profile:
         queue_command=_optional_string(raw_profile, "queue_command", profile=name),
         sam_balance_command=_optional_string(raw_profile, "sam_balance_command", profile=name),
         sam_statement_command=_optional_string(raw_profile, "sam_statement_command", profile=name),
-        sam_quote_command=_optional_string(raw_profile, "sam_quote_command", profile=name),
+        sam_quote_command=sam_quote_command,
+        sam_quote_format=sam_quote_format,
         hardware_reference=_optional_string(raw_profile, "hardware_reference", profile=name),
         hardware_url=_optional_string(raw_profile, "hardware_url", profile=name),
         slurm_reference=_optional_string(raw_profile, "slurm_reference", profile=name),

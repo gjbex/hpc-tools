@@ -58,6 +58,7 @@ nav:
   - Contributing:
       - Build the documentation: contributing/documentation.md
       - Capability design and implementation: development/capabilities/index.md
+      - Delegated MCP credit-budget plan: development/delegated-credit-budget-plan.md
       - MCP server roadmap: development/mcp-roadmap.md
       - Real-cluster qualification: development/real-cluster-qualification.md
       - Delegation security internals: delegation-development.md

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gjbex/hpc-tools/examples/delegations/delegation-manifest-v3.schema.json",
+  "title": "hpc-tools delegation manifest version 3",
+  "description": "JSON Schema for the object produced by parsing a version-3 TOML delegation manifest. Runtime checks additionally enforce expiry, ownership, path separation, profile/parent binding, and maximum_per_job <= maximum_total.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version", "id", "issuer", "profile", "parent_job_id",
+    "issued_at", "expires_at", "allowed"
+  ],
+  "properties": {
+    "format_version": {"const": 3},
+    "id": {"$ref": "#/$defs/nonempty"},
+    "issuer": {"$ref": "#/$defs/nonempty"},
+    "profile": {"$ref": "#/$defs/nonempty"},
+    "parent_job_id": {"$ref": "#/$defs/nonempty"},
+    "issued_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "allowed": {"$ref": "#/$defs/allowed"},
+    "per_job_limits": {"$ref": "#/$defs/perJobLimits"},
+    "budget": {"$ref": "#/$defs/budget"},
+    "credit_budget": {"$ref": "#/$defs/creditBudget"},
+    "filesystem": {"$ref": "#/$defs/filesystem"},
+    "lifecycle": {"$ref": "#/$defs/lifecycle"}
+  },
+  "$defs": {
+    "nonempty": {"type": "string", "minLength": 1},
+    "positive": {"type": "integer", "minimum": 1},
+    "stringArray": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/nonempty"},
+      "uniqueItems": true
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "allowed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accounts", "clusters"],
+      "properties": {
+        "accounts": {"allOf": [{"$ref": "#/$defs/stringArray"}, {"minItems": 1}]},
+        "clusters": {"allOf": [{"$ref": "#/$defs/stringArray"}, {"minItems": 1}]},
+        "partitions": {"$ref": "#/$defs/stringArray"},
+        "qos": {"$ref": "#/$defs/stringArray"},
+        "reservations": {"$ref": "#/$defs/stringArray"},
+        "containers": {"$ref": "#/$defs/stringArray"},
+        "script_sha256": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "uniqueItems": true
+        },
+        "roots": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/absolutePath"},
+          "uniqueItems": true
+        }
+      }
+    },
+    "perJobLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nodes": {"$ref": "#/$defs/positive"},
+        "tasks": {"$ref": "#/$defs/positive"},
+        "cpus_per_task": {"$ref": "#/$defs/positive"},
+        "gpus": {"$ref": "#/$defs/positive"},
+        "gpus_per_node": {"$ref": "#/$defs/positive"},
+        "gpus_per_task": {"$ref": "#/$defs/positive"},
+        "array_tasks": {"$ref": "#/$defs/positive"},
+        "array_concurrency": {"$ref": "#/$defs/positive"},
+        "wall_seconds": {"$ref": "#/$defs/positive"},
+        "memory_mib": {"$ref": "#/$defs/positive"},
+        "memory_per_cpu_mib": {"$ref": "#/$defs/positive"}
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_submissions": {"$ref": "#/$defs/positive"},
+        "max_active_jobs": {"$ref": "#/$defs/positive"},
+        "max_total_nodes": {"$ref": "#/$defs/positive"},
+        "max_total_tasks": {"$ref": "#/$defs/positive"},
+        "max_total_cpus_per_task": {"$ref": "#/$defs/positive"},
+        "max_total_gpus": {"$ref": "#/$defs/positive"},
+        "max_total_gpus_per_node": {"$ref": "#/$defs/positive"},
+        "max_total_gpus_per_task": {"$ref": "#/$defs/positive"},
+        "max_total_array_tasks": {"$ref": "#/$defs/positive"},
+        "max_total_array_concurrency": {"$ref": "#/$defs/positive"},
+        "max_total_wall_seconds": {"$ref": "#/$defs/positive"},
+        "max_total_memory_mib": {"$ref": "#/$defs/positive"},
+        "max_total_memory_per_cpu_mib": {"$ref": "#/$defs/positive"}
+      }
+    },
+    "creditBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "scale", "maximum_total", "quote_ttl_seconds"],
+      "properties": {
+        "unit": {"type": "string", "pattern": "^[a-z][a-z0-9._-]{0,31}$"},
+        "scale": {"type": "integer", "minimum": 0, "maximum": 9},
+        "maximum_total": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "maximum_per_job": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+        "quote_ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 86400}
+      }
+    },
+    "filesystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state_root", "work_root", "output_root", "apptainer_path"],
+      "properties": {
+        "state_root": {"$ref": "#/$defs/absolutePath"},
+        "work_root": {"$ref": "#/$defs/absolutePath"},
+        "output_root": {"$ref": "#/$defs/absolutePath"},
+        "input_roots": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/absolutePath"},
+          "uniqueItems": true
+        },
+        "apptainer_path": {"$ref": "#/$defs/absolutePath"},
+        "max_file_blocks": {"$ref": "#/$defs/positive"},
+        "max_open_files": {"$ref": "#/$defs/positive"}
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "on_cancel": {"enum": ["cancel", "leave-running"]},
+        "on_timeout": {"enum": ["cancel", "leave-running", "requeue-or-cancel"]},
+        "on_failure": {"enum": ["cancel", "leave-running"]},
+        "on_normal_exit_with_active_jobs": {"enum": ["cancel", "leave-running"]},
+        "max_requeues": {"type": "integer", "minimum": 0, "maximum": 100},
+        "warning_seconds": {"type": "integer", "minimum": 1, "maximum": 65535}
+      }
+    }
+  }
+}

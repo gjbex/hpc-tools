@@ -53,7 +53,7 @@ class AgentCleanupTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 2
+                format_version = 3
                 id = "{identifier}"
                 issuer = "operator"
                 profile = "cluster"

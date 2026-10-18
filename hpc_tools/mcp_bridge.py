@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import socket
 import stat
 import struct
@@ -122,8 +121,9 @@ def connect(socket_path: Path) -> int:
         )
         outbound.start()
         with connection.makefile("rb", buffering=0) as source:
-            shutil.copyfileobj(source, sys.stdout.buffer)
-        sys.stdout.buffer.flush()
+            while chunk := source.read(64 * 1024):
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
     finally:
         connection.close()
     return 0
@@ -162,7 +162,12 @@ def _require_same_user(connection: socket.socket) -> None:
 def _socket_to_pipe(connection: socket.socket, pipe: object) -> None:
     try:
         with connection.makefile("rb", buffering=0) as source:
-            shutil.copyfileobj(source, pipe)  # type: ignore[arg-type]
+            while True:
+                chunk = source.read(64 * 1024)
+                if not chunk:
+                    break
+                pipe.write(chunk)  # type: ignore[attr-defined]
+                pipe.flush()  # type: ignore[attr-defined]
         pipe.close()  # type: ignore[attr-defined]
     except (BrokenPipeError, ConnectionError, OSError):
         try:
@@ -173,8 +178,9 @@ def _socket_to_pipe(connection: socket.socket, pipe: object) -> None:
 
 def _pipe_to_socket(source: object, connection: socket.socket, shutdown: bool = False) -> None:
     try:
+        read = getattr(source, "read1", source.read)  # type: ignore[attr-defined]
         while True:
-            chunk = source.read(64 * 1024)  # type: ignore[attr-defined]
+            chunk = read(64 * 1024)
             if not chunk:
                 break
             connection.sendall(chunk)

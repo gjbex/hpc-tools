@@ -9,7 +9,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -27,9 +28,18 @@ from hpc_tools.capabilities import (
     parse_capability_policy,
 )
 from hpc_tools.config import ConfigError, default_config_dir
+from hpc_tools.credit_quotes import (
+    CREDIT_UNIT_PATTERN,
+    MAX_CREDIT_SCALE,
+    MAX_CREDIT_VALUE,
+    STRUCTURED_QUOTE_FORMAT_V1,
+    CreditAmount,
+    CreditQuoteError,
+    parse_credit_amount,
+)
 
-MANIFEST_VERSION = 2
-LEDGER_SCHEMA_VERSION = 3
+MANIFEST_VERSION = 3
+LEDGER_SCHEMA_VERSION = 4
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
 PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
@@ -40,6 +50,41 @@ CLEANUP_CANCEL_ATTEMPTS = 3
 
 class DelegationError(ConfigError):
     """Raised when delegation authorization or accounting fails."""
+
+
+class SubmissionDenialCode(StrEnum):
+    """Stable public reasons for rejecting a delegated submission."""
+
+    QUOTE_FORMAT = "quote.format"
+    QUOTE_FAILED = "quote.failed"
+    QUOTE_EXPIRED = "quote.expired"
+    VALIDATION_FAILED = "validation.failed"
+    PER_JOB_CREDIT = "budget.per_job_credit"
+    TOTAL_CREDITS = "budget.total_credits"
+    SUBMISSION_COUNT = "budget.submission_count"
+    ACTIVE_JOBS = "budget.active_jobs"
+    RESOURCES = "budget.resources"
+
+
+class SubmissionDenied(DelegationError):
+    """A delegated submission denial safe to summarize to the harness."""
+
+    def __init__(
+        self,
+        code: SubmissionDenialCode,
+        message: str,
+        *,
+        resource: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.resource = resource
+
+    def public_summary(self) -> dict[str, str]:
+        result = {"code": self.code.value, "reason": str(self)}
+        if self.resource is not None:
+            result["resource"] = self.resource
+        return result
 
 
 @dataclass(frozen=True)
@@ -89,6 +134,42 @@ class LifecyclePolicy:
 
 
 @dataclass(frozen=True)
+class CreditBudget:
+    """Issuer-selected fixed-point quoted-credit limits."""
+
+    unit: str
+    scale: int
+    maximum_total: int
+    maximum_per_job: int | None
+    quote_ttl_seconds: int
+
+    def public_summary(self) -> dict[str, int | str | None]:
+        return {
+            "unit": self.unit,
+            "scale": self.scale,
+            "maximum_total": self.maximum_total,
+            "maximum_per_job": self.maximum_per_job,
+            "quote_ttl_seconds": self.quote_ttl_seconds,
+        }
+
+
+@dataclass(frozen=True)
+class QuotedCreditReservation:
+    """Validated quote authority consumed by one ledger reservation."""
+
+    cost: CreditAmount
+    evidence_token: str
+    expires_at: datetime
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "quoted_cost": self.cost.to_dict(),
+            "quote_evidence_token": self.evidence_token,
+            "quote_expires_at": _canonical_time(self.expires_at),
+        }
+
+
+@dataclass(frozen=True)
 class DelegationManifest:
     identifier: str
     issuer: str
@@ -99,6 +180,7 @@ class DelegationManifest:
     allowed: dict[str, tuple[str, ...]]
     per_job_limits: dict[str, int]
     budget: dict[str, int]
+    credit_budget: CreditBudget | None
     filesystem: FilesystemPolicy | None
     lifecycle: LifecyclePolicy
     source_path: Path
@@ -116,6 +198,11 @@ class DelegationManifest:
             "allowed": {key: list(value) for key, value in self.allowed.items()},
             "per_job_limits": self.per_job_limits,
             "budget": self.budget,
+            "credit_budget": (
+                self.credit_budget.public_summary()
+                if self.credit_budget is not None
+                else {"configured": False}
+            ),
             "lifecycle": self.lifecycle.public_summary(),
             "filesystem": (
                 self.filesystem.public_summary()
@@ -130,6 +217,7 @@ class DelegationRuntime:
     manifest: DelegationManifest
     ledger_path: Path
     controller_authority: ControllerAuthority
+    controller_generation: int
 
 
 @dataclass(frozen=True)
@@ -140,6 +228,8 @@ class ControllerAuthority:
     policy_sha256: str
     config_path: str
     config_sha256: str
+    credit_budget: CreditBudget | None
+    quote_format: str | None
     captured_at: str
 
     def public_summary(self, *, include_config_path: bool = False) -> dict[str, Any]:
@@ -147,6 +237,12 @@ class ControllerAuthority:
             "policy": self.policy.public_summary(),
             "policy_sha256": self.policy_sha256,
             "config_sha256": self.config_sha256,
+            "credit_budget": (
+                self.credit_budget.public_summary()
+                if self.credit_budget is not None
+                else {"configured": False}
+            ),
+            "quote_format": self.quote_format,
             "captured_at": self.captured_at,
         }
         if include_config_path:
@@ -173,11 +269,18 @@ def load_runtime(
     profile_policy: CapabilityPolicy,
     config_path: str | Path,
     config_sha256: str,
+    sam_quote_command: str | None = None,
+    sam_quote_format: str | None = None,
 ) -> DelegationRuntime:
     manifest = load_manifest(
         Path(manifest_path),
         expected_profile=profile,
         expected_parent_job_id=parent_job_id,
+    )
+    require_credit_configuration(
+        manifest,
+        sam_quote_command=sam_quote_command,
+        sam_quote_format=sam_quote_format,
     )
     selected = Path(
         ledger_path or os.environ.get(LEDGER_ENV_VAR) or default_ledger_path()
@@ -192,14 +295,43 @@ def load_runtime(
             policy=profile_policy,
             config_path=config_path,
             config_sha256=config_sha256,
+            quote_format=sam_quote_format,
         )
     else:
         require_controller_authority(
             authority.policy,
             operation="agent.controller.continue",
         )
-    ledger.begin_controller(manifest, restart_count=_controller_restart_count())
-    return DelegationRuntime(manifest, selected, authority)
+    controller = ledger.begin_controller(
+        manifest,
+        restart_count=_controller_restart_count(),
+    )
+    return DelegationRuntime(
+        manifest,
+        selected,
+        authority,
+        int(controller["generation"]),
+    )
+
+
+def require_credit_configuration(
+    manifest: DelegationManifest,
+    *,
+    sam_quote_command: str | None,
+    sam_quote_format: str | None,
+) -> None:
+    """Fail before controller startup when credit enforcement cannot quote."""
+    if manifest.credit_budget is None:
+        return
+    if not sam_quote_command:
+        raise DelegationError(
+            "delegation credit_budget requires profile sam_quote_command"
+        )
+    if sam_quote_format != STRUCTURED_QUOTE_FORMAT_V1:
+        raise DelegationError(
+            "delegation credit_budget requires profile sam_quote_format "
+            f"{STRUCTURED_QUOTE_FORMAT_V1!r}"
+        )
 
 
 def require_controller_authority(
@@ -262,7 +394,7 @@ def load_manifest(
         {
             "format_version", "id", "issuer", "profile", "parent_job_id",
             "issued_at", "expires_at", "allowed", "per_job_limits", "budget",
-            "filesystem", "lifecycle",
+            "credit_budget", "filesystem", "lifecycle",
         },
         "delegation manifest",
     )
@@ -333,6 +465,7 @@ def load_manifest(
             "max_total_memory_per_cpu_mib",
         },
     )
+    credit_budget = _credit_budget(raw.get("credit_budget"))
     lifecycle = _lifecycle_policy(raw.get("lifecycle"))
 
     return DelegationManifest(
@@ -345,6 +478,7 @@ def load_manifest(
         allowed=allowed,
         per_job_limits=per_job_limits,
         budget=budget,
+        credit_budget=credit_budget,
         filesystem=filesystem,
         lifecycle=lifecycle,
         source_path=path,
@@ -387,8 +521,10 @@ def authorize_shape(manifest: DelegationManifest, shape: dict[str, Any]) -> None
     resources = shape_resources(overrides)
     for key, limit in manifest.per_job_limits.items():
         if resources.get(key, 0) > limit:
-            raise DelegationError(
-                f"requested {key}={resources[key]} exceeds delegation limit {limit}"
+            raise SubmissionDenied(
+                SubmissionDenialCode.RESOURCES,
+                f"requested {key}={resources[key]} exceeds delegation limit {limit}",
+                resource=key,
             )
 
 
@@ -490,6 +626,7 @@ class DelegationLedger:
         policy: CapabilityPolicy,
         config_path: str | Path,
         config_sha256: str,
+        quote_format: str | None = None,
     ) -> ControllerAuthority:
         """Capture the first authorized profile policy; never widen it later."""
         require_controller_authority(policy, operation="agent.controller.start")
@@ -509,6 +646,12 @@ class DelegationLedger:
             "policy_sha256": policy_sha256,
             "config_path": str(Path(config_path).expanduser()),
             "config_sha256": config_sha256,
+            "credit_budget": (
+                manifest.credit_budget.public_summary()
+                if manifest.credit_budget is not None
+                else None
+            ),
+            "quote_format": quote_format,
         }
         with self._transaction() as db:
             self._registered(db, manifest)
@@ -527,11 +670,11 @@ class DelegationLedger:
                         json.dumps(detail, sort_keys=True, separators=(",", ":")),
                     ),
                 )
-                return _controller_authority(detail, captured_at, manifest.profile)
+                return _controller_authority(detail, captured_at, manifest)
             return _controller_authority(
                 json.loads(existing[1]),
                 existing[0],
-                manifest.profile,
+                manifest,
             )
 
     def controller_authority_or_none(
@@ -547,7 +690,7 @@ class DelegationLedger:
             detail = json.loads(row[1])
         except (TypeError, json.JSONDecodeError) as error:
             raise DelegationError("captured controller authority is malformed") from error
-        return _controller_authority(detail, row[0], manifest.profile)
+        return _controller_authority(detail, row[0], manifest)
 
     def controller_authority(
         self,
@@ -980,12 +1123,14 @@ class DelegationLedger:
         *,
         idempotency_key: str,
         shape: dict[str, Any],
+        quoted_credit: QuotedCreditReservation | None = None,
     ) -> dict[str, Any]:
         try:
             return self._reserve_submission(
                 manifest,
                 idempotency_key=idempotency_key,
                 shape=shape,
+                quoted_credit=quoted_credit,
             )
         except DelegationError as error:
             self.record_rejection(
@@ -1001,11 +1146,16 @@ class DelegationLedger:
         *,
         idempotency_key: str,
         shape: dict[str, Any],
+        quoted_credit: QuotedCreditReservation | None,
     ) -> dict[str, Any]:
         validate_idempotency_key(idempotency_key)
         authorize_shape(manifest, shape)
+        credit = _reservation_credit(manifest, quoted_credit)
+        request = {"shape": shape}
+        if credit is not None:
+            request["quoted_credit"] = credit
         request_hash = hashlib.sha256(
-            json.dumps(shape, sort_keys=True, separators=(",", ":")).encode()
+            json.dumps(request, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         requested = budget_resources(shape["overrides"])
         with self._transaction() as db:
@@ -1032,22 +1182,75 @@ class DelegationLedger:
                     "job_id": row[2],
                     "cluster": row[3],
                 }
-            used, active, totals = self._usage(db, manifest.identifier)
-            self._check_budget(manifest, used, active, totals, requested)
+            if credit is not None:
+                identity_row = db.execute(
+                    """SELECT idempotency_key FROM submission_operations
+                       WHERE delegation_id=? AND quote_evidence_token=?""",
+                    (
+                        manifest.identifier,
+                        credit["quote_evidence_token"],
+                    ),
+                ).fetchone()
+                if identity_row is not None:
+                    raise DelegationError(
+                        "quoted-credit evidence identity was already reserved"
+                    )
+            if credit is not None and _parse_time(
+                str(credit["quote_expires_at"])
+            ) <= _utc_now():
+                raise SubmissionDenied(
+                    SubmissionDenialCode.QUOTE_EXPIRED,
+                    "quoted-credit reservation has expired; quote and validate again",
+                )
+            used, active, totals, quoted_total = self._usage(
+                db,
+                manifest,
+            )
+            self._check_budget(
+                manifest,
+                used,
+                active,
+                totals,
+                requested,
+                quoted_cost=(
+                    int(credit["quoted_cost"]["value"])
+                    if credit is not None
+                    else None
+                ),
+                quoted_total=quoted_total,
+            )
             now = _now()
             db.execute(
                 """INSERT INTO submission_operations
                    (delegation_id,idempotency_key,request_sha256,status,
-                    resource_json,created_at,updated_at)
-                   VALUES (?,?,?,'reserved',?,?,?)""",
+                    resource_json,quoted_cost_value,quoted_cost_scale,
+                    quoted_cost_unit,quote_evidence_token,quote_expires_at,
+                    created_at,updated_at)
+                   VALUES (?,?,?,'reserved',?,?,?,?,?,?,?,?)""",
                 (
                     manifest.identifier, idempotency_key, request_hash,
-                    json.dumps(requested, sort_keys=True), now, now,
+                    json.dumps(requested, sort_keys=True),
+                    credit["quoted_cost"]["value"] if credit is not None else None,
+                    credit["quoted_cost"]["scale"] if credit is not None else None,
+                    credit["quoted_cost"]["unit"] if credit is not None else None,
+                    credit["quote_evidence_token"] if credit is not None else None,
+                    credit["quote_expires_at"] if credit is not None else None,
+                    now,
+                    now,
                 ),
             )
+            audit_detail: dict[str, Any] = {
+                "idempotency_key": idempotency_key,
+                "resources": requested,
+            }
+            if credit is not None:
+                audit_detail["quoted_credit"] = credit
             self._audit(
-                db, manifest.identifier, "reserve_submission", "accepted",
-                {"idempotency_key": idempotency_key, "resources": requested},
+                db,
+                manifest.identifier,
+                "reserve_submission",
+                "accepted",
+                audit_detail,
             )
             return {
                 "idempotent_replay": False,
@@ -1438,7 +1641,7 @@ class DelegationLedger:
     def summary(self, manifest: DelegationManifest) -> dict[str, Any]:
         with self._connection() as db:
             self._active(db, manifest)
-            used, active, totals = self._usage(db, manifest.identifier)
+            used, active, totals, quoted_total = self._usage(db, manifest)
         remaining = {}
         for key, limit in manifest.budget.items():
             consumed = (
@@ -1447,11 +1650,28 @@ class DelegationLedger:
                 else totals.get(key.removeprefix("max_total_"), 0)
             )
             remaining[key] = max(0, limit - consumed)
+        quoted_credit: dict[str, Any] = {"configured": False}
+        if manifest.credit_budget is not None:
+            budget = manifest.credit_budget
+            quoted_credit = {
+                "configured": True,
+                "consumed_quoted_maximum": {
+                    "value": quoted_total,
+                    "scale": budget.scale,
+                    "unit": budget.unit,
+                },
+                "remaining_quoted_maximum": {
+                    "value": max(0, budget.maximum_total - quoted_total),
+                    "scale": budget.scale,
+                    "unit": budget.unit,
+                },
+            }
         return {
             "used_submissions": used,
             "active_jobs": active,
             "requested_resources": totals,
             "remaining": remaining,
+            "quoted_credit": quoted_credit,
         }
 
     def revoke(self, delegation_id: str, *, reason: str) -> None:
@@ -1472,32 +1692,115 @@ class DelegationLedger:
         active: int,
         totals: dict[str, int],
         requested: dict[str, int],
+        *,
+        quoted_cost: int | None,
+        quoted_total: int,
     ) -> None:
+        credit_budget = manifest.credit_budget
+        if credit_budget is not None:
+            if quoted_cost is None:
+                raise SubmissionDenied(
+                    SubmissionDenialCode.QUOTE_FORMAT,
+                    "delegation requires a quoted-credit reservation",
+                )
+            if (
+                credit_budget.maximum_per_job is not None
+                and quoted_cost > credit_budget.maximum_per_job
+            ):
+                raise SubmissionDenied(
+                    SubmissionDenialCode.PER_JOB_CREDIT,
+                    "delegation per-job quoted-credit budget is exceeded",
+                )
+            if quoted_total + quoted_cost > credit_budget.maximum_total:
+                raise SubmissionDenied(
+                    SubmissionDenialCode.TOTAL_CREDITS,
+                    "delegation total quoted-credit budget is exhausted",
+                )
         if used >= manifest.budget.get("max_submissions", 2**63 - 1):
-            raise DelegationError("delegation submission budget is exhausted")
+            raise SubmissionDenied(
+                SubmissionDenialCode.SUBMISSION_COUNT,
+                "delegation submission budget is exhausted",
+            )
         if active >= manifest.budget.get("max_active_jobs", 2**63 - 1):
-            raise DelegationError("delegation active-job budget is exhausted")
+            raise SubmissionDenied(
+                SubmissionDenialCode.ACTIVE_JOBS,
+                "delegation active-job budget is exhausted",
+            )
         for key, limit in manifest.budget.items():
             if key.startswith("max_total_"):
                 resource = key.removeprefix("max_total_")
                 if totals.get(resource, 0) + requested.get(resource, 0) > limit:
-                    raise DelegationError(f"delegation aggregate {resource} budget is exhausted")
+                    raise SubmissionDenied(
+                        SubmissionDenialCode.RESOURCES,
+                        f"delegation aggregate {resource} budget is exhausted",
+                        resource=resource,
+                    )
 
     def _usage(
-        self, db: sqlite3.Connection, delegation_id: str
-    ) -> tuple[int, int, dict[str, int]]:
+        self,
+        db: sqlite3.Connection,
+        manifest: DelegationManifest,
+    ) -> tuple[int, int, dict[str, int], int]:
         rows = db.execute(
-            """SELECT status,resource_json FROM submission_operations
+            """SELECT status,resource_json,quoted_cost_value,quoted_cost_scale,
+                      quoted_cost_unit,quote_evidence_token,quote_expires_at
+               FROM submission_operations
                WHERE delegation_id=? AND status != 'failed'""",
-            (delegation_id,),
+            (manifest.identifier,),
         ).fetchall()
         totals: dict[str, int] = {}
-        for _, encoded in rows:
+        quoted_total = 0
+        for (
+            _,
+            encoded,
+            cost_value,
+            cost_scale,
+            cost_unit,
+            evidence_token,
+            quote_expires_at,
+        ) in rows:
             for key, value in json.loads(encoded).items():
                 totals[key] = totals.get(key, 0) + int(value)
+            if manifest.credit_budget is None:
+                if any(
+                    value is not None
+                    for value in (
+                        cost_value,
+                        cost_scale,
+                        cost_unit,
+                        evidence_token,
+                        quote_expires_at,
+                    )
+                ):
+                    raise DelegationError(
+                        "resource-only delegation contains quoted-credit state"
+                    )
+                continue
+            if (
+                type(cost_value) is not int
+                or not 0 <= cost_value <= MAX_CREDIT_VALUE
+                or cost_scale != manifest.credit_budget.scale
+                or cost_unit != manifest.credit_budget.unit
+                or not isinstance(evidence_token, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", evidence_token)
+                or not isinstance(quote_expires_at, str)
+            ):
+                raise DelegationError(
+                    "credit delegation contains malformed quoted-credit state"
+                )
+            try:
+                _parse_time(quote_expires_at)
+            except DelegationError as error:
+                raise DelegationError(
+                    "credit delegation contains malformed quoted-credit state"
+                ) from error
+            quoted_total += cost_value
         used = len(rows)
-        active = sum(status in {"reserved", "submitted", "uncertain"} for status, _ in rows)
-        return used, active, totals
+        active = sum(
+            row[0] in {"reserved", "submitted", "uncertain"}
+            for row in rows
+        )
+        return used, active, totals, quoted_total
 
     def _active(self, db: sqlite3.Connection, manifest: DelegationManifest) -> None:
         row = db.execute(
@@ -1650,9 +1953,25 @@ class DelegationLedger:
                 CREATE TABLE submission_operations (
                     delegation_id TEXT NOT NULL, idempotency_key TEXT NOT NULL,
                     request_sha256 TEXT NOT NULL, status TEXT NOT NULL,
-                    resource_json TEXT NOT NULL, job_id TEXT, cluster TEXT,
+                    resource_json TEXT NOT NULL,
+                    quoted_cost_value INTEGER, quoted_cost_scale INTEGER,
+                    quoted_cost_unit TEXT, quote_evidence_token TEXT,
+                    quote_expires_at TEXT, job_id TEXT, cluster TEXT,
                     error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
                     PRIMARY KEY (delegation_id,idempotency_key),
+                    UNIQUE (delegation_id,quote_evidence_token),
+                    CHECK (
+                      (quoted_cost_value IS NULL AND quoted_cost_scale IS NULL AND
+                       quoted_cost_unit IS NULL AND quote_evidence_token IS NULL AND
+                       quote_expires_at IS NULL) OR
+                      (quoted_cost_value IS NOT NULL AND
+                       quoted_cost_value BETWEEN 0 AND 9223372036854775807 AND
+                       quoted_cost_scale IS NOT NULL AND
+                       quoted_cost_scale BETWEEN 0 AND 9 AND
+                       quoted_cost_unit IS NOT NULL AND
+                       quote_evidence_token IS NOT NULL AND
+                       quote_expires_at IS NOT NULL)
+                    ),
                     FOREIGN KEY (delegation_id) REFERENCES delegations(delegation_id)
                 );
                 CREATE TABLE job_ownership (
@@ -1748,7 +2067,7 @@ def _execute_schema(db: sqlite3.Connection, script: str) -> None:
 def _controller_authority(
     detail: object,
     captured_at: str,
-    profile: str,
+    manifest: DelegationManifest,
 ) -> ControllerAuthority:
     if not isinstance(detail, dict):
         raise DelegationError("captured controller authority is not an object")
@@ -1756,7 +2075,7 @@ def _controller_authority(
     try:
         policy = parse_capability_policy(
             policy_value,
-            profile=f"captured controller {profile}",
+            profile=f"captured controller {manifest.profile}",
         )
     except ValueError as error:
         raise DelegationError(
@@ -1771,6 +2090,8 @@ def _controller_authority(
     policy_sha256 = detail.get("policy_sha256")
     config_path = detail.get("config_path")
     config_sha256 = detail.get("config_sha256")
+    captured_credit_budget = _credit_budget(detail.get("credit_budget"))
+    quote_format = detail.get("quote_format")
     if calculated != policy_sha256:
         raise DelegationError("captured controller policy digest does not match")
     if not isinstance(config_path, str) or not config_path:
@@ -1779,13 +2100,103 @@ def _controller_authority(
         r"[0-9a-f]{64}", config_sha256
     ):
         raise DelegationError("captured controller config digest is invalid")
+    if captured_credit_budget != manifest.credit_budget:
+        raise DelegationError(
+            "captured controller credit budget does not match the delegation"
+        )
+    if quote_format is not None and quote_format != STRUCTURED_QUOTE_FORMAT_V1:
+        raise DelegationError("captured controller quote format is invalid")
+    if manifest.credit_budget is not None and quote_format is None:
+        raise DelegationError("captured controller quote format is missing")
     return ControllerAuthority(
         policy=policy,
         policy_sha256=policy_sha256,
         config_path=config_path,
         config_sha256=config_sha256,
+        credit_budget=captured_credit_budget,
+        quote_format=quote_format,
         captured_at=captured_at,
     )
+
+
+def _credit_budget(value: Any) -> CreditBudget | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise DelegationError("credit_budget must be a table")
+    known = {
+        "unit",
+        "scale",
+        "maximum_total",
+        "maximum_per_job",
+        "quote_ttl_seconds",
+    }
+    _reject_unknown_keys(value, known, "credit_budget")
+    required = {"unit", "scale", "maximum_total", "quote_ttl_seconds"}
+    missing = sorted(required - set(value))
+    if missing:
+        raise DelegationError(
+            f"credit_budget is missing field(s): {', '.join(missing)}"
+        )
+
+    unit = value["unit"]
+    if not isinstance(unit, str) or not CREDIT_UNIT_PATTERN.fullmatch(unit):
+        raise DelegationError(
+            "credit_budget.unit must be a normalized lowercase ASCII identifier"
+        )
+
+    scale = _bounded_integer(
+        value["scale"],
+        "credit_budget.scale",
+        minimum=0,
+        maximum=MAX_CREDIT_SCALE,
+    )
+    maximum_total = _bounded_integer(
+        value["maximum_total"],
+        "credit_budget.maximum_total",
+        minimum=1,
+        maximum=MAX_CREDIT_VALUE,
+    )
+    maximum_per_job_value = value.get("maximum_per_job")
+    maximum_per_job = None
+    if maximum_per_job_value is not None:
+        maximum_per_job = _bounded_integer(
+            maximum_per_job_value,
+            "credit_budget.maximum_per_job",
+            minimum=1,
+            maximum=MAX_CREDIT_VALUE,
+        )
+        if maximum_per_job > maximum_total:
+            raise DelegationError(
+                "credit_budget.maximum_per_job must not exceed maximum_total"
+            )
+    quote_ttl_seconds = _bounded_integer(
+        value["quote_ttl_seconds"],
+        "credit_budget.quote_ttl_seconds",
+        minimum=1,
+        maximum=86400,
+    )
+    return CreditBudget(
+        unit=unit,
+        scale=scale,
+        maximum_total=maximum_total,
+        maximum_per_job=maximum_per_job,
+        quote_ttl_seconds=quote_ttl_seconds,
+    )
+
+
+def _bounded_integer(
+    value: Any,
+    name: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    if type(value) is not int or not minimum <= value <= maximum:
+        raise DelegationError(
+            f"{name} must be an integer from {minimum} to {maximum}"
+        )
+    return value
 
 def _string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)
@@ -1808,6 +2219,67 @@ def _parse_time(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise DelegationError("delegation timestamps require a timezone")
     return parsed.astimezone(timezone.utc)
+
+
+def _canonical_time(value: datetime) -> str:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise DelegationError("quoted-credit expiry must include a UTC offset")
+    return value.astimezone(UTC).isoformat(timespec="seconds")
+
+
+def _reservation_credit(
+    manifest: DelegationManifest,
+    quoted_credit: QuotedCreditReservation | None,
+) -> dict[str, Any] | None:
+    budget = manifest.credit_budget
+    if budget is None:
+        if quoted_credit is not None:
+            raise DelegationError(
+                "resource-only delegation does not accept quoted-credit state"
+            )
+        return None
+    if not isinstance(quoted_credit, QuotedCreditReservation):
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "delegation requires a quoted-credit reservation",
+        )
+    try:
+        cost = parse_credit_amount(
+            quoted_credit.cost.to_dict(),
+            label="quoted-credit reservation cost",
+        )
+    except (AttributeError, CreditQuoteError) as error:
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            f"invalid quoted-credit reservation: {error}",
+        ) from error
+    if cost.unit != budget.unit:
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit reservation unit does not match the delegation",
+        )
+    if cost.scale != budget.scale:
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit reservation scale does not match the delegation",
+        )
+    if not isinstance(quoted_credit.evidence_token, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", quoted_credit.evidence_token
+    ):
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit evidence identity is invalid",
+        )
+    if not isinstance(quoted_credit.expires_at, datetime):
+        raise SubmissionDenied(
+            SubmissionDenialCode.QUOTE_FORMAT,
+            "quoted-credit expiry must be a timestamp",
+        )
+    return {
+        "quoted_cost": cost.to_dict(),
+        "quote_evidence_token": quoted_credit.evidence_token,
+        "quote_expires_at": _canonical_time(quoted_credit.expires_at),
+    }
 
 
 def _table(data: dict[str, Any], key: str) -> dict[str, Any]:
@@ -2044,4 +2516,8 @@ def _memory_mib(value: Any) -> int:
     return max(1, int(amount * factors[unit]))
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return _utc_now().isoformat()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)

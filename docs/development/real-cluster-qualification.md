@@ -72,6 +72,43 @@ Apptainer configuration, hpc-tools version, and agent image.
   confined to the per-job directory, and the unrelated control job is absent
   from delegation ownership.
 
+## Qualify native quoted-credit accounting
+
+This section is separate from local acceptance. The repository's fake quote
+helper proves protocol parsing and budget enforcement, but cannot prove that a
+site's native accounting service quotes the intended job shape or uses the
+configured unit and scale.
+
+- [ ] Record the native quote service, wrapper revision, response schema, and
+  site documentation that define the quoted maximum. Confirm the trusted host
+  wrapper writes exactly one `hpc-tools-credit-quote-v1` JSON object to stdout
+  and sends diagnostics only to stderr.
+- [ ] Confirm the wrapper quotes the same normalized account, cluster,
+  partition, reservation, QoS, array, node, task, CPU, memory, GPU, wall-time,
+  dependency, export, and container-bearing shape that reaches `sbatch`.
+- [ ] Confirm the manifest's fixed-point `unit` and `scale` exactly match the
+  site quote and that no currency conversion, rounding, or floating-point
+  interpretation occurs in the wrapper.
+- [ ] Use a disposable delegation whose `maximum_per_job` equals one observed
+  native quote. Confirm the exact-boundary job succeeds and a separately quoted
+  job one minor unit above that ceiling is denied before `sbatch` submission.
+- [ ] In separate disposable runs, make `budget.max_submissions` bind first and
+  `credit_budget.maximum_total` bind first. Confirm whichever limit is reached
+  first denies the next submission and that a zero-cost quote still consumes
+  one logical submission.
+- [ ] Quote an array and compare the helper's received shape, the ledger's
+  logical count of one, and the full array-multiplied resource totals.
+- [ ] Let one native quote expire. Confirm the server requires a completely new
+  quote -> validate -> submit chain and that restart does not revive prior
+  quote or validation evidence.
+- [ ] Exercise a definite pre-acceptance scheduler rejection and an acceptance
+  whose persistence result is uncertain. Confirm only the definite failure
+  releases its reservation and the uncertain acceptance retains count and
+  quoted credit for operator reconciliation.
+- [ ] Reconcile quote records with the site's eventual accounting statement.
+  Record discrepancies explicitly: actual charge is evidence for site review,
+  not an input that refunds or expands the delegated budget.
+
 ## Qualify advance signalling and same-ID requeue
 
 - [ ] Observe Slurm deliver the configured `USR1` warning before the parent
@@ -132,6 +169,9 @@ Qualification passes only when all applicable checks above have evidence and:
 - final cleanup affects all and only active delegation-owned jobs;
 - the tested Apptainer and MCP boundaries expose no protected control-plane
   state or undeclared writable path; and
+- the native quote adapter preserves the complete submitted shape, fixed-point
+  dimensions, expiry, and both count-first and credit-first refusal behavior;
+  and
 - failures and delays are visible to the operator with a tested recovery path.
 
 If any criterion cannot be established, record the result as unqualified rather

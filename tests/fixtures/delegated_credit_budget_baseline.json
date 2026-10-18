@@ -1,0 +1,68 @@
+{
+  "purpose": "Synchronized delegated-credit work-package state; this is a change detector, not a compatibility promise.",
+  "current": {
+    "array_submission_count_unit": "logical-submission",
+    "audit_report_format_version": 2,
+    "credit_budget_manifest_supported": true,
+    "controller_generation_bound_to_evidence": true,
+    "ledger_schema_version": 4,
+    "manifest_version": 3,
+    "profile_quote_fields": [
+      "sam_quote_command",
+      "sam_quote_format"
+    ],
+    "quote_evidence_fields": [
+      "account",
+      "command",
+      "directory",
+      "dry_run",
+      "evidence_token",
+      "execution_command",
+      "executor",
+      "expires_at",
+      "jobscript",
+      "ok",
+      "overrides",
+      "profile",
+      "quoted_cost",
+      "returncode",
+      "shape_token",
+      "ssh_command",
+      "stderr",
+      "stdout",
+      "timestamp",
+      "type"
+    ],
+    "quote_expiry_supported": true,
+    "structured_quote_supported": true,
+    "structured_submission_denial_codes": [
+      "quote.format",
+      "quote.failed",
+      "quote.expired",
+      "validation.failed",
+      "budget.per_job_credit",
+      "budget.total_credits",
+      "budget.submission_count",
+      "budget.active_jobs",
+      "budget.resources"
+    ],
+    "submission_operation_columns": [
+      "delegation_id",
+      "idempotency_key",
+      "request_sha256",
+      "status",
+      "resource_json",
+      "quoted_cost_value",
+      "quoted_cost_scale",
+      "quoted_cost_unit",
+      "quote_evidence_token",
+      "quote_expires_at",
+      "job_id",
+      "cluster",
+      "error",
+      "created_at",
+      "updated_at"
+    ],
+    "validation_quote_binding_supported": true
+  }
+}

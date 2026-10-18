@@ -49,6 +49,7 @@ class ConfigTests(unittest.TestCase):
             sam_balance_command = "sam-balance"
             sam_statement_command = "sam-statement"
             sam_quote_command = "sam-quote"
+            sam_quote_format = "hpc-tools-credit-quote-v1"
             hardware_reference = "/tmp/hardware.md"
             hardware_url = "https://example.org/hardware"
             slurm_reference = "/tmp/slurm.md"
@@ -84,6 +85,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(profile.sam_balance_command, "sam-balance")
         self.assertEqual(profile.sam_statement_command, "sam-statement")
         self.assertEqual(profile.sam_quote_command, "sam-quote")
+        self.assertEqual(profile.sam_quote_format, "hpc-tools-credit-quote-v1")
         self.assertEqual(profile.hardware_reference, "/tmp/hardware.md")
         self.assertEqual(profile.hardware_url, "https://example.org/hardware")
         self.assertEqual(profile.slurm_reference, "/tmp/slurm.md")
@@ -202,6 +204,36 @@ class ConfigTests(unittest.TestCase):
 
         with self.assertRaises(ConfigError):
             load_config(str(path))
+
+    def test_structured_quote_format_is_strict_and_requires_a_command(self) -> None:
+        cases = {
+            "unknown": (
+                'sam_quote_command = "quote"\nsam_quote_format = "site-v1"',
+                "must be one of",
+            ),
+            "without-command": (
+                'sam_quote_format = "hpc-tools-credit-quote-v1"',
+                "requires sam_quote_command",
+            ),
+            "wrong-type": (
+                'sam_quote_command = "quote"\nsam_quote_format = 1',
+                "must be a non-empty string",
+            ),
+        }
+        for name, (fields, message) in cases.items():
+            with self.subTest(name=name):
+                path = self._write_config(
+                    f"""
+                    [profiles.bad]
+                    {fields}
+
+                    [profiles.bad.capabilities]
+                    version = 1
+                    max_level = "job-inspection"
+                    """
+                )
+                with self.assertRaisesRegex(ConfigError, message):
+                    load_config(str(path))
 
     def test_allows_profile_without_ssh_target_for_local_execution(self) -> None:
         path = self._write_config(
@@ -386,6 +418,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(summary["capabilities"]["max_level"], "job-inspection")
         self.assertNotIn("ssh_target", summary)
         self.assertNotIn("sam_quote_command", summary)
+        self.assertNotIn("sam_quote_format", summary)
 
     def test_checked_in_profile_examples_use_the_accepted_policy_schema(self) -> None:
         for name in (

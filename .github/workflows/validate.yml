@@ -45,6 +45,9 @@ jobs:
       - name: Run capability acceptance tier
         run: uv run --locked --no-sync python tools/run_capability_acceptance.py
 
+      - name: Run delegated credit-budget acceptance tier
+        run: uv run --locked --no-sync python tools/run_credit_budget_acceptance.py
+
       - name: Build wheel and source archive
         run: uv build --out-dir dist
 

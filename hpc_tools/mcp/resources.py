@@ -100,6 +100,7 @@ def resource_config() -> str:
         "sam_balance_command": resolved.sam_balance_command,
         "sam_statement_command": resolved.sam_statement_command,
         "sam_quote_command": resolved.sam_quote_command,
+        "sam_quote_format": resolved.sam_quote_format,
         "hardware_reference": resolved.hardware_reference,
         "hardware_url": resolved.hardware_url,
         "slurm_reference": resolved.slurm_reference,

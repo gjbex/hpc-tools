@@ -37,10 +37,10 @@ also requires `HPC_TOOLS_PARENT_JOB_ID`; it must match `parent_job_id`.
 The ledger path is selected by `--ledger`, `HPC_TOOLS_MCP_LEDGER`, or the
 default `~/.config/hpc-tools/delegations.sqlite3`.
 
-Example format version 2:
+Example format version 3:
 
 ```toml
-format_version = 2
+format_version = 3
 id = "agent-20260826-001"
 issuer = "operator@example.org"
 profile = "genius"
@@ -73,6 +73,13 @@ max_active_jobs = 4
 max_total_nodes = 20
 max_total_wall_seconds = 172800
 
+[credit_budget]
+unit = "credits"
+scale = 0
+maximum_total = 20000
+maximum_per_job = 5000
+quote_ttl_seconds = 300
+
 [filesystem]
 state_root = "/scratch/project123/delegations/agent-20260826-001-private"
 work_root = "/scratch/project123/delegations/agent-20260826-001/work"
@@ -93,9 +100,9 @@ warning_seconds = 600
 
 Accounts and clusters are mandatory non-empty allowlists. A delegation that
 submits restricted container jobs also needs at least one approved container.
-Unknown manifest, allowlist, per-job-limit, budget, filesystem, and lifecycle keys are
-rejected. This is intentional: a misspelled ceiling must not silently become
-an unenforced operator policy.
+Unknown manifest, allowlist, per-job-limit, budget, credit-budget, filesystem,
+and lifecycle keys are rejected. This is intentional: a misspelled ceiling
+must not silently become an unenforced operator policy.
 Optional scheduler-field allowlists may be empty; if a request supplies that
 field, its value must occur in the corresponding allowlist. An empty
 `script_sha256` list permits any regular, non-symlink payload below `work_root`;
@@ -117,6 +124,21 @@ covered by a delegation must use the restricted parser: numeric counts, one
 numeric array index or range, and wall time in `[days-]HH:MM:SS` form. This
 deliberately rejects valid but ambiguous Slurm syntax until it can be accounted
 for exactly.
+
+The optional `[credit_budget]` table uses a fixed-point unit and scale shared
+with the configured structured quote format. `maximum_total` and
+`quote_ttl_seconds` are required; `maximum_per_job` is optional and cannot
+exceed the total. A credit-bearing controller starts only when its profile has
+both `sam_quote_command` and
+`sam_quote_format = "hpc-tools-credit-quote-v1"`. Resource-only version-3
+manifests remain valid without either field. Version-2 manifests are rejected
+rather than migrated implicitly.
+
+Cost-bearing evidence, atomic reservation, public denial state, and audit
+reporting are implemented as described in the
+[credit-budget implementation plan](development/delegated-credit-budget-plan.md).
+The MCP ledger enforces quoted maxima; it does not query or represent the
+account's actual balance or eventual charge.
 
 The manifest's `issuer` is audit metadata, not a cryptographic signature.
 Authority comes from the operator selecting a protected host-side file when
@@ -177,16 +199,33 @@ elements, so an array cannot consume a one-job node budget while launching many
 equivalent elements. These MCP budgets are optional delegation ceilings, not
 Slurm account balances.
 
+Quoted credit is another independent cumulative ceiling. The fixed-point
+`maximum_cost` from the signed quote is reserved in the same transaction as
+the logical count and resources. A zero-cost quote still consumes one
+submission. An array consumes one submission, while its complete array shape
+is sent to the site quote helper and its resources are multiplied by the array
+size. Passing a credit check never overrides `max_submissions`, and passing the
+count check never overrides credit or resource limits: any exhausted limit
+denies the operation.
+
+A definite failure releases its count, resources, and quoted maximum. A
+successful, uncertain, terminal, or cancelled operation retains cumulative
+count and quoted credit for the delegation lifetime. Exact idempotent replay
+does not reserve either again. `quote_ttl_seconds` authorizes only the start of
+a new reservation: the server timestamps a valid quote, expires it at that
+many seconds, and requires a fresh quote -> validate -> submit chain after
+expiry. It is not a job runtime, queue limit, lease, or budget-reset period.
+
 ## Ledger schema
 
 The authorization ledger is separate from `submissions.sqlite3`. The latter
 is agent-readable lifecycle history and must not be used as authorization
-state. Ledger schema version 3 uses `PRAGMA user_version = 3` and these tables:
+state. Ledger schema version 4 uses `PRAGMA user_version = 4` and these tables:
 
 | Table | Purpose |
 | --- | --- |
 | `delegations` | Manifest digest, issuer, profile, parent allocation, expiry, and revocation state. |
-| `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, and resulting job identity. |
+| `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, quoted maximum and evidence identity/expiry, and resulting job identity. |
 | `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization; a job/cluster pair is globally unique in one ledger. |
 | `lifecycle_operations` | Idempotent cancellation reservations and scheduler results. |
 | `delegation_audit` | Append-only accepted and rejected mutation decisions. |
@@ -201,15 +240,17 @@ distributed multi-node database.
 
 There is no schema migration because this authorization format has not entered
 production and existing delegation data was explicitly out of scope. A
-non-version-3 ledger is rejected rather than modified implicitly.
+non-version-4 ledger is rejected rather than modified implicitly.
 
 The first accepted controller start adds one `controller_authority` audit row.
-It contains the complete C3 profile-policy snapshot, its digest, and the path
-and digest of the configuration that supplied it. Subsequent starts reuse that
-row: a changed profile cannot replace or widen the captured ceiling. The MCP
-server intersects the current profile with this capture for new work, while
-host-only requeue and cleanup continue under the capture so already accepted
-ownership obligations remain enforceable after profile narrowing.
+It contains the complete C3 profile-policy snapshot, its digest, the path and
+digest of the configuration that supplied it, the credit policy, and the
+structured quote-format identifier. It does not store the quote command in the
+agent-visible summary. Subsequent starts reuse that row: a changed profile
+cannot replace or widen the captured ceiling. The MCP server intersects the
+current profile with this capture for new work, while host-only requeue and
+cleanup continue under the capture so already accepted ownership obligations
+remain enforceable after profile narrowing.
 
 The Python API exposes `DelegationLedger.revoke` for an operator control
 plane and `DelegationLedger.reconcile_job` for scheduler reconciliation.

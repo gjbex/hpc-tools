@@ -6,16 +6,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import shlex
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
+import zipfile
+from pathlib import Path
 
-
-MCP_PROTOCOL_PROBE = r'''
+MCP_PROTOCOL_PROBE = r"""
 from __future__ import annotations
 
 import asyncio
@@ -106,7 +107,7 @@ async def main() -> None:
 
 
 asyncio.run(main())
-'''
+"""
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -155,7 +156,42 @@ def _validate_artifacts(wheel: Path, sdist: Path) -> tuple[Path, Path]:
         raise ValueError(f"wheel artifact not found or invalid: {wheel}")
     if not sdist.is_file() or not sdist.name.endswith(".tar.gz"):
         raise ValueError(f"source archive not found or invalid: {sdist}")
+    _check_archive_contract(wheel, sdist)
     return wheel, sdist
+
+
+def _check_archive_contract(wheel: Path, sdist: Path) -> None:
+    image_skill = "hpc_tools/data/containers/agent/skills/hpc-delegated-slurm/SKILL.md"
+    image_reference = (
+        "hpc_tools/data/containers/agent/skills/"
+        "hpc-delegated-slurm/references/job-design.md"
+    )
+    with zipfile.ZipFile(wheel) as archive:
+        wheel_names = set(archive.namelist())
+    for required in (image_skill, image_reference):
+        if required not in wheel_names:
+            raise AssertionError(f"wheel omitted restricted-agent asset: {required}")
+    if "skills/hpc-slurm-jobs/SKILL.md" in wheel_names:
+        raise AssertionError("wheel combined the Codex plugin skill surface")
+
+    with tarfile.open(sdist, "r:gz") as archive:
+        sdist_names = {
+            "/".join(Path(member.name).parts[1:])
+            for member in archive.getmembers()
+            if len(Path(member.name).parts) > 1
+        }
+    required_source_assets = {
+        image_skill,
+        image_reference,
+        ".codex-plugin/plugin.json",
+        "skills/hpc-slurm-jobs/SKILL.md",
+        "examples/delegations/delegation-manifest-v3.schema.json",
+        "examples/delegations/restricted-agent-credit-minimal.toml",
+        "examples/delegations/restricted-agent-credit-full.toml",
+    }
+    missing = sorted(required_source_assets - sdist_names)
+    if missing:
+        raise AssertionError(f"source archive omitted synchronized assets: {missing}")
 
 
 def _pipx_environment(root: Path) -> dict[str, str]:
@@ -225,8 +261,14 @@ def _check_packaged_helper(
         assert package.is_relative_to(Path(sys.prefix).resolve()), (package, sys.prefix)
         helper = resources.files("hpc_tools.data").joinpath("filesystem_helper.py")
         assert helper.is_file(), helper
+        skill = resources.files("hpc_tools.data").joinpath(
+            "containers", "agent", "skills", "hpc-delegated-slurm", "SKILL.md"
+        )
+        skill_text = skill.read_text(encoding="utf-8")
+        assert "credit_budget.maximum_total" in skill_text
+        assert "quote.expired" in skill_text
         assert (util.find_spec("mcp") is not None) is {expect_mcp!r}
-        print(helper)
+        print(helper, skill)
         """
     )
     _run([str(python), "-c", source], cwd=cwd)
