@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import socket
 import stat
 import struct
@@ -122,8 +121,9 @@ def connect(socket_path: Path) -> int:
         )
         outbound.start()
         with connection.makefile("rb", buffering=0) as source:
-            shutil.copyfileobj(source, sys.stdout.buffer)
-        sys.stdout.buffer.flush()
+            while chunk := source.read(64 * 1024):
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.buffer.flush()
     finally:
         connection.close()
     return 0

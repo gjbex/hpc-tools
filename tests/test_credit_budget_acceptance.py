@@ -33,13 +33,13 @@ class CreditBudgetAcceptanceTests(unittest.TestCase):
             socket_directory.mkdir(mode=0o700)
             socket_path = socket_directory / "mcp.sock"
             environment = os.environ.copy()
+            environment.pop("PYTHONUNBUFFERED", None)
             environment.update(
                 {
                     "HPC_TOOLS_PARENT_JOB_ID": "9001",
                     "HPC_TOOLS_ACCEPTANCE_QUOTE_LOG": str(paths["quote_log"]),
                     "HPC_TOOLS_ACCEPTANCE_SBATCH_LOG": str(paths["sbatch_log"]),
                     "PATH": f"{paths['bin']}:{environment.get('PATH', '')}",
-                    "PYTHONUNBUFFERED": "1",
                     "XDG_CONFIG_HOME": str(paths["config_home"]),
                 }
             )
@@ -81,7 +81,10 @@ class CreditBudgetAcceptanceTests(unittest.TestCase):
                 self._wait_for_bridge(bridge, socket_path)
                 self.assertEqual(0o600, stat.S_IMODE(socket_path.stat().st_mode))
                 observations = asyncio.run(
-                    self._exercise_protocol(socket_path, environment, paths)
+                    asyncio.wait_for(
+                        self._exercise_protocol(socket_path, environment, paths),
+                        timeout=30,
+                    )
                 )
                 bridge.wait(timeout=10)
             finally:
