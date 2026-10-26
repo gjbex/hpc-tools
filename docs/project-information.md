@@ -92,7 +92,7 @@ boundary for hostile agents or a substitute for cluster policy.
 ## Supported runtime and cluster assumptions
 
 The packaged Python project currently declares Python 3.13 or newer. The
-repository pins uv 0.13.1, records Python 3.13 in `.python-version`, and uses
+repository pins uv 0.13.5, records Python 3.13 in `.python-version`, and uses
 the committed `uv.lock` in continuous integration. CI builds the MkDocs site
 strictly, validates the plugin and skills, compiles the Python sources, and
 runs the unit test suite. That is evidence for the tested development

@@ -140,7 +140,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         validation = (
             ROOT / ".github" / "workflows" / "validate.yml"
         ).read_text(encoding="utf-8")
-        self.assertIn('version: "0.13.1"', validation)
+        self.assertIn('version: "0.13.5"', validation)
         self.assertIn('python-version: "3.13"', validation)
         self.assertIn("uv lock --check", validation)
         self.assertIn("uv sync --locked --all-extras --all-groups", validation)

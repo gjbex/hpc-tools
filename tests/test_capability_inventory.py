@@ -111,7 +111,7 @@ class CapabilityInventoryTests(unittest.TestCase):
         project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
         self.assertEqual(project["project"]["requires-python"], ">=3.13")
-        self.assertEqual(project["tool"]["uv"]["required-version"], "==0.13.1")
+        self.assertEqual(project["tool"]["uv"]["required-version"], "==0.13.5")
         self.assertEqual(project["build-system"]["requires"], ["setuptools==80.9.0"])
         self.assertEqual((ROOT / ".python-version").read_text(encoding="utf-8").strip(), "3.13")
         self.assertTrue((ROOT / "uv.lock").is_file())

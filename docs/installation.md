@@ -62,7 +62,7 @@ An editable installation and a pipx installation can both place an `hpc`
 executable on the `PATH`. Check `command -v hpc` before assuming which source
 is running.
 
-The development workflow requires uv 0.13.1. `pyproject.toml` enforces that
+The development workflow requires uv 0.13.5. `pyproject.toml` enforces that
 version, `.python-version` selects Python 3.13, and `uv.lock` fixes the complete
 development, documentation, and optional MCP dependency graph.
 

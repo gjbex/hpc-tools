@@ -959,7 +959,7 @@ install:
 pipx install .
 ```
 
-Development requires uv 0.13.1. The repository enforces that version,
+Development requires uv 0.13.5. The repository enforces that version,
 selects Python 3.13 through `.python-version`, and commits the complete
 dependency resolution in `uv.lock`.
 
