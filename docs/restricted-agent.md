@@ -340,10 +340,58 @@ Use `hpc agent audit` or `hpc agent export` from the host for the operator view.
 
 Adapt the generated `restricted-agent.slurm` and `task.md`. Keep the explicit
 `Use $hpc-delegated-slurm` invocation in the reviewed task. Fill in one bounded
-objective, application-level success criteria, any required account/container
-selection, corrective-resubmission policy, and stopping condition. If these
-leave a material choice ambiguous, the skill reports `blocked` rather than
-guessing or trying to ask an absent operator.
+objective and durable output location, application-level success criteria for
+each required artifact, reviewed input paths, every authorized
+account/cluster/partition/container/script selection, corrective-resubmission
+policy, finite correction limit, and stopping condition. Remove every
+placeholder. If these leave a material choice ambiguous, the skill reports
+`blocked` rather than guessing or trying to ask an absent operator.
+The generated `Corrective resubmission policy`, `Maximum corrective
+submissions`, and `Stopping condition` headings are part of that reviewed
+contract; do not delete them when replacing their contents.
+
+### Adapt and preflight the batch template
+
+The generated script deliberately has no default account, cluster, partition,
+QoS, reservation, memory request, or module version. Review the target site and
+then uncomment and replace only the applicable `##SBATCH` and module lines.
+Keep `#!/bin/bash -l` so the batch shell initializes the site environment. Do
+not copy policy fields from another cluster merely to make validation pass.
+
+The script performs early, readable checks before starting the launcher:
+
+- `hpc-agent-launch` must resolve in the initialized `PATH`;
+- `apptainer_path` must be the same executable selected by
+  `filesystem.apptainer_path` in the delegation template;
+- the manifest-template and ledger directories and runtime directory must be
+  real, owner-only mode-`0700` directories;
+- the template, credential, reviewed task, optional network environment,
+  existing ledger, and existing materialized manifest must be real,
+  user-owned mode-`0600` files;
+- the hpc-tools configuration, Apptainer executable, and SIF must be owned by
+  the user or root and must not be group- or world-writable; and
+- the reviewed lowercase SIF hash and lifecycle warning values must agree.
+
+The launcher repeats canonical path, symlink, permission, overlap, digest, and
+manifest validation. The shell checks improve diagnostics; they are not a
+second security boundary. Typical preparation is:
+
+```bash
+install -d -m 0700 /protected/materialized-manifests
+install -d -m 0700 /protected/runtime
+chmod 0600 /protected/delegation-template.toml
+chmod 0600 /protected/codex.env
+chmod 0600 /protected/network.env       # only when used
+chmod 0600 /protected/reviewed-task.md
+chmod go-w /project/images/restricted-codex.sif
+```
+
+Use the site-provided `SLURM_TMPDIR` when it is a private mode-`0700`
+per-job directory. If the site does not provide one, set `runtime_directory`
+in the reviewed batch script to a pre-created mode-`0700` directory outside
+the state, work, output, and input roots. Do not use a shared fixed `/tmp`
+directory. The script always passes the verified path with
+`--runtime-directory`.
 
 Place the reviewed task at the path selected by `prompt_file`, make it private
 mode `0600`, and submit the script normally. Pass it with `--prompt-file`; the
@@ -352,12 +400,14 @@ essential invocation is:
 
 ```bash
 agent_image_sha256=REPLACE_WITH_REVIEWED_LOWERCASE_SHA256
+runtime_directory=${SLURM_TMPDIR:-/protected/runtime}
 hpc-agent-launch \
     --manifest-template /protected/delegation-template.toml \
     --manifest-output "/protected/materialized-manifests/delegation-${SLURM_JOB_ID}.toml" \
     --ledger /protected/delegations.sqlite3 \
     --config ~/.config/hpc-tools/config.toml \
     --profile example \
+    --runtime-directory "$runtime_directory" \
     --agent-env-file /protected/codex.env \
     --network-env-file /protected/network.env \
     --agent-image /project/images/restricted-codex.sif \
@@ -377,6 +427,49 @@ Keep the template's lifecycle directives aligned with the manifest:
 The append mode matters because a requeue retains the parent Slurm job ID. A
 site default that truncates `restricted-agent-%j.out` or `.err` on restart would
 otherwise destroy the preceding controller attempt's outer log.
+
+Set the script's `warning_seconds`, its literal
+`#SBATCH --signal=B:USR1@<seconds>` value, and the delegation template's
+`lifecycle.warning_seconds` to the same integer. The generated script checks the
+two runtime-visible values before launch; keeping the directive synchronized is
+an operator review obligation because Slurm parses it before the shell starts.
+
+### Quote, validate, and confirm the parent workload
+
+The parent allocation is a real site workload. When the selected profile has a
+quote helper, quote the exact account, cluster, partition, QoS, reservation,
+node, task, CPU, memory, and time shape from the adapted batch script. Then run
+a separate scheduler validation so there is a deliberate review point before
+submission:
+
+```console
+hpc --profile example quote sbatch \
+    --account=project123 --clusters=example-cluster --partition=batch \
+    --nodes=1 --ntasks=1 --cpus-per-task=4 --mem=8G --time=04:00:00 \
+    restricted-agent.slurm
+
+hpc --profile example submit --directory /project/agent-parent \
+    --test-only restricted-agent.slurm
+
+# Run only after the operator reviews the quote and validation:
+hpc --profile example submit --directory /project/agent-parent \
+    restricted-agent.slurm
+```
+
+Adapt or omit the illustrative account, cluster, partition, and memory options
+to match the reviewed script and site. Do not use `--validate-first` when an
+operator must review cost or policy between validation and submission. If the
+site has no hpc-tools quote helper, use its authoritative accounting process;
+absence of a helper is not permission to assume zero cost.
+
+Parent cost and authority are separate from the delegation's
+`budget.max_submissions`, resource budget, and quoted-credit budget. Those
+limits apply only to jobs submitted through the restricted MCP chain. The
+launcher also registers a real one-CPU, 15-minute `afterany` cleanup job. It is
+outside the delegated budget, normally inherits the parent account and
+partition, and must be permitted and schedulable under site policy. Include
+both parent and cleanup workloads in operator cost review and cluster
+qualification.
 
 ### Profile authority across restarts
 

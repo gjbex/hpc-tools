@@ -288,23 +288,184 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertNotIn("hpc-agent-reap", definition)
 
     def test_parent_template_requests_requeue_and_forwards_lifecycle_signals(self) -> None:
-        template = (
-            resources.files("hpc_tools.data")
-            .joinpath("containers", "agent", "restricted-agent.slurm")
-            .read_text(encoding="utf-8")
+        assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
+        template = assets.joinpath("restricted-agent.slurm").read_text(
+            encoding="utf-8"
         )
+        manifest = tomllib.loads(
+            assets.joinpath("delegation-template.toml").read_text(encoding="utf-8")
+        )
+        self.assertTrue(template.startswith("#!/bin/bash -l\n"))
         self.assertIn("#SBATCH --requeue", template)
         self.assertIn("#SBATCH --signal=B:USR1@600", template)
         self.assertIn("#SBATCH --open-mode=append", template)
+        self.assertNotIn("\n#SBATCH --account=", template)
+        self.assertNotIn("\n#SBATCH --partition=", template)
+        self.assertIn("##SBATCH --account=<account>", template)
+        self.assertIn("##SBATCH --partition=<partition>", template)
+        self.assertIn("command -v hpc-agent-launch", template)
+        self.assertIn('require_trusted_file "$apptainer_path"', template)
+        self.assertIn('require_private_file "$agent_env_file"', template)
+        self.assertIn('require_private_directory "$runtime_directory"', template)
+        self.assertIn("warning_seconds=600", template)
+        self.assertEqual(600, manifest["lifecycle"]["warning_seconds"])
         self.assertIn('--manifest-template "$manifest_template"', template)
         self.assertIn('--manifest-output "$manifest_output"', template)
         self.assertIn('delegation-${SLURM_JOB_ID}.toml', template)
+        self.assertIn('--runtime-directory "$runtime_directory"', template)
+        self.assertIn('--agent-env-file "$agent_env_file"', template)
+        self.assertIn('--network-env-file "$network_env_file"', template)
         self.assertIn('--prompt-file "$prompt_file"', template)
         self.assertIn('--agent-image-sha256 "$agent_image_sha256"', template)
         self.assertNotIn('< "$prompt_file"', template)
         self.assertIn("trap forward_requeue USR1", template)
         self.assertIn("trap forward_termination TERM INT", template)
         self.assertIn('if ! kill -0 "$launcher_pid"', template)
+
+    def test_packaged_agent_shell_entry_points_have_valid_syntax(self) -> None:
+        assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
+        entry_points = (
+            ("bash", "restricted-agent.slurm"),
+            ("bash", "build-agent-image.slurm"),
+            ("sh", "codex-agent"),
+        )
+
+        for shell, name in entry_points:
+            with self.subTest(name=name), resources.as_file(
+                assets.joinpath(name)
+            ) as path:
+                completed = subprocess.run(
+                    [shell, "-n", str(path)],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(0, completed.returncode, completed.stderr)
+
+    def test_parent_template_preflights_private_inputs_before_launch(self) -> None:
+        assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
+        source = assets.joinpath("restricted-agent.slurm").read_text(
+            encoding="utf-8"
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            protected = root / "protected"
+            manifests = protected / "manifests"
+            runtime = root / "runtime"
+            command_directory = root / "bin"
+            for path in (protected, manifests, runtime, command_directory):
+                path.mkdir(mode=0o700)
+
+            manifest_template = protected / "delegation-template.toml"
+            manifest_template.write_text(
+                assets.joinpath("delegation-template.toml").read_text(
+                    encoding="utf-8"
+                ),
+                encoding="utf-8",
+            )
+            credential = protected / "codex.env"
+            credential.write_text("OPENAI_API_KEY=not-a-real-secret\n", encoding="utf-8")
+            network = protected / "network.env"
+            network.write_text("HTTPS_PROXY=http://proxy.invalid\n", encoding="utf-8")
+            prompt = protected / "task.md"
+            prompt.write_text("A reviewed bounded task.\n", encoding="utf-8")
+            for path in (manifest_template, credential, network, prompt):
+                path.chmod(0o600)
+
+            config = root / "config.toml"
+            config.write_text("default_profile = \"example\"\n", encoding="utf-8")
+            config.chmod(0o644)
+            agent_image = root / "agent.sif"
+            agent_image.write_bytes(b"reviewed image")
+            agent_image.chmod(0o444)
+            digest = hashlib.sha256(agent_image.read_bytes()).hexdigest()
+            apptainer = root / "apptainer"
+            apptainer.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            apptainer.chmod(0o755)
+
+            capture = root / "launcher-arguments.txt"
+            launcher = command_directory / "hpc-agent-launch"
+            launcher.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$@" > "$CAPTURE_PATH"\n',
+                encoding="utf-8",
+            )
+            launcher.chmod(0o700)
+
+            replacements = {
+                "apptainer_path=/usr/bin/apptainer": f"apptainer_path={apptainer}",
+                "manifest_template=/path/to/protected/delegation-template.toml": (
+                    f"manifest_template={manifest_template}"
+                ),
+                "manifest_directory=/path/to/protected/materialized-manifests": (
+                    f"manifest_directory={manifests}"
+                ),
+                "ledger=/path/to/protected/delegations.sqlite3": (
+                    f"ledger={protected / 'delegations.sqlite3'}"
+                ),
+                "config=${HPC_TOOLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hpc-tools/config.toml}": (
+                    f"config={config}"
+                ),
+                "agent_image=/path/to/restricted-codex.sif": (
+                    f"agent_image={agent_image}"
+                ),
+                "agent_image_sha256=REPLACE_WITH_REVIEWED_LOWERCASE_SHA256": (
+                    f"agent_image_sha256={digest}"
+                ),
+                "agent_env_file=/path/to/protected/codex.env": (
+                    f"agent_env_file={credential}"
+                ),
+                "network_env_file=  # Optional: /path/to/protected/network.env": (
+                    f"network_env_file={network}"
+                ),
+                "prompt_file=/path/to/protected/reviewed-task.md": (
+                    f"prompt_file={prompt}"
+                ),
+            }
+            rendered = source
+            for old, new in replacements.items():
+                self.assertIn(old, rendered)
+                rendered = rendered.replace(old, new, 1)
+            job = root / "restricted-agent.slurm"
+            job.write_text(rendered, encoding="utf-8")
+            environment = os.environ | {
+                "CAPTURE_PATH": str(capture),
+                "PATH": f"{command_directory}{os.pathsep}{os.environ['PATH']}",
+                "SLURM_JOB_ID": "9001",
+                "SLURM_TMPDIR": str(runtime),
+            }
+
+            completed = subprocess.run(
+                ["bash", str(job)],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            arguments = capture.read_text(encoding="utf-8").splitlines()
+            self.assertIn("--runtime-directory", arguments)
+            self.assertIn(str(runtime), arguments)
+            self.assertIn("--network-env-file", arguments)
+            self.assertIn(str(network), arguments)
+            self.assertIn("--manifest-output", arguments)
+            self.assertIn(str(manifests / "delegation-9001.toml"), arguments)
+            combined_output = completed.stdout + completed.stderr + "\n".join(arguments)
+            self.assertNotIn("not-a-real-secret", combined_output)
+            self.assertNotIn("http://proxy.invalid", combined_output)
+
+            capture.unlink()
+            credential.chmod(0o644)
+            rejected = subprocess.run(
+                ["bash", str(job)],
+                check=False,
+                capture_output=True,
+                text=True,
+                env=environment,
+            )
+            self.assertEqual(2, rejected.returncode)
+            self.assertIn("mode 0600", rejected.stderr)
+            self.assertFalse(capture.exists())
 
     def test_packaged_codex_agent_exposes_only_the_delegated_slurm_skill(self) -> None:
         assets = resources.files("hpc_tools.data").joinpath("containers", "agent")

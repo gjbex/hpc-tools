@@ -129,8 +129,8 @@ from the selected profile's `email` field.
 | `hpc write-hardware-probe [OUTPUT] [--force]` | Compatibility shorthand for the hardware form of `write-probe`; output defaults to standard output. |
 | `hpc install-probe [--kind hardware|cuda-device-properties] [-C DIRECTORY] [--name NAME] [--force]` | Install probe assets on the selected remote profile. |
 | `hpc install-hardware-probe [-C DIRECTORY] [--name NAME] [--force]` | Compatibility shorthand for installing the hardware probe. |
-| `hpc write-container --kind generic|r|conda OUTPUT [--name NAME] [--force]` | Write a local starter bundle for an Apptainer build job. |
-| `hpc install-container --kind generic|r|conda -C DIRECTORY [--name NAME] [--force]` | Install a starter bundle remotely. It does not build the image. |
+| `hpc write-container --kind agent|agent-boundary|generic|r|conda OUTPUT [--name NAME] [--force]` | Write a local Apptainer bundle. The `agent` bundle includes the reviewed-task, delegation, image-build, and parent-job templates. |
+| `hpc install-container --kind agent|agent-boundary|generic|r|conda -C DIRECTORY [--name NAME] [--force]` | Install a starter bundle remotely. It does not build an image or submit a parent job. |
 
 See [Probes and cluster discovery](probes.md) and
 [Container workflows](containers.md) before submitting generated scripts.
