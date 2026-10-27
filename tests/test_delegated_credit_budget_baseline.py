@@ -84,6 +84,10 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
     ) -> None:
         self.assertEqual(self.baseline["manifest_version"], delegation.MANIFEST_VERSION)
         self.assertEqual(
+            self.baseline["manifest_template_version"],
+            delegation.MANIFEST_TEMPLATE_VERSION,
+        )
+        self.assertEqual(
             self.baseline["ledger_schema_version"], delegation.LEDGER_SCHEMA_VERSION
         )
         self.assertEqual(

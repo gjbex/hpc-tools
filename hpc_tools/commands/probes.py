@@ -400,6 +400,9 @@ def _container_bundle(kind: str) -> dict[str, str]:
                 "codex-config-model-live-search.toml"
             ).read_text(encoding="utf-8"),
             "task.md": data.joinpath("task.md").read_text(encoding="utf-8"),
+            "delegation-template.toml": data.joinpath(
+                "delegation-template.toml"
+            ).read_text(encoding="utf-8"),
             "skills/hpc-delegated-slurm/SKILL.md": delegated_skill.joinpath(
                 "SKILL.md"
             ).read_text(encoding="utf-8"),

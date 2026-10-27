@@ -281,7 +281,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         production_plan = (
             ROOT / "docs" / "development" / "restricted-agent-production-plan.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("WP1--WP2 completed locally", production_plan)
+        self.assertIn("WP1--WP3 completed locally", production_plan)
         self.assertIn("Site-level egress enforcement remains", production_plan)
         for name in (
             "delegation-manifest-v4.schema.json",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 import tempfile
 import textwrap
@@ -83,6 +84,51 @@ class DelegationTests(unittest.TestCase):
         )
         return path
 
+    def _manifest_template(
+        self,
+        root: Path,
+        *,
+        lifetime_seconds: int = 3600,
+    ) -> Path:
+        path = root / "delegation-template.toml"
+        path.write_text(
+            textwrap.dedent(
+                f"""
+                template_version = 1
+                id_prefix = "delegate"
+                issuer = "operator@example.org"
+                profile = "genius"
+                lifetime_seconds = {lifetime_seconds}
+
+                [network]
+                mode = "model-only"
+
+                [allowed]
+                accounts = ["proj"]
+                clusters = ["wice"]
+                partitions = ["batch"]
+                qos = ["normal"]
+                reservations = []
+                containers = ["/images/worker.sif"]
+                script_sha256 = []
+                roots = ["/work/delegate"]
+
+                [per_job_limits]
+                nodes = 2
+                tasks = 8
+                wall_seconds = 3600
+
+                [budget]
+                max_submissions = 2
+                max_active_jobs = 1
+                """
+            ).strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        path.chmod(0o600)
+        return path
+
     def _shape(self, **overrides: str) -> dict[str, object]:
         values = {
             "account": "proj",
@@ -156,6 +202,155 @@ class DelegationTests(unittest.TestCase):
             path.chmod(0o666)
             with self.assertRaisesRegex(delegation.DelegationError, "writable"):
                 delegation.load_manifest(path, expected_profile="genius")
+
+    def test_manifest_template_materialization_is_deterministic_and_job_bound(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            template = self._manifest_template(root)
+            output = root / "materialized.toml"
+            now = datetime(2026, 10, 27, 12, 34, 56, 999999, tzinfo=UTC)
+
+            first, evidence, first_payload = delegation.prepare_manifest_template(
+                template,
+                output,
+                expected_profile="genius",
+                parent_job_id="9001",
+                now=now,
+            )
+            second, _, second_payload = delegation.prepare_manifest_template(
+                template,
+                output,
+                expected_profile="genius",
+                parent_job_id="9001",
+                now=now,
+            )
+
+            self.assertEqual(first_payload, second_payload)
+            self.assertEqual("delegate-9001", first.identifier)
+            self.assertEqual("2026-10-27T12:34:56+00:00", first.issued_at)
+            self.assertEqual("2026-10-27T13:34:56+00:00", first.expires_at)
+            self.assertEqual(first.digest, second.digest)
+            self.assertEqual(first.digest, evidence.manifest_sha256)
+            self.assertEqual(
+                hashlib.sha256(template.read_bytes()).hexdigest(),
+                evidence.template_sha256,
+            )
+            self.assertFalse(output.exists())
+
+    def test_manifest_template_publishes_privately_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            template = self._manifest_template(root)
+            output = root / "materialized.toml"
+            manifest, evidence = delegation.materialize_manifest_template(
+                template,
+                output,
+                expected_profile="genius",
+                parent_job_id="9001",
+                now=datetime(2026, 10, 27, tzinfo=UTC),
+            )
+
+            self.assertEqual(output, manifest.source_path)
+            self.assertEqual(0o600, output.stat().st_mode & 0o777)
+            self.assertEqual(
+                hashlib.sha256(output.read_bytes()).hexdigest(),
+                evidence.manifest_sha256,
+            )
+            with self.assertRaisesRegex(delegation.DelegationError, "already exists"):
+                delegation.materialize_manifest_template(
+                    template,
+                    output,
+                    expected_profile="genius",
+                    parent_job_id="9001",
+                )
+
+            symlink = root / "symlink.toml"
+            symlink.symlink_to(output)
+            with self.assertRaisesRegex(delegation.DelegationError, "symlink|exists"):
+                delegation.materialize_manifest_template(
+                    template,
+                    symlink,
+                    expected_profile="genius",
+                    parent_job_id="9001",
+                )
+
+    def test_manifest_template_requeue_verification_prevents_authority_refresh(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            template = self._manifest_template(root, lifetime_seconds=3600)
+            output = root / "materialized.toml"
+            delegation.materialize_manifest_template(
+                template,
+                output,
+                expected_profile="genius",
+                parent_job_id="9001",
+                now=datetime(2026, 10, 27, 12, 0, tzinfo=UTC),
+            )
+
+            verified, evidence = delegation.verify_materialized_manifest(
+                template,
+                output,
+                expected_profile="genius",
+                parent_job_id="9001",
+                now=datetime(2026, 10, 27, 12, 30, tzinfo=UTC),
+            )
+            self.assertEqual("delegate-9001", verified.identifier)
+            self.assertEqual(verified.digest, evidence.manifest_sha256)
+
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "max_submissions = 2", "max_submissions = 3"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(delegation.DelegationError, "does not match"):
+                delegation.verify_materialized_manifest(
+                    template,
+                    output,
+                    expected_profile="genius",
+                    parent_job_id="9001",
+                )
+
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "max_submissions = 3", "max_submissions = 2"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(delegation.DelegationError, "expired"):
+                delegation.verify_materialized_manifest(
+                    template,
+                    output,
+                    expected_profile="genius",
+                    parent_job_id="9001",
+                    now=datetime(2026, 10, 27, 13, 0, 1, tzinfo=UTC),
+                )
+
+    def test_manifest_template_rejects_dynamic_unknown_and_unbounded_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            template = self._manifest_template(root)
+            for addition, pattern in (
+                ('parent_job_id = "9001"\n', "unsupported"),
+                ("unexpected = true\n", "unsupported"),
+            ):
+                with self.subTest(addition=addition):
+                    template.write_text(
+                        addition + template.read_text(encoding="utf-8"),
+                        encoding="utf-8",
+                    )
+                    with self.assertRaisesRegex(delegation.DelegationError, pattern):
+                        delegation.load_manifest_template(template)
+                    template = self._manifest_template(root)
+
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "lifetime_seconds = 3600", "lifetime_seconds = 0"
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(delegation.DelegationError, "lifetime_seconds"):
+                delegation.load_manifest_template(template)
 
     def test_manifest_v4_parses_optional_fixed_point_credit_budget(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

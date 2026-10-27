@@ -5,14 +5,18 @@ import json
 import os
 import re
 import sqlite3
+import stat
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
-from datetime import UTC, datetime, timezone
+from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta, timezone
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+import tomlkit
 
 try:
     import tomllib
@@ -39,6 +43,8 @@ from hpc_tools.credit_quotes import (
 )
 
 MANIFEST_VERSION = 4
+MANIFEST_TEMPLATE_VERSION = 1
+MANIFEST_MATERIALIZATION_VERSION = 1
 LEDGER_SCHEMA_VERSION = 5
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
@@ -46,6 +52,11 @@ PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
 IDEMPOTENCY_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
 CONTROLLER_RESTART_ENV_VAR = "SLURM_RESTART_COUNT"
 CLEANUP_CANCEL_ATTEMPTS = 3
+MIN_MANIFEST_LIFETIME_SECONDS = 60
+MAX_MANIFEST_LIFETIME_SECONDS = 30 * 24 * 60 * 60
+MAX_MANIFEST_TEMPLATE_BYTES = 1024 * 1024
+MANIFEST_ID_PREFIX_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+MATERIALIZATION_HEADER = "# hpc-tools-materialization: "
 
 
 class DelegationError(ConfigError):
@@ -245,6 +256,49 @@ class DelegationManifest:
 
 
 @dataclass(frozen=True)
+class DelegationManifestTemplate:
+    """Private operator policy used to materialize one job-bound manifest."""
+
+    id_prefix: str
+    issuer: str
+    profile: str
+    lifetime_seconds: int
+    authority: dict[str, Any]
+    source_path: Path
+    digest: str
+
+    def identifier(self, parent_job_id: str) -> str:
+        if not parent_job_id.isdigit() or int(parent_job_id) <= 0:
+            raise DelegationError("SLURM_JOB_ID must be a positive decimal job ID")
+        return f"{self.id_prefix}-{parent_job_id}"
+
+
+@dataclass(frozen=True)
+class ManifestMaterialization:
+    """Evidence binding a generated manifest to its reviewed template."""
+
+    template_path: Path
+    template_sha256: str
+    template_version: int
+    manifest_path: Path
+    manifest_sha256: str
+
+    def public_summary(self) -> dict[str, Any]:
+        return {
+            "mode": "template",
+            "template": {
+                "source_path": str(self.template_path),
+                "format_version": self.template_version,
+                "sha256": self.template_sha256,
+            },
+            "manifest": {
+                "source_path": str(self.manifest_path),
+                "sha256": self.manifest_sha256,
+            },
+        }
+
+
+@dataclass(frozen=True)
 class DelegationRuntime:
     manifest: DelegationManifest
     ledger_path: Path
@@ -395,6 +449,217 @@ def delegation_scope(runtime: DelegationRuntime | None) -> Iterator[None]:
 
 def current_runtime() -> DelegationRuntime | None:
     return _CURRENT.get()
+
+
+def load_manifest_template(path: Path) -> DelegationManifestTemplate:
+    """Parse one strict, private version-1 manifest template."""
+    selected = _private_template_path(path)
+    payload = _read_private_file(
+        selected,
+        "delegation manifest template",
+        limit=MAX_MANIFEST_TEMPLATE_BYTES,
+        exact_mode=False,
+    )
+    try:
+        raw = tomllib.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
+        raise DelegationError(
+            f"invalid delegation manifest template {selected}: {error}"
+        ) from error
+    authority_tables = {
+        "network",
+        "allowed",
+        "per_job_limits",
+        "budget",
+        "credit_budget",
+        "filesystem",
+        "lifecycle",
+    }
+    _reject_unknown_keys(
+        raw,
+        {
+            "template_version",
+            "id_prefix",
+            "issuer",
+            "profile",
+            "lifetime_seconds",
+            *authority_tables,
+        },
+        "delegation manifest template",
+    )
+    if raw.get("template_version") != MANIFEST_TEMPLATE_VERSION:
+        raise DelegationError(
+            "unsupported delegation manifest template version "
+            f"{raw.get('template_version')!r}; expected {MANIFEST_TEMPLATE_VERSION}"
+        )
+    id_prefix = _template_string(raw, "id_prefix")
+    if not MANIFEST_ID_PREFIX_PATTERN.fullmatch(id_prefix):
+        raise DelegationError(
+            "delegation manifest template id_prefix must contain 1-64 ASCII "
+            "letters, digits, dots, underscores, or hyphens and start alphanumeric"
+        )
+    lifetime = raw.get("lifetime_seconds")
+    if type(lifetime) is not int or not (
+        MIN_MANIFEST_LIFETIME_SECONDS
+        <= lifetime
+        <= MAX_MANIFEST_LIFETIME_SECONDS
+    ):
+        raise DelegationError(
+            "delegation manifest template lifetime_seconds must be an integer "
+            f"from {MIN_MANIFEST_LIFETIME_SECONDS} through "
+            f"{MAX_MANIFEST_LIFETIME_SECONDS}"
+        )
+    authority = {
+        name: raw[name]
+        for name in (
+            "network",
+            "allowed",
+            "per_job_limits",
+            "budget",
+            "credit_budget",
+            "filesystem",
+            "lifecycle",
+        )
+        if name in raw
+    }
+    return DelegationManifestTemplate(
+        id_prefix=id_prefix,
+        issuer=_template_string(raw, "issuer"),
+        profile=_template_string(raw, "profile"),
+        lifetime_seconds=lifetime,
+        authority=authority,
+        source_path=selected,
+        digest=hashlib.sha256(payload).hexdigest(),
+    )
+
+
+def prepare_manifest_template(
+    template_path: Path,
+    manifest_path: Path,
+    *,
+    expected_profile: str,
+    parent_job_id: str,
+    now: datetime | None = None,
+) -> tuple[DelegationManifest, ManifestMaterialization, bytes]:
+    """Render and validate a template without publishing the output path."""
+    template = load_manifest_template(template_path)
+    selected_output = _materialized_manifest_path(manifest_path, require_exists=False)
+    if template.profile != expected_profile:
+        raise DelegationError(
+            "delegation manifest template profile does not match the selected profile"
+        )
+    instant = now or datetime.now(UTC)
+    if instant.tzinfo is None or instant.utcoffset() is None:
+        raise DelegationError("manifest materialization time must include a UTC offset")
+    issued = instant.astimezone(UTC).replace(microsecond=0)
+    expires = issued + timedelta(seconds=template.lifetime_seconds)
+    payload = _render_manifest_template(
+        template,
+        manifest_path=selected_output,
+        parent_job_id=parent_job_id,
+        issued_at=issued,
+        expires_at=expires,
+    )
+    manifest = _validate_materialized_payload(
+        payload,
+        source_path=selected_output,
+        expected_profile=expected_profile,
+        parent_job_id=parent_job_id,
+        now=issued,
+    )
+    evidence = ManifestMaterialization(
+        template_path=template.source_path,
+        template_sha256=template.digest,
+        template_version=MANIFEST_TEMPLATE_VERSION,
+        manifest_path=selected_output,
+        manifest_sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    return manifest, evidence, payload
+
+
+def materialize_manifest_template(
+    template_path: Path,
+    manifest_path: Path,
+    *,
+    expected_profile: str,
+    parent_job_id: str,
+    now: datetime | None = None,
+) -> tuple[DelegationManifest, ManifestMaterialization]:
+    """Atomically publish one validated manifest without replacing a file."""
+    manifest, evidence, payload = prepare_manifest_template(
+        template_path,
+        manifest_path,
+        expected_profile=expected_profile,
+        parent_job_id=parent_job_id,
+        now=now,
+    )
+    publish_materialized_manifest(evidence.manifest_path, payload)
+    return manifest, evidence
+
+
+def publish_materialized_manifest(path: Path, payload: bytes) -> None:
+    """Atomically publish prepared manifest bytes with mode 0600."""
+    _publish_private_file(path, payload)
+
+
+def verify_materialized_manifest(
+    template_path: Path,
+    manifest_path: Path,
+    *,
+    expected_profile: str,
+    parent_job_id: str,
+    now: datetime | None = None,
+) -> tuple[DelegationManifest, ManifestMaterialization]:
+    """Verify a requeued controller without regenerating its authority."""
+    template = load_manifest_template(template_path)
+    selected_output = _materialized_manifest_path(manifest_path, require_exists=True)
+    payload = _read_private_file(
+        selected_output,
+        "materialized delegation manifest",
+        limit=MAX_MANIFEST_TEMPLATE_BYTES,
+        exact_mode=True,
+    )
+    metadata = _materialization_metadata(payload)
+    expected_metadata = {
+        "format_version": MANIFEST_MATERIALIZATION_VERSION,
+        "manifest_output": str(selected_output),
+        "parent_job_id": parent_job_id,
+        "profile": expected_profile,
+        "template_sha256": template.digest,
+        "template_version": MANIFEST_TEMPLATE_VERSION,
+    }
+    if metadata != expected_metadata:
+        raise DelegationError(
+            "materialized delegation manifest does not match its template, "
+            "profile, parent job, or output path"
+        )
+    manifest = _validate_materialized_payload(
+        payload,
+        source_path=selected_output,
+        expected_profile=expected_profile,
+        parent_job_id=parent_job_id,
+        now=now or datetime.now(UTC),
+    )
+    issued_at = _parse_time(manifest.issued_at)
+    expected_payload = _render_manifest_template(
+        template,
+        manifest_path=selected_output,
+        parent_job_id=parent_job_id,
+        issued_at=issued_at,
+        expires_at=issued_at + timedelta(seconds=template.lifetime_seconds),
+    )
+    if payload != expected_payload:
+        raise DelegationError(
+            "materialized delegation manifest differs from its canonical template"
+        )
+    evidence = ManifestMaterialization(
+        template_path=template.source_path,
+        template_sha256=template.digest,
+        template_version=MANIFEST_TEMPLATE_VERSION,
+        manifest_path=selected_output,
+        manifest_sha256=manifest.digest,
+    )
+    return manifest, evidence
 
 
 def load_manifest(
@@ -857,6 +1122,7 @@ class DelegationLedger:
         provenance_path: str,
         event_log: str,
         diagnostic_log: str,
+        manifest_materialization: dict[str, Any] | None = None,
     ) -> None:
         """Record protected provenance and log paths for one controller attempt."""
         with self._transaction() as db:
@@ -878,6 +1144,7 @@ class DelegationLedger:
                     "provenance_path": provenance_path,
                     "event_log": event_log,
                     "diagnostic_log": diagnostic_log,
+                    "manifest_materialization": manifest_materialization,
                 },
             )
 
@@ -2260,6 +2527,300 @@ def _string(data: dict[str, Any], key: str) -> str:
     value = data.get(key)
     if not isinstance(value, str) or not value:
         raise DelegationError(f"delegation field {key!r} must be a non-empty string")
+    return value
+
+
+def _template_string(data: dict[str, Any], key: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise DelegationError(
+            f"delegation manifest template field {key!r} must be a non-empty string"
+        )
+    return value
+
+
+def _render_manifest_template(
+    template: DelegationManifestTemplate,
+    *,
+    manifest_path: Path,
+    parent_job_id: str,
+    issued_at: datetime,
+    expires_at: datetime,
+) -> bytes:
+    identifier = template.identifier(parent_job_id)
+    document: dict[str, Any] = {
+        "format_version": MANIFEST_VERSION,
+        "id": identifier,
+        "issuer": template.issuer,
+        "profile": template.profile,
+        "parent_job_id": parent_job_id,
+        "issued_at": _canonical_time(issued_at),
+        "expires_at": _canonical_time(expires_at),
+    }
+    for name in (
+        "network",
+        "allowed",
+        "per_job_limits",
+        "budget",
+        "credit_budget",
+        "filesystem",
+        "lifecycle",
+    ):
+        if name in template.authority:
+            document[name] = _canonical_toml_value(template.authority[name])
+    metadata = {
+        "format_version": MANIFEST_MATERIALIZATION_VERSION,
+        "manifest_output": str(manifest_path),
+        "parent_job_id": parent_job_id,
+        "profile": template.profile,
+        "template_sha256": template.digest,
+        "template_version": MANIFEST_TEMPLATE_VERSION,
+    }
+    header = MATERIALIZATION_HEADER + json.dumps(
+        metadata, separators=(",", ":"), sort_keys=True
+    )
+    body = tomlkit.dumps(document)
+    if not body.endswith("\n"):
+        body += "\n"
+    return (header + "\n" + body).encode("utf-8")
+
+
+def _canonical_toml_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _canonical_toml_value(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_canonical_toml_value(item) for item in value]
+    return value
+
+
+def _validate_materialized_payload(
+    payload: bytes,
+    *,
+    source_path: Path,
+    expected_profile: str,
+    parent_job_id: str,
+    now: datetime,
+) -> DelegationManifest:
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{source_path.name}.",
+            suffix=".validate",
+            dir=source_path.parent,
+        )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        parsed = load_manifest(
+            temporary,
+            expected_profile=expected_profile,
+            expected_parent_job_id=parent_job_id,
+            now=now,
+        )
+        return replace(
+            parsed,
+            source_path=source_path,
+            digest=hashlib.sha256(payload).hexdigest(),
+        )
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def _private_template_path(path: Path) -> Path:
+    selected = _literal_absolute_path(path, "delegation manifest template")
+    _reject_symlink_components(selected, "delegation manifest template", leaf=True)
+    try:
+        info = selected.stat()
+    except FileNotFoundError as error:
+        raise DelegationError(
+            f"delegation manifest template is not a regular file: {selected}"
+        ) from error
+    if not stat.S_ISREG(info.st_mode):
+        raise DelegationError(
+            f"delegation manifest template is not a regular file: {selected}"
+        )
+    if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) & 0o077:
+        raise DelegationError(
+            "delegation manifest template must be owned by this user with mode 0600"
+        )
+    return selected
+
+
+def _read_private_file(
+    path: Path,
+    label: str,
+    *,
+    limit: int,
+    exact_mode: bool,
+) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise DelegationError(f"unable to read {label} {path}: {error}") from error
+    try:
+        info = os.fstat(descriptor)
+        mode = stat.S_IMODE(info.st_mode)
+        invalid_mode = mode != 0o600 if exact_mode else bool(mode & 0o077)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or invalid_mode:
+            requirement = "mode 0600" if exact_mode else "no group or world access"
+            raise DelegationError(
+                f"{label} must be an owner-controlled regular file with {requirement}"
+            )
+        if info.st_size > limit:
+            raise DelegationError(f"{label} exceeds {limit} bytes")
+        chunks: list[bytes] = []
+        remaining = limit + 1
+        while remaining:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+        if len(payload) > limit:
+            raise DelegationError(f"{label} exceeds {limit} bytes")
+        return payload
+    finally:
+        os.close(descriptor)
+
+
+def _materialized_manifest_path(path: Path, *, require_exists: bool) -> Path:
+    selected = _literal_absolute_path(path, "materialized delegation manifest")
+    _reject_symlink_components(
+        selected,
+        "materialized delegation manifest",
+        leaf=require_exists,
+    )
+    try:
+        parent = selected.parent.stat()
+    except FileNotFoundError as error:
+        raise DelegationError(
+            f"materialized delegation manifest parent does not exist: {selected.parent}"
+        ) from error
+    if not stat.S_ISDIR(parent.st_mode):
+        raise DelegationError(
+            f"materialized delegation manifest parent is not a directory: {selected.parent}"
+        )
+    if parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) & 0o077:
+        raise DelegationError(
+            "materialized delegation manifest parent must be owned by this user "
+            "with no group or world access"
+        )
+    if require_exists:
+        try:
+            info = selected.stat()
+        except FileNotFoundError as error:
+            raise DelegationError(
+                f"materialized delegation manifest is missing after requeue: {selected}"
+            ) from error
+        if not stat.S_ISREG(info.st_mode):
+            raise DelegationError(
+                f"materialized delegation manifest is not a regular file: {selected}"
+            )
+        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+            raise DelegationError(
+                "materialized delegation manifest must be owned by this user "
+                "with mode 0600"
+            )
+    elif selected.exists() or selected.is_symlink():
+        raise DelegationError(
+            f"materialized delegation manifest already exists: {selected}"
+        )
+    return selected
+
+
+def _literal_absolute_path(path: Path, label: str) -> Path:
+    selected = path.expanduser()
+    if not selected.is_absolute() or ".." in selected.parts:
+        raise DelegationError(f"{label} must be an absolute normalized path")
+    return selected
+
+
+def _reject_symlink_components(path: Path, label: str, *, leaf: bool) -> None:
+    current = Path(path.anchor)
+    parts = path.parts[1:] if leaf else path.parts[1:-1]
+    for part in parts:
+        current /= part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            continue
+        if stat.S_ISLNK(info.st_mode):
+            raise DelegationError(f"{label} must not traverse symlinks: {current}")
+
+
+def _publish_private_file(path: Path, payload: bytes) -> None:
+    selected = _materialized_manifest_path(path, require_exists=False)
+    temporary: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{selected.name}.", suffix=".tmp", dir=selected.parent
+        )
+        temporary = Path(temporary_name)
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temporary, selected, follow_symlinks=False)
+        except FileExistsError as error:
+            raise DelegationError(
+                f"materialized delegation manifest already exists: {selected}"
+            ) from error
+        temporary.unlink()
+        temporary = None
+        directory = os.open(
+            selected.parent,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0),
+        )
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except DelegationError:
+        raise
+    except OSError as error:
+        raise DelegationError(
+            f"unable to materialize delegation manifest {selected}: {error}"
+        ) from error
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
+
+
+def _materialization_metadata(payload: bytes) -> dict[str, Any]:
+    try:
+        first_line = payload.decode("utf-8").splitlines()[0]
+    except (UnicodeDecodeError, IndexError) as error:
+        raise DelegationError(
+            "materialized delegation manifest has no valid materialization record"
+        ) from error
+    if not first_line.startswith(MATERIALIZATION_HEADER):
+        raise DelegationError(
+            "materialized delegation manifest has no materialization record"
+        )
+    try:
+        value = json.loads(first_line.removeprefix(MATERIALIZATION_HEADER))
+    except json.JSONDecodeError as error:
+        raise DelegationError(
+            "materialized delegation manifest has an invalid materialization record"
+        ) from error
+    if not isinstance(value, dict):
+        raise DelegationError(
+            "materialized delegation manifest has an invalid materialization record"
+        )
     return value
 
 

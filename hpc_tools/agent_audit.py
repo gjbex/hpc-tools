@@ -15,7 +15,7 @@ from urllib.parse import quote
 from hpc_tools import delegation, submissions
 from hpc_tools.config import ConfigError
 
-REPORT_FORMAT_VERSION = 3
+REPORT_FORMAT_VERSION = 4
 
 
 def build_report(
@@ -107,6 +107,16 @@ def format_report(report: dict[str, Any]) -> str:
                 f"restart={attempt['restart_count']} "
                 f"artifacts={artifact.get('artifact_directory', '-')}"
             )
+            materialization = artifact.get("manifest_materialization")
+            if isinstance(materialization, dict):
+                template = materialization.get("template")
+                manifest = materialization.get("manifest")
+                if isinstance(template, dict) and isinstance(manifest, dict):
+                    lines.append(
+                        "      manifest_template_sha256="
+                        f"{template.get('sha256', '-')} "
+                        f"manifest_sha256={manifest.get('sha256', '-')}"
+                    )
         if not item["controller_attempts"]:
             lines.append("    -")
         lines.append("  submissions:")

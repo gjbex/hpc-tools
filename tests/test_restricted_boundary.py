@@ -16,6 +16,7 @@ import time
 import tomllib
 import unittest
 from dataclasses import replace
+from datetime import datetime, timezone
 from importlib import resources
 from pathlib import Path
 from unittest import mock
@@ -142,6 +143,49 @@ class RestrictedBoundaryTests(unittest.TestCase):
             ),
         )
 
+    def _manifest_template(self, root: Path, paths: dict[str, Path]) -> Path:
+        template = root / "delegation-template.toml"
+        template.write_text(
+            textwrap.dedent(
+                f"""
+                template_version = 1
+                id_prefix = "delegate"
+                issuer = "operator"
+                profile = "cluster"
+                lifetime_seconds = 3600
+
+                [network]
+                mode = "model-only"
+
+                [allowed]
+                accounts = ["project"]
+                clusters = ["alpha"]
+                partitions = ["batch"]
+                qos = []
+                reservations = []
+                containers = ["{paths['container']}"]
+                script_sha256 = []
+                roots = ["{paths['work']}"]
+
+                [filesystem]
+                state_root = "{paths['state']}"
+                work_root = "{paths['work']}"
+                output_root = "{paths['output']}"
+                input_roots = ["{paths['input']}"]
+                apptainer_path = "{paths['apptainer']}"
+                max_file_blocks = 1024
+                max_open_files = 128
+
+                [budget]
+                max_submissions = 2
+                """
+            ).strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        template.chmod(0o600)
+        return template
+
     def test_packaged_codex_agent_is_pinned_ephemeral_and_relay_only(self) -> None:
         assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
         definition = assets.joinpath("Apptainer.def").read_text(encoding="utf-8")
@@ -236,6 +280,9 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn("#SBATCH --requeue", template)
         self.assertIn("#SBATCH --signal=B:USR1@600", template)
         self.assertIn("#SBATCH --open-mode=append", template)
+        self.assertIn('--manifest-template "$manifest_template"', template)
+        self.assertIn('--manifest-output "$manifest_output"', template)
+        self.assertIn('delegation-${SLURM_JOB_ID}.toml', template)
         self.assertIn('--prompt-file "$prompt_file"', template)
         self.assertNotIn('< "$prompt_file"', template)
         self.assertIn("trap forward_requeue USR1", template)
@@ -473,12 +520,212 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     ["codex-agent", "-c", 'web_search="live"', "-"]
                 )
 
+    def test_template_selection_previews_first_generation_and_verifies_requeue(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, paths = self._fixture(root)
+            template = self._manifest_template(root, paths)
+            output = root / "materialized.toml"
+            now = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
+
+            with mock.patch.dict(
+                os.environ,
+                {delegation.CONTROLLER_RESTART_ENV_VAR: "0"},
+                clear=False,
+            ):
+                manifest, evidence, payload = restricted_launch._select_manifest(
+                    manifest_path=None,
+                    manifest_template_path=template,
+                    manifest_output_path=output,
+                    profile="cluster",
+                    parent_job_id="9001",
+                    dry_run=False,
+                    now=now,
+                )
+            self.assertEqual("delegate-9001", manifest.identifier)
+            self.assertIsNotNone(evidence)
+            self.assertIsNotNone(payload)
+            self.assertFalse(output.exists())
+            delegation.publish_materialized_manifest(output, payload)
+
+            with mock.patch.dict(
+                os.environ,
+                {delegation.CONTROLLER_RESTART_ENV_VAR: "1"},
+                clear=False,
+            ):
+                requeued, requeue_evidence, pending = (
+                    restricted_launch._select_manifest(
+                        manifest_path=None,
+                        manifest_template_path=template,
+                        manifest_output_path=output,
+                        profile="cluster",
+                        parent_job_id="9001",
+                        dry_run=False,
+                        now=datetime(2026, 10, 27, 12, 30, tzinfo=timezone.utc),
+                    )
+                )
+            self.assertEqual(manifest.digest, requeued.digest)
+            self.assertEqual(evidence.template_sha256, requeue_evidence.template_sha256)
+            self.assertIsNone(pending)
+
+    def test_template_mismatch_and_expiry_precede_ledger_or_runtime_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, paths = self._fixture(root)
+            template = self._manifest_template(root, paths)
+            output = root / "materialized.toml"
+            delegation.materialize_manifest_template(
+                template,
+                output,
+                expected_profile="cluster",
+                parent_job_id="9001",
+                now=datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc),
+            )
+            ledger_path = root / "new-ledger.sqlite3"
+            launch_kwargs = {
+                "manifest_path": None,
+                "manifest_template_path": template,
+                "manifest_output_path": output,
+                "ledger_path": ledger_path,
+                "profile": "cluster",
+                "agent_image": paths["container"],
+                "agent_command": ["codex-agent", "-"],
+                "runtime_base": root,
+                "config_path": paths["config"],
+            }
+
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "max_submissions = 2", "max_submissions = 3"
+                ),
+                encoding="utf-8",
+            )
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "SLURM_JOB_ID": "9001",
+                        delegation.CONTROLLER_RESTART_ENV_VAR: "1",
+                    },
+                    clear=False,
+                ),
+                mock.patch.object(delegation.DelegationLedger, "register") as register,
+                mock.patch("hpc_tools.restricted_launch.subprocess.Popen") as popen,
+                self.assertRaisesRegex(ConfigError, "does not match"),
+            ):
+                restricted_launch.launch(**launch_kwargs)
+            register.assert_not_called()
+            popen.assert_not_called()
+            self.assertFalse(ledger_path.exists())
+
+            template.write_text(
+                template.read_text(encoding="utf-8").replace(
+                    "max_submissions = 3", "max_submissions = 2"
+                ),
+                encoding="utf-8",
+            )
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "SLURM_JOB_ID": "9001",
+                        delegation.CONTROLLER_RESTART_ENV_VAR: "1",
+                    },
+                    clear=False,
+                ),
+                mock.patch.object(delegation.DelegationLedger, "register") as register,
+                mock.patch("hpc_tools.restricted_launch.subprocess.Popen") as popen,
+                self.assertRaisesRegex(ConfigError, "expired"),
+            ):
+                restricted_launch.launch(
+                    **launch_kwargs,
+                    now=datetime(2026, 10, 27, 13, 0, 1, tzinfo=timezone.utc),
+                )
+            register.assert_not_called()
+            popen.assert_not_called()
+            self.assertFalse(ledger_path.exists())
+
+    def test_template_and_output_paths_cannot_overlap_container_binds(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, paths = self._fixture(root)
+            template = self._manifest_template(root, paths)
+            output = paths["work"] / "materialized.toml"
+            ledger_path = root / "new-ledger.sqlite3"
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "SLURM_JOB_ID": "9001",
+                        delegation.CONTROLLER_RESTART_ENV_VAR: "0",
+                    },
+                    clear=False,
+                ),
+                self.assertRaisesRegex(ConfigError, "overlaps container bind"),
+            ):
+                restricted_launch.launch(
+                    manifest_path=None,
+                    manifest_template_path=template,
+                    manifest_output_path=output,
+                    ledger_path=ledger_path,
+                    profile="cluster",
+                    agent_image=paths["container"],
+                    agent_command=["codex-agent", "-"],
+                    runtime_base=root,
+                    config_path=paths["config"],
+                    dry_run=True,
+                    now=datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc),
+                )
+            self.assertFalse(output.exists())
+            self.assertFalse(ledger_path.exists())
+
+            exposed_template = paths["work"] / "delegation-template.toml"
+            exposed_template.write_bytes(template.read_bytes())
+            exposed_template.chmod(0o600)
+            safe_output = root / "materialized.toml"
+            with (
+                mock.patch.dict(
+                    os.environ,
+                    {
+                        "SLURM_JOB_ID": "9001",
+                        delegation.CONTROLLER_RESTART_ENV_VAR: "0",
+                    },
+                    clear=False,
+                ),
+                self.assertRaisesRegex(ConfigError, "overlaps container bind"),
+            ):
+                restricted_launch.launch(
+                    manifest_path=None,
+                    manifest_template_path=exposed_template,
+                    manifest_output_path=safe_output,
+                    ledger_path=ledger_path,
+                    profile="cluster",
+                    agent_image=paths["container"],
+                    agent_command=["codex-agent", "-"],
+                    runtime_base=root,
+                    config_path=paths["config"],
+                    dry_run=True,
+                    now=datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc),
+                )
+            self.assertFalse(safe_output.exists())
+            self.assertFalse(ledger_path.exists())
+
     def test_parent_attempt_artifacts_snapshot_prompt_and_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime, paths = self._fixture(Path(directory))
             prompt = Path(directory) / "task.md"
             prompt.write_text("bounded objective\n", encoding="utf-8")
             prompt.chmod(0o600)
+            template = Path(directory) / "delegation-template.toml"
+            template.write_text("template_version = 1\n", encoding="utf-8")
+            template.chmod(0o600)
+            materialization = delegation.ManifestMaterialization(
+                template_path=template,
+                template_sha256="a" * 64,
+                template_version=1,
+                manifest_path=runtime.manifest.source_path,
+                manifest_sha256=runtime.manifest.digest,
+            )
             with (
                 mock.patch(
                     "hpc_tools.restricted_launch._read_image_text",
@@ -501,11 +748,12 @@ class RestrictedBoundaryTests(unittest.TestCase):
                         supplied=True,
                         sha256="b" * 64,
                     ),
+                    manifest_materialization=materialization,
                 )
 
             self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
             provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
-            self.assertEqual(3, provenance["format_version"])
+            self.assertEqual(4, provenance["format_version"])
             self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
             self.assertEqual("abc", provenance["work_source"]["commit"])
             self.assertEqual(
@@ -528,6 +776,10 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     "environment": {"supplied": True, "sha256": "b" * 64},
                 },
                 provenance["network"],
+            )
+            self.assertEqual(
+                materialization.public_summary(),
+                provenance["manifest"]["materialization"],
             )
             self.assertEqual(
                 [

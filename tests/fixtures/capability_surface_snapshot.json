@@ -4105,7 +4105,29 @@
             "options": [
               "--manifest"
             ],
-            "required": true,
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "manifest_template",
+            "nargs": null,
+            "options": [
+              "--manifest-template"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
+            "dest": "manifest_output",
+            "nargs": null,
+            "options": [
+              "--manifest-output"
+            ],
+            "required": false,
             "type": "Path"
           },
           {

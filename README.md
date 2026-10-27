@@ -281,6 +281,9 @@ registers a dependent cleanup job that cancels only ledger-owned jobs after a
 final parent termination; the restricted agent cannot invoke either control
 path. See the
 [restricted-agent deployment guide](docs/restricted-agent.md).
+The normal batch path takes a private operator-reviewed manifest template and
+atomically materializes a manifest bound to `SLURM_JOB_ID`; a requeue verifies
+and reuses those exact bytes rather than refreshing timestamps or authority.
 Initial launch requires profile C3. The launcher records an immutable
 controller-authority ceiling; restarted servers intersect it with the current
 profile for new work, while host-only requeue and cleanup retain the captured

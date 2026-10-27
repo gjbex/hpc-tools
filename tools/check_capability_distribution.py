@@ -174,6 +174,7 @@ def _check_archive_contract(wheel: Path, sdist: Path) -> None:
         "hpc_tools/data/containers/agent/codex-config-model-only.toml",
         "hpc_tools/data/containers/agent/codex-config-model-indexed-search.toml",
         "hpc_tools/data/containers/agent/codex-config-model-live-search.toml",
+        "hpc_tools/data/containers/agent/delegation-template.toml",
     )
     for required in (image_skill, image_reference, *image_runtime_assets):
         if required not in wheel_names:

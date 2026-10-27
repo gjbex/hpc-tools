@@ -2,7 +2,7 @@
   "purpose": "Synchronized delegated-credit work-package state; this is a change detector, not a compatibility promise.",
   "current": {
     "array_submission_count_unit": "logical-submission",
-    "audit_report_format_version": 3,
+    "audit_report_format_version": 4,
     "credit_budget_manifest_supported": true,
     "controller_generation_bound_to_evidence": true,
     "delegation_columns": [
@@ -20,6 +20,7 @@
     ],
     "ledger_schema_version": 5,
     "manifest_version": 4,
+    "manifest_template_version": 1,
     "network_modes": [
       "model-only",
       "model-indexed-search",

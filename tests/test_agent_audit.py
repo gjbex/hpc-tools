@@ -101,6 +101,18 @@ class AgentAuditTests(unittest.TestCase):
                 provenance_path=str(provenance),
                 event_log=str(event_log),
                 diagnostic_log=str(diagnostic_log),
+                manifest_materialization={
+                    "mode": "template",
+                    "template": {
+                        "source_path": str(root / "delegation-template.toml"),
+                        "format_version": 1,
+                        "sha256": "a" * 64,
+                    },
+                    "manifest": {
+                        "source_path": str(manifest.source_path),
+                        "sha256": manifest.digest,
+                    },
+                },
             )
             shape = {
                 "profile": "cluster",
@@ -149,7 +161,7 @@ class AgentAuditTests(unittest.TestCase):
 
             self.assertEqual(1, len(report["delegations"]))
             item = report["delegations"][0]
-            self.assertEqual(3, report["format_version"])
+            self.assertEqual(4, report["format_version"])
             self.assertEqual("model-only", item["network_mode"])
             self.assertEqual(
                 {
@@ -163,6 +175,11 @@ class AgentAuditTests(unittest.TestCase):
                 str(artifacts),
                 item["controller_attempts"][0]["artifacts"]["artifact_directory"],
             )
+            materialization = item["controller_attempts"][0]["artifacts"][
+                "manifest_materialization"
+            ]
+            self.assertEqual("a" * 64, materialization["template"]["sha256"])
+            self.assertEqual(manifest.digest, materialization["manifest"]["sha256"])
             operation = item["submission_operations"][0]
             self.assertEqual(str(output), operation["output_directory"])
             self.assertEqual(
@@ -172,6 +189,10 @@ class AgentAuditTests(unittest.TestCase):
             self.assertIn("audit_events:", agent_audit.format_report(report))
             self.assertIn(
                 "network_mode: model-only", agent_audit.format_report(report)
+            )
+            self.assertIn(
+                f"manifest_template_sha256={'a' * 64}",
+                agent_audit.format_report(report),
             )
             self.assertEqual(
                 "model-only",
@@ -229,7 +250,7 @@ class AgentAuditTests(unittest.TestCase):
                 submissions_database=root / "missing-submissions.sqlite3",
             )
 
-            self.assertEqual(3, report["format_version"])
+            self.assertEqual(4, report["format_version"])
             item = report["delegations"][0]
             self.assertEqual(
                 {"value": 3000, "scale": 0, "unit": "credits"},

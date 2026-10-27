@@ -127,7 +127,9 @@ def build_apptainer_command(
 
 def launch(
     *,
-    manifest_path: Path,
+    manifest_path: Path | None = None,
+    manifest_template_path: Path | None = None,
+    manifest_output_path: Path | None = None,
     ledger_path: Path,
     profile: str,
     agent_image: Path,
@@ -138,14 +140,19 @@ def launch(
     prompt_file: Path | None = None,
     config_path: Path | None = None,
     dry_run: bool = False,
+    now: datetime | None = None,
 ) -> int:
     parent_job_id = os.environ.get("SLURM_JOB_ID")
     if not parent_job_id:
         raise ConfigError("hpc-agent-launch must run inside a Slurm allocation")
-    manifest = delegation.load_manifest(
-        manifest_path,
-        expected_profile=profile,
-        expected_parent_job_id=parent_job_id,
+    manifest, materialization, pending_manifest_payload = _select_manifest(
+        manifest_path=manifest_path,
+        manifest_template_path=manifest_template_path,
+        manifest_output_path=manifest_output_path,
+        profile=profile,
+        parent_job_id=parent_job_id,
+        dry_run=dry_run,
+        now=now,
     )
     selected_config_path = (
         config_path if config_path is not None else default_config_path()
@@ -161,33 +168,20 @@ def launch(
     )
     config_sha256 = hashlib.sha256(selected_config_path.read_bytes()).hexdigest()
     ledger_path = _absolute_literal(ledger_path, "ledger")
-    ledger = delegation.DelegationLedger(ledger_path)
-    authority = None
-    if dry_run:
-        delegation.require_controller_authority(
-            selected_profile.capabilities,
-            operation="agent.controller.start",
-        )
-    else:
-        ledger.register(manifest)
-        authority = ledger.controller_authority_or_none(manifest)
-        if authority is None:
-            authority = ledger.capture_controller_authority(
-                manifest,
-                policy=selected_profile.capabilities,
-                config_path=selected_config_path,
-                config_sha256=config_sha256,
-                quote_format=selected_profile.sam_quote_format,
-            )
-        delegation.require_controller_authority(
-            authority.policy,
-            operation="agent.controller.continue",
-        )
     policy = _require_policy(manifest)
     _prepare_policy_paths(policy)
-    _ensure_private_file(manifest.source_path, "delegation manifest")
+    if pending_manifest_payload is None:
+        _ensure_private_file(manifest.source_path, "delegation manifest")
+    manifest_private_paths = [manifest.source_path]
+    if materialization is not None:
+        manifest_private_paths.append(materialization.template_path)
     _ensure_not_exposed(
-        (manifest.source_path, ledger_path, selected_config_path, policy.state_root),
+        (
+            *manifest_private_paths,
+            ledger_path,
+            selected_config_path,
+            policy.state_root,
+        ),
         (policy.work_root, policy.output_root, *policy.input_roots),
     )
     selected_credential_file = None
@@ -233,6 +227,35 @@ def launch(
     selected_runtime_base = _secure_directory(
         selected_runtime_base, "runtime base", private=True
     )
+    if pending_manifest_payload is not None and not dry_run:
+        assert materialization is not None
+        delegation.publish_materialized_manifest(
+            materialization.manifest_path,
+            pending_manifest_payload,
+        )
+        _ensure_private_file(materialization.manifest_path, "delegation manifest")
+    ledger = delegation.DelegationLedger(ledger_path)
+    authority = None
+    if dry_run:
+        delegation.require_controller_authority(
+            selected_profile.capabilities,
+            operation="agent.controller.start",
+        )
+    else:
+        ledger.register(manifest)
+        authority = ledger.controller_authority_or_none(manifest)
+        if authority is None:
+            authority = ledger.capture_controller_authority(
+                manifest,
+                policy=selected_profile.capabilities,
+                config_path=selected_config_path,
+                config_sha256=config_sha256,
+                quote_format=selected_profile.sam_quote_format,
+            )
+        delegation.require_controller_authority(
+            authority.policy,
+            operation="agent.controller.continue",
+        )
     with tempfile.TemporaryDirectory(
         prefix=f"hpc-tools-{parent_job_id}-", dir=selected_runtime_base
     ) as temporary:
@@ -294,6 +317,7 @@ def launch(
                 agent_command=agent_command,
                 controller_authority=authority,
                 network_environment=network_environment,
+                manifest_materialization=materialization,
             )
             ledger.record_controller_artifacts(
                 manifest,
@@ -302,6 +326,11 @@ def launch(
                 provenance_path=str(artifacts.provenance_path),
                 event_log=str(artifacts.event_log),
                 diagnostic_log=str(artifacts.diagnostic_log),
+                manifest_materialization=(
+                    materialization.public_summary()
+                    if materialization is not None
+                    else None
+                ),
             )
             _ensure_cleanup_job(
                 manifest=manifest,
@@ -472,6 +501,60 @@ def launch(
                 signal.signal(signum, handler)
             if bridge.poll() is None:
                 _terminate_process(bridge, timeout=5)
+
+
+def _select_manifest(
+    *,
+    manifest_path: Path | None,
+    manifest_template_path: Path | None,
+    manifest_output_path: Path | None,
+    profile: str,
+    parent_job_id: str,
+    dry_run: bool,
+    now: datetime | None,
+) -> tuple[
+    delegation.DelegationManifest,
+    delegation.ManifestMaterialization | None,
+    bytes | None,
+]:
+    if manifest_path is not None and manifest_template_path is not None:
+        raise ConfigError("--manifest and --manifest-template are mutually exclusive")
+    if manifest_path is None and manifest_template_path is None:
+        raise ConfigError("either --manifest or --manifest-template is required")
+    if manifest_template_path is None:
+        if manifest_output_path is not None:
+            raise ConfigError("--manifest-output requires --manifest-template")
+        assert manifest_path is not None
+        return (
+            delegation.load_manifest(
+                manifest_path,
+                expected_profile=profile,
+                expected_parent_job_id=parent_job_id,
+                now=now,
+            ),
+            None,
+            None,
+        )
+    if manifest_output_path is None:
+        raise ConfigError("--manifest-template requires --manifest-output")
+    restart_count = _controller_restart_count()
+    if restart_count:
+        manifest, evidence = delegation.verify_materialized_manifest(
+            manifest_template_path,
+            manifest_output_path,
+            expected_profile=profile,
+            parent_job_id=parent_job_id,
+            now=now,
+        )
+        return manifest, evidence, None
+    manifest, evidence, payload = delegation.prepare_manifest_template(
+        manifest_template_path,
+        manifest_output_path,
+        expected_profile=profile,
+        parent_job_id=parent_job_id,
+        now=now,
+    )
+    return manifest, evidence, payload
 
 
 def _controller_restart_count() -> int:
@@ -739,6 +822,7 @@ def _prepare_agent_artifacts(
     agent_command: list[str],
     controller_authority: delegation.ControllerAuthority,
     network_environment: NetworkEnvironmentEvidence | None = None,
+    manifest_materialization: delegation.ManifestMaterialization | None = None,
 ) -> AgentArtifacts:
     attempts_root = policy.state_root / "agent-attempts"
     _mkdir_private(attempts_root, "agent attempt root")
@@ -790,7 +874,7 @@ def _prepare_agent_artifacts(
     _write_private_bytes(diagnostic_log, b"")
     provenance_path = attempt_directory / "provenance.json"
     provenance = {
-        "format_version": 3,
+        "format_version": 4,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "delegation_id": manifest.identifier,
         "controller_generation": generation,
@@ -818,6 +902,11 @@ def _prepare_agent_artifacts(
             "source_path": str(manifest.source_path),
             "snapshot_path": str(manifest_snapshot),
             "sha256": hashlib.sha256(manifest_contents).hexdigest(),
+            "materialization": (
+                manifest_materialization.public_summary()
+                if manifest_materialization is not None
+                else {"mode": "pre-materialized", "template": None}
+            ),
         },
         "agent_image": {
             "path": str(agent_image),
@@ -1174,7 +1263,14 @@ def _reject_existing_symlinks(path: Path, label: str, *, require_leaf: bool) -> 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hpc-agent-launch")
-    parser.add_argument("--manifest", type=Path, required=True)
+    manifest_group = parser.add_mutually_exclusive_group(required=True)
+    manifest_group.add_argument("--manifest", type=Path)
+    manifest_group.add_argument("--manifest-template", type=Path)
+    parser.add_argument(
+        "--manifest-output",
+        type=Path,
+        help="private mode-0600 output used with --manifest-template",
+    )
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--config", type=Path)
@@ -1212,6 +1308,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return launch(
             manifest_path=args.manifest,
+            manifest_template_path=args.manifest_template,
+            manifest_output_path=args.manifest_output,
             ledger_path=args.ledger,
             profile=args.profile,
             agent_image=args.agent_image,

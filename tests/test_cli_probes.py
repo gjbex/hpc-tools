@@ -194,6 +194,9 @@ class CliCoreTests(unittest.TestCase):
                 )
             }
             task = (output / "task.md").read_text(encoding="utf-8")
+            delegation_template = (output / "delegation-template.toml").read_text(
+                encoding="utf-8"
+            )
             slurm = (output / "restricted-agent.slurm").read_text(encoding="utf-8")
             skill = (
                 output / "skills" / "hpc-delegated-slurm" / "SKILL.md"
@@ -219,6 +222,9 @@ class CliCoreTests(unittest.TestCase):
                 self.assertIn("required = true", config)
                 self.assertIn("network_access = false", config)
             self.assertIn("Use $hpc-delegated-slurm", task)
+            self.assertIn("template_version = 1", delegation_template)
+            self.assertNotIn("parent_job_id", delegation_template)
+            self.assertNotIn("delegation-template.toml", definition)
             self.assertIn("name: hpc-delegated-slurm", skill)
             self.assertEqual(
                 ["hpc-delegated-slurm"],
@@ -235,6 +241,8 @@ class CliCoreTests(unittest.TestCase):
             )
             self.assertIn("--agent-env-file", slurm)
             self.assertIn("--network-env-file", slurm)
+            self.assertIn("--manifest-template", slurm)
+            self.assertIn("--manifest-output", slurm)
             self.assertIn("-- codex-agent -", slurm)
             self.assertFalse((output / "mcp.json").exists())
 

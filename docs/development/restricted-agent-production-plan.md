@@ -1,6 +1,6 @@
 # Restricted-agent production implementation plan
 
-Status: WP1--WP2 completed locally on 2026-10-27; WP3--WP6 remain incomplete.
+Status: WP1--WP3 completed locally on 2026-10-27; WP4--WP6 remain incomplete.
 
 This plan closes the remaining gap between the implemented restricted-agent
 boundary and a production-qualified Codex harness running in an Apptainer
@@ -292,6 +292,16 @@ Tests:
 Exit criteria: an operator can submit the parent script through the existing
 validated Slurm workflow without knowing its job ID in advance, and requeue
 cannot refresh or widen the original delegation.
+
+Implementation record (2026-10-27): version-1 private templates now carry all
+static authority plus a bounded lifetime and identifier prefix. The launcher
+prepares and validates canonical bytes, rejects bind overlap, and atomically
+publishes a mode-0600 job-bound manifest before ledger creation. Requeues
+require the existing output and reproduce it byte-for-byte from the unchanged
+template and original issue time; mismatches and expiry fail before ledger,
+bridge, container, or scheduler effects. Attempt provenance and operator audit
+artifacts record both template and final-manifest hashes. The pre-materialized
+advanced-operator mode remains available.
 
 ## WP4: Reproducible image identity and build workflow
 

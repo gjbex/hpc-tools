@@ -45,7 +45,9 @@ delegated computation containers.
 The packaged `agent` container bundle is a runnable Codex CLI image. It contains
 the pinned `@openai/codex` package, Python for `hpc-mcp-relay`, a Codex-native
 MCP configuration, the image-only `hpc-delegated-slurm` skill, a reviewed task
-template, and a `codex-agent` batch wrapper. It contains no SSH, Slurm, or Munge
+template, an operator-side delegation template, and a `codex-agent` batch
+wrapper. The delegation template is emitted into the build bundle for the
+parent job but is not copied into the image. The image contains no SSH, Slurm, or Munge
 clients. It does not install the interactive hpc-tools skills for onboarding,
 deployment, package management, or live cluster administration. Definitions
 for other agents can be added as separate container kinds later; this recipe
@@ -197,24 +199,43 @@ parent; the host creates one subdirectory per logical request and gives a
 delegate container read/write access only to its own subdirectory.
 `input_roots` are read-only in both containers.
 
-The manifest and ledger must be mode `0600`. State, work, output, socket, and
-per-job directories are mode `0700`. Put the SQLite ledger on a filesystem with
-known-correct locking rather than assuming every cluster network filesystem is
-safe for SQLite.
+The delegation template, materialized manifest, and ledger must be mode `0600`.
+The launcher creates the materialized manifest with that mode. State, work,
+output, socket, materialized-manifest parent, and per-job directories are mode
+`0700`. Put the SQLite ledger on a filesystem with known-correct locking rather
+than assuming every cluster network filesystem is safe for SQLite.
 
 ## Configure count and quoted-credit budgets
 
-Start with
-`examples/delegations/restricted-agent-credit-minimal.toml`, or use the full
-example beside it when per-job, aggregate-resource, and lifecycle ceilings are
-needed. The parsed-object contract is
-`examples/delegations/delegation-manifest-v4.schema.json`. Replace every
-illustrative identity, timestamp, account, cluster, container, and path; then
-make the manifest private before launch:
+For the normal batch workflow, start with the generated
+`delegation-template.toml`. Replace every illustrative identity, account,
+cluster, container, and path, then make it private. The launcher supplies the
+exact Slurm parent job ID and UTC timestamps; the template therefore needs no
+pre-known job ID. `lifetime_seconds` must be between 60 seconds and 30 days.
+The generated identifier is `<id_prefix>-<SLURM_JOB_ID>`.
 
 ```console
-chmod 600 /protected/agent-001.toml
+chmod 600 /protected/delegation-template.toml
+install -d -m 700 /protected/materialized-manifests
 ```
+
+The launcher writes one canonical manifest atomically and refuses to overwrite
+an existing path. Its first comment records the exact template hash, selected
+profile, parent job ID, and output path without weakening the strict manifest
+schema. On a Slurm requeue, it does not regenerate timestamps or authority: it
+requires the existing manifest, verifies that record and the current template
+hash, reconstructs the expected bytes, and applies ordinary expiry checks
+before opening the ledger. A changed template, missing output, expired
+authority, or non-canonical manifest fails closed.
+`--dry-run` performs the same rendering, validation, and bind-overlap checks in
+a temporary file but does not publish the requested manifest output or create a
+ledger.
+
+For the advanced pre-materialized workflow, the existing examples remain
+available as `examples/delegations/restricted-agent-credit-minimal.toml` and
+the full example beside it. Their parsed-object contract is
+`examples/delegations/delegation-manifest-v4.schema.json`; pass those files with
+`--manifest` rather than the mutually exclusive template options.
 
 Configure the selected profile with a trusted site adapter:
 
@@ -284,7 +305,8 @@ essential invocation is:
 
 ```bash
 hpc-agent-launch \
-    --manifest /protected/agent-001.toml \
+    --manifest-template /protected/delegation-template.toml \
+    --manifest-output "/protected/materialized-manifests/delegation-${SLURM_JOB_ID}.toml" \
     --ledger /protected/delegations.sqlite3 \
     --config ~/.config/hpc-tools/config.toml \
     --profile example \
@@ -351,7 +373,10 @@ captured profile policy and configuration; the public network policy and only
 the presence and SHA-256 hash of any allowlisted network environment;
 the Codex and hpc-tools versions; the exact agent argv; and the Git commit and
 dirty flag for both hpc-tools and `work_root` when those directories are Git
-checkouts. Hashing the complete SIF is intentional evidence but can add startup
+checkouts. Template-based runs additionally record the template path, template
+format version, template SHA-256, materialized path, and final manifest SHA-256.
+The operator audit view repeats both hashes for every controller generation.
+Hashing the complete SIF is intentional evidence but can add startup
 I/O for a large image. A missing Git checkout or unavailable in-image metadata
 is recorded as `null`; it is not guessed.
 

@@ -16,7 +16,9 @@ umask 077
 : "${SLURM_JOB_ID:?This launcher must run in a Slurm allocation}"
 : "${SLURM_TMPDIR:?The site must provide a private per-job temporary directory}"
 
-manifest=/path/to/protected/delegation.toml
+manifest_template=/path/to/protected/delegation-template.toml
+manifest_directory=/path/to/protected/materialized-manifests
+manifest_output="${manifest_directory}/delegation-${SLURM_JOB_ID}.toml"
 ledger=/path/to/protected/delegations.sqlite3
 config=${HPC_TOOLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hpc-tools/config.toml}
 agent_image=/path/to/restricted-codex.sif
@@ -24,7 +26,9 @@ agent_env_file=/path/to/protected/codex.env
 network_env_file=  # Optional: /path/to/protected/network.env
 prompt_file=/path/to/reviewed-task.md
 
-# Both environment files must be mode 0600 and outside every bind root.
+# The template must be mode 0600; manifest_directory must already exist and be
+# private. The launcher creates manifest_output once and reuses it on requeue.
+# All of those paths and both environment files must be outside every bind root.
 # codex.env contains exactly one credential: OPENAI_API_KEY or CODEX_ACCESS_TOKEN.
 # network.env is optional and accepts only documented proxy and CA variables.
 # The reviewed prompt must also be mode 0600 and outside every bind root.
@@ -34,7 +38,8 @@ if [[ -n "$network_env_file" ]]; then
     network_env_args=(--network-env-file "$network_env_file")
 fi
 hpc-agent-launch \
-    --manifest "$manifest" \
+    --manifest-template "$manifest_template" \
+    --manifest-output "$manifest_output" \
     --ledger "$ledger" \
     --config "$config" \
     --profile example \

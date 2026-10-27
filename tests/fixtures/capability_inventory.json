@@ -1862,6 +1862,8 @@
       ],
       "selectors": [
         "manifest",
+        "manifest-template",
+        "manifest-output",
         "ledger",
         "profile",
         "agent-image",
