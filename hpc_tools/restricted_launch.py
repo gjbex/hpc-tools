@@ -133,6 +133,7 @@ def launch(
     ledger_path: Path,
     profile: str,
     agent_image: Path,
+    agent_image_sha256: str,
     agent_command: list[str],
     runtime_base: Path | None = None,
     agent_env_file: Path | None = None,
@@ -142,6 +143,10 @@ def launch(
     dry_run: bool = False,
     now: datetime | None = None,
 ) -> int:
+    expected_agent_image_sha256 = _validated_sha256(
+        agent_image_sha256,
+        "agent image SHA-256",
+    )
     parent_job_id = os.environ.get("SLURM_JOB_ID")
     if not parent_job_id:
         raise ConfigError("hpc-agent-launch must run inside a Slurm allocation")
@@ -219,6 +224,13 @@ def launch(
     image = _secure_file(agent_image, "agent image")
     if stat.S_IMODE(image.stat().st_mode) & 0o022:
         raise ConfigError("agent image must not be group- or world-writable")
+    verified_agent_image_sha256 = _sha256_file(image)
+    if verified_agent_image_sha256 != expected_agent_image_sha256:
+        raise ConfigError(
+            "agent image SHA-256 mismatch: "
+            f"expected {expected_agent_image_sha256}, "
+            f"got {verified_agent_image_sha256}"
+        )
     if not agent_command:
         raise ConfigError("an agent command is required after --")
     _validate_agent_command(agent_command)
@@ -314,6 +326,8 @@ def launch(
                 generation=int(controller["generation"]),
                 prompt_file=selected_prompt_file,
                 agent_image=image,
+                expected_agent_image_sha256=expected_agent_image_sha256,
+                verified_agent_image_sha256=verified_agent_image_sha256,
                 agent_command=agent_command,
                 controller_authority=authority,
                 network_environment=network_environment,
@@ -819,6 +833,8 @@ def _prepare_agent_artifacts(
     generation: int,
     prompt_file: Path | None,
     agent_image: Path,
+    expected_agent_image_sha256: str,
+    verified_agent_image_sha256: str,
     agent_command: list[str],
     controller_authority: delegation.ControllerAuthority,
     network_environment: NetworkEnvironmentEvidence | None = None,
@@ -874,7 +890,7 @@ def _prepare_agent_artifacts(
     _write_private_bytes(diagnostic_log, b"")
     provenance_path = attempt_directory / "provenance.json"
     provenance = {
-        "format_version": 4,
+        "format_version": 5,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "delegation_id": manifest.identifier,
         "controller_generation": generation,
@@ -910,7 +926,8 @@ def _prepare_agent_artifacts(
         },
         "agent_image": {
             "path": str(agent_image),
-            "sha256": _sha256_file(agent_image),
+            "expected_sha256": expected_agent_image_sha256,
+            "sha256": verified_agent_image_sha256,
         },
         "codex": {
             "version": codex_version,
@@ -955,6 +972,16 @@ def _sha256_file(path: Path) -> str:
         while chunk := handle.read(4 * 1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _validated_sha256(value: str, label: str) -> str:
+    if len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        raise ConfigError(
+            f"{label} must be a lowercase 64-character hexadecimal digest"
+        )
+    return value
 
 
 def _read_image_text(
@@ -1275,6 +1302,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", required=True)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--agent-image", type=Path, required=True)
+    parser.add_argument(
+        "--agent-image-sha256",
+        required=True,
+        help="reviewed lowercase SHA-256 digest of --agent-image",
+    )
     parser.add_argument("--runtime-directory", type=Path)
     parser.add_argument(
         "--agent-env-file",
@@ -1313,6 +1345,7 @@ def main(argv: list[str] | None = None) -> int:
             ledger_path=args.ledger,
             profile=args.profile,
             agent_image=args.agent_image,
+            agent_image_sha256=args.agent_image_sha256,
             agent_command=command,
             runtime_base=args.runtime_directory,
             agent_env_file=args.agent_env_file,

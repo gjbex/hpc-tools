@@ -284,6 +284,8 @@ path. See the
 The normal batch path takes a private operator-reviewed manifest template and
 atomically materializes a manifest bound to `SLURM_JOB_ID`; a requeue verifies
 and reuses those exact bytes rather than refreshing timestamps or authority.
+The generated image recipe pins its OCI base by tag and digest, and the launcher
+requires the reviewed SIF SHA-256 before it starts any host MCP bridge.
 Initial launch requires profile C3. The launcher records an immutable
 controller-authority ceiling; restarted servers intersect it with the current
 profile for new work, while host-only requeue and cleanup retain the captured
@@ -300,6 +302,8 @@ The generated `task.md` makes
 the objective, success checks, retry authority, and stopping condition
 explicit. Generate the reviewed build bundle with
 `hpc write-container --kind agent restricted-codex-build`.
+That bundle includes a compute-node image-build template and a provenance
+record; built SIFs and Apptainer caches remain outside Git.
 For faster boundary-only development without an installed agent or API
 credential, use
 `hpc write-container --kind agent-boundary restricted-boundary-build`.

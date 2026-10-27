@@ -175,12 +175,20 @@ def _check_archive_contract(wheel: Path, sdist: Path) -> None:
         "hpc_tools/data/containers/agent/codex-config-model-indexed-search.toml",
         "hpc_tools/data/containers/agent/codex-config-model-live-search.toml",
         "hpc_tools/data/containers/agent/delegation-template.toml",
+        "hpc_tools/data/containers/agent/image-build-record.md",
+        "hpc_tools/data/containers/agent/build-agent-image.slurm",
+        "hpc_tools/data/containers/agent/restricted-agent.slurm",
+        "hpc_tools/data/containers/agent/task.md",
+        "hpc_tools/data/containers/agent-boundary/Apptainer.def",
     )
     for required in (image_skill, image_reference, *image_runtime_assets):
         if required not in wheel_names:
             raise AssertionError(f"wheel omitted restricted-agent asset: {required}")
     if "skills/hpc-slurm-jobs/SKILL.md" in wheel_names:
         raise AssertionError("wheel combined the Codex plugin skill surface")
+    wheel_sifs = sorted(name for name in wheel_names if name.lower().endswith(".sif"))
+    if wheel_sifs:
+        raise AssertionError(f"wheel contains built SIF artifacts: {wheel_sifs}")
 
     with tarfile.open(sdist, "r:gz") as archive:
         sdist_names = {
@@ -189,6 +197,7 @@ def _check_archive_contract(wheel: Path, sdist: Path) -> None:
             if len(Path(member.name).parts) > 1
         }
     required_source_assets = {
+        *image_runtime_assets,
         image_skill,
         image_reference,
         ".codex-plugin/plugin.json",
@@ -200,6 +209,9 @@ def _check_archive_contract(wheel: Path, sdist: Path) -> None:
     missing = sorted(required_source_assets - sdist_names)
     if missing:
         raise AssertionError(f"source archive omitted synchronized assets: {missing}")
+    sdist_sifs = sorted(name for name in sdist_names if name.lower().endswith(".sif"))
+    if sdist_sifs:
+        raise AssertionError(f"source archive contains built SIF artifacts: {sdist_sifs}")
 
 
 def _pipx_environment(root: Path) -> dict[str, str]:

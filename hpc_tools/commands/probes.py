@@ -403,6 +403,12 @@ def _container_bundle(kind: str) -> dict[str, str]:
             "delegation-template.toml": data.joinpath(
                 "delegation-template.toml"
             ).read_text(encoding="utf-8"),
+            "image-build-record.md": data.joinpath(
+                "image-build-record.md"
+            ).read_text(encoding="utf-8"),
+            "build-agent-image.slurm": data.joinpath(
+                "build-agent-image.slurm"
+            ).read_text(encoding="utf-8"),
             "skills/hpc-delegated-slurm/SKILL.md": delegated_skill.joinpath(
                 "SKILL.md"
             ).read_text(encoding="utf-8"),

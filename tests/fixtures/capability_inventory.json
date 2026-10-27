@@ -1867,6 +1867,7 @@
         "ledger",
         "profile",
         "agent-image",
+        "agent-image-sha256",
         "runtime-directory",
         "agent-env-file",
         "network-env-file",

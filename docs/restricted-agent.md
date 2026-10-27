@@ -61,13 +61,60 @@ hpc write-container --kind agent restricted-codex-build
 cd restricted-codex-build
 apptainer build --fakeroot restricted-codex.sif Apptainer.def
 apptainer test restricted-codex.sif
+sha256sum restricted-codex.sif
 ```
 
-The Codex and Node versions are pinned, but the OCI base tag is mutable. Replace
-it with a reviewed digest when exact build reproducibility matters. Keep the
-built SIF out of Git and record its checksum. A Codex version bump is a reviewed
-recipe change: update the package version, image label, `%test` assertion, and
-the corresponding tests together.
+The definition records the reviewed Node `22.16.0` tag in an
+`org.hpc-tools.base.name` label,
+uses the corresponding OCI index digest as its immutable `From:` reference,
+and pins Codex CLI `0.150.1`. This split is intentional: Apptainer releases that
+reject a Docker reference containing both a tag and digest accept the digest-only
+reference. The separate `agent-boundary` definition follows the same pattern.
+A build resolves the platform-specific
+manifest below that multi-platform index, so record the build architecture in
+addition to the index digest. Keep SIFs, cache content, build roots, and registry
+credentials out of Git.
+
+This identifies every launched SIF exactly, but it does not yet promise a
+bit-for-bit rebuild: `apt-get` still reads live Debian indexes. Archival builds
+would additionally need a reviewed Debian snapshot and pinned package versions
+(and equivalent integrity control for npm artifacts). Until then, treat the
+recorded final SIF hash as the authoritative runtime identity.
+
+For a compute-node build, adapt `build-agent-image.slurm` from the generated
+bundle. Select project or scratch storage for its private mode-`0700` cache and
+an existing durable output directory. The job builds and tests in
+`SLURM_TMPDIR`, calculates the SIF SHA-256, and publishes the read-only SIF plus
+checksum without replacing an existing artifact. It deliberately leaves
+account, cluster, partition, QoS, memory, and module selection to the site.
+
+### Update and review an agent image
+
+Treat every dependency update as a recipe review, not as an in-place image
+refresh:
+
+1. Resolve the intended readable base tag to its current OCI index digest, for
+   example with `docker buildx imagetools inspect`, and review the listed
+   platforms and upstream source revision.
+2. Update the digest-only `From:` reference and the two `org.hpc-tools`
+   base-image labels (readable tag and digest) together. If Node or Codex
+   changes, also update the exact package version, image version label, `%test`
+   assertion, output basename, tests, and documentation.
+3. Review the definition diff. Generate a fresh bundle; do not reuse a modified
+   unrecorded build directory.
+4. Build the SIF, run `apptainer test`, and calculate `sha256sum` only after the
+   test succeeds.
+5. Complete the generated `image-build-record.md` with the upstream tag and
+   digest, definition hash and diff review, hpc-tools revision and dirty state,
+   build command, Apptainer version, test result, and final SIF SHA-256. Keep
+   that record beside the durable image.
+6. Put that exact lowercase SIF hash in `--agent-image-sha256`. The launcher
+   rejects a mismatch before publishing a new manifest or creating the ledger,
+   and records the verified value in attempt provenance.
+
+An Apptainer signature can additionally identify a site-approved publisher,
+but key distribution and trust policy are site-specific. It does not replace
+the mandatory reviewed SHA-256 input.
 
 The image `%test` checks the exact Codex version and absence of common SSH,
 Slurm, and Munge commands. The host launcher repeats a negative preflight before
@@ -304,6 +351,7 @@ launcher snapshots that content before using the snapshot as agent stdin. The
 essential invocation is:
 
 ```bash
+agent_image_sha256=REPLACE_WITH_REVIEWED_LOWERCASE_SHA256
 hpc-agent-launch \
     --manifest-template /protected/delegation-template.toml \
     --manifest-output "/protected/materialized-manifests/delegation-${SLURM_JOB_ID}.toml" \
@@ -313,6 +361,7 @@ hpc-agent-launch \
     --agent-env-file /protected/codex.env \
     --network-env-file /protected/network.env \
     --agent-image /project/images/restricted-codex.sif \
+    --agent-image-sha256 "$agent_image_sha256" \
     --prompt-file /protected/reviewed-task.md \
     -- codex-agent -
 ```

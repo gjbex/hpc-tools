@@ -1,6 +1,6 @@
 # Restricted-agent production implementation plan
 
-Status: WP1--WP3 completed locally on 2026-10-27; WP4--WP6 remain incomplete.
+Status: WP1--WP4 completed locally on 2026-10-27; WP5--WP6 remain incomplete.
 
 This plan closes the remaining gap between the implemented restricted-agent
 boundary and a production-qualified Codex harness running in an Apptainer
@@ -341,6 +341,20 @@ Tests and checks:
 
 Exit criteria: the exact parent-agent image used by a run is reviewed,
 identified before execution, and recorded in provenance.
+
+Implementation record (2026-10-27): both agent definitions now retain their
+readable base tags while pinning reviewed multi-platform OCI index digests. The
+generated full-agent bundle includes a Slurm build template with a private
+project/scratch cache, per-job build root, `apptainer test`, no-replace durable
+publication, checksum, and a build-record template. `hpc-agent-launch` requires
+the reviewed lowercase SIF SHA-256, verifies it before manifest publication,
+ledger creation, bridge startup, or container execution, and records the
+verified value in version-5 attempt provenance. Packaging checks require the
+new assets and reject SIFs in both wheel and source archives. Site account and
+partition selection, actual full-image builds on supported cluster
+architectures, and optional SIF signature trust remain deployment concerns.
+Local amd64 builds and explicit `apptainer test` runs passed for both final
+definitions on 2026-10-27; this is not a substitute for cluster qualification.
 
 ## WP5: Parent batch template and operator workflow
 

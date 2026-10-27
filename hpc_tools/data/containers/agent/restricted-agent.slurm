@@ -22,6 +22,7 @@ manifest_output="${manifest_directory}/delegation-${SLURM_JOB_ID}.toml"
 ledger=/path/to/protected/delegations.sqlite3
 config=${HPC_TOOLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hpc-tools/config.toml}
 agent_image=/path/to/restricted-codex.sif
+agent_image_sha256=REPLACE_WITH_REVIEWED_LOWERCASE_SHA256
 agent_env_file=/path/to/protected/codex.env
 network_env_file=  # Optional: /path/to/protected/network.env
 prompt_file=/path/to/reviewed-task.md
@@ -46,6 +47,7 @@ hpc-agent-launch \
     --agent-env-file "$agent_env_file" \
     "${network_env_args[@]}" \
     --agent-image "$agent_image" \
+    --agent-image-sha256 "$agent_image_sha256" \
     --prompt-file "$prompt_file" \
     -- codex-agent - &
 launcher_pid=$!

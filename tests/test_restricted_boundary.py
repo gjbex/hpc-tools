@@ -189,6 +189,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
     def test_packaged_codex_agent_is_pinned_ephemeral_and_relay_only(self) -> None:
         assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
         definition = assets.joinpath("Apptainer.def").read_text(encoding="utf-8")
+        files_section = definition.split("%files", 1)[1].split("%post", 1)[0]
         wrapper = assets.joinpath("codex-agent").read_text(encoding="utf-8")
         configs = {
             mode: tomllib.loads(
@@ -203,12 +204,27 @@ class RestrictedBoundaryTests(unittest.TestCase):
             )
         }
 
-        self.assertIn("From: node:22.16.0-bookworm-slim", definition)
+        self.assertIn(
+            "From: node@sha256:"
+            "048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e34",
+            definition,
+        )
         self.assertIn("npm install --global @openai/codex@0.150.1", definition)
         self.assertNotIn("@openai/codex@latest", definition)
         self.assertIn('test "$(codex --version)" = "codex-cli 0.150.1"', definition)
         for command in restricted_launch.FORBIDDEN_COMMANDS:
             self.assertIn(command, definition)
+        for forbidden_asset in (
+            "delegation-template.toml",
+            "restricted-agent.slurm",
+            "build-agent-image.slurm",
+            "image-build-record.md",
+            "auth.json",
+            "delegations.sqlite3",
+        ):
+            self.assertNotIn(forbidden_asset, files_section)
+        self.assertIn("/root/.codex", definition)
+        self.assertIn("test ! -e \"$protected_path\"", definition)
         self.assertIn("mktemp -d /tmp/codex-home.XXXXXX", wrapper)
         self.assertIn("--strict-config", wrapper)
         self.assertIn("--ephemeral", wrapper)
@@ -284,6 +300,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn('--manifest-output "$manifest_output"', template)
         self.assertIn('delegation-${SLURM_JOB_ID}.toml', template)
         self.assertIn('--prompt-file "$prompt_file"', template)
+        self.assertIn('--agent-image-sha256 "$agent_image_sha256"', template)
         self.assertNotIn('< "$prompt_file"', template)
         self.assertIn("trap forward_requeue USR1", template)
         self.assertIn("trap forward_termination TERM INT", template)
@@ -325,6 +342,11 @@ class RestrictedBoundaryTests(unittest.TestCase):
         )
 
         self.assertIn("restricted agent boundary fixture", definition)
+        self.assertIn(
+            "From: python@sha256:"
+            "519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7",
+            definition,
+        )
         self.assertIn("hpc-mcp-relay", definition)
         self.assertNotIn("@openai/codex", definition)
         self.assertNotIn("codex-agent", definition)
@@ -589,6 +611,9 @@ class RestrictedBoundaryTests(unittest.TestCase):
                 "ledger_path": ledger_path,
                 "profile": "cluster",
                 "agent_image": paths["container"],
+                "agent_image_sha256": hashlib.sha256(
+                    paths["container"].read_bytes()
+                ).hexdigest(),
                 "agent_command": ["codex-agent", "-"],
                 "runtime_base": root,
                 "config_path": paths["config"],
@@ -670,6 +695,9 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     ledger_path=ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
+                    agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
                     agent_command=["codex-agent", "-"],
                     runtime_base=root,
                     config_path=paths["config"],
@@ -701,6 +729,9 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     ledger_path=ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
+                    agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
                     agent_command=["codex-agent", "-"],
                     runtime_base=root,
                     config_path=paths["config"],
@@ -708,6 +739,38 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     now=datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc),
                 )
             self.assertFalse(safe_output.exists())
+            self.assertFalse(ledger_path.exists())
+
+    def test_agent_image_digest_mismatch_precedes_ledger_and_bridge_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, paths = self._fixture(root)
+            paths["manifest"].chmod(0o600)
+            expected_sha256 = hashlib.sha256(
+                paths["container"].read_bytes()
+            ).hexdigest()
+            paths["container"].write_bytes(b"modified container")
+            ledger_path = root / "new-ledger.sqlite3"
+
+            with (
+                mock.patch.dict(os.environ, {"SLURM_JOB_ID": "9001"}, clear=True),
+                mock.patch.object(delegation.DelegationLedger, "register") as register,
+                mock.patch("hpc_tools.restricted_launch.subprocess.Popen") as popen,
+                self.assertRaisesRegex(ConfigError, "agent image SHA-256 mismatch"),
+            ):
+                restricted_launch.launch(
+                    manifest_path=paths["manifest"],
+                    ledger_path=ledger_path,
+                    profile="cluster",
+                    agent_image=paths["container"],
+                    agent_image_sha256=expected_sha256,
+                    agent_command=["codex-agent", "-"],
+                    runtime_base=root,
+                    config_path=paths["config"],
+                )
+
+            register.assert_not_called()
+            popen.assert_not_called()
             self.assertFalse(ledger_path.exists())
 
     def test_parent_attempt_artifacts_snapshot_prompt_and_provenance(self) -> None:
@@ -742,6 +805,12 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     generation=1,
                     prompt_file=prompt,
                     agent_image=paths["container"],
+                    expected_agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
+                    verified_agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
                     agent_command=["codex-agent", "-"],
                     controller_authority=runtime.controller_authority,
                     network_environment=restricted_launch.NetworkEnvironmentEvidence(
@@ -753,7 +822,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
 
             self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
             provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
-            self.assertEqual(4, provenance["format_version"])
+            self.assertEqual(5, provenance["format_version"])
             self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
             self.assertEqual("abc", provenance["work_source"]["commit"])
             self.assertEqual(
@@ -767,6 +836,10 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(paths["container"].read_bytes()).hexdigest(),
                 provenance["agent_image"]["sha256"],
+            )
+            self.assertEqual(
+                provenance["agent_image"]["sha256"],
+                provenance["agent_image"]["expected_sha256"],
             )
             self.assertEqual(
                 {
@@ -914,6 +987,9 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     ledger_path=runtime.ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
+                    agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
                     agent_command=["codex-agent", "-"],
                     runtime_base=runtime_base,
                     config_path=paths["config"],
@@ -954,6 +1030,9 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     ledger_path=runtime.ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
+                    agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
                     agent_command=["codex-agent", "-"],
                     runtime_base=root / "runtime",
                     config_path=paths["config"],
@@ -1161,6 +1240,9 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     ledger_path=runtime.ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
+                    agent_image_sha256=hashlib.sha256(
+                        paths["container"].read_bytes()
+                    ).hexdigest(),
                     agent_command=["codex-agent", "-"],
                     runtime_base=runtime_base,
                     agent_env_file=credential,

@@ -15,3 +15,6 @@ dist/
 venv/
 site/
 *.sif
+.apptainer/
+apptainer-cache/
+apptainer-build/

@@ -4177,6 +4177,17 @@
           {
             "choices": null,
             "default": null,
+            "dest": "agent_image_sha256",
+            "nargs": null,
+            "options": [
+              "--agent-image-sha256"
+            ],
+            "required": true,
+            "type": null
+          },
+          {
+            "choices": null,
+            "default": null,
             "dest": "runtime_directory",
             "nargs": null,
             "options": [

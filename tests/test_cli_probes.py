@@ -197,11 +197,22 @@ class CliCoreTests(unittest.TestCase):
             delegation_template = (output / "delegation-template.toml").read_text(
                 encoding="utf-8"
             )
+            build_job = (output / "build-agent-image.slurm").read_text(
+                encoding="utf-8"
+            )
+            build_record = (output / "image-build-record.md").read_text(
+                encoding="utf-8"
+            )
             slurm = (output / "restricted-agent.slurm").read_text(encoding="utf-8")
             skill = (
                 output / "skills" / "hpc-delegated-slurm" / "SKILL.md"
             ).read_text(encoding="utf-8")
             self.assertIn("@openai/codex@0.150.1", definition)
+            self.assertIn(
+                "node@sha256:"
+                "048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e34",
+                definition,
+            )
             self.assertIn("hpc-mcp-relay", definition)
             self.assertIn(
                 "codex-config-model-only.toml "
@@ -224,7 +235,8 @@ class CliCoreTests(unittest.TestCase):
             self.assertIn("Use $hpc-delegated-slurm", task)
             self.assertIn("template_version = 1", delegation_template)
             self.assertNotIn("parent_job_id", delegation_template)
-            self.assertNotIn("delegation-template.toml", definition)
+            files_section = definition.split("%files", 1)[1].split("%post", 1)[0]
+            self.assertNotIn("delegation-template.toml", files_section)
             self.assertIn("name: hpc-delegated-slurm", skill)
             self.assertEqual(
                 ["hpc-delegated-slurm"],
@@ -241,9 +253,14 @@ class CliCoreTests(unittest.TestCase):
             )
             self.assertIn("--agent-env-file", slurm)
             self.assertIn("--network-env-file", slurm)
+            self.assertIn("--agent-image-sha256", slurm)
             self.assertIn("--manifest-template", slurm)
             self.assertIn("--manifest-output", slurm)
             self.assertIn("-- codex-agent -", slurm)
+            self.assertIn("apptainer test", build_job)
+            self.assertIn("APPTAINER_CACHEDIR", build_job)
+            self.assertIn('cd "$bundle_directory"', build_job)
+            self.assertIn("SIF SHA-256", build_record)
             self.assertFalse((output / "mcp.json").exists())
 
     def test_write_agent_boundary_container_bundle(self) -> None:
@@ -257,7 +274,11 @@ class CliCoreTests(unittest.TestCase):
             self.assertEqual(0, args.handler(args, make_profile()))
             definition = (output / "Apptainer.def").read_text(encoding="utf-8")
             self.assertIn("restricted agent boundary fixture", definition)
-            self.assertIn("From: python:3.12.11-slim-bookworm", definition)
+            self.assertIn(
+                "From: python@sha256:"
+                "519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7",
+                definition,
+            )
             self.assertIn("hpc-mcp-relay", definition)
             self.assertNotIn("@openai/codex", definition)
             self.assertNotIn("codex-agent", definition)

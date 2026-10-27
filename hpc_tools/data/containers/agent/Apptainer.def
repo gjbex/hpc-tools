@@ -1,10 +1,12 @@
 Bootstrap: docker
-From: node:22.16.0-bookworm-slim
+From: node@sha256:048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e34
 
 %labels
     org.opencontainers.image.title hpc-tools restricted Codex CLI agent
     org.opencontainers.image.description Codex CLI 0.150.1 and MCP relay without SSH, Slurm, or Munge clients
     org.opencontainers.image.version 0.150.1
+    org.hpc-tools.base.name docker.io/library/node:22.16.0-bookworm-slim
+    org.hpc-tools.base.digest sha256:048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e34
 
 %files
     hpc-mcp-relay /opt/hpc-tools/hpc-mcp-relay
@@ -55,6 +57,16 @@ From: node:22.16.0-bookworm-slim
     done
     test -f /opt/hpc-tools/skills/hpc-delegated-slurm/references/job-design.md
     test "$(find /opt/hpc-tools/skills -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
+    for protected_path in \
+        /root/.codex \
+        /root/.config/hpc-tools \
+        /opt/hpc-tools/delegation-template.toml \
+        /opt/hpc-tools/restricted-agent.slurm \
+        /opt/hpc-tools/build-agent-image.slurm \
+        /opt/hpc-tools/image-build-record.md \
+        /opt/hpc-tools/delegations.sqlite3; do
+        test ! -e "$protected_path"
+    done
     for command in ssh scp sftp sbatch scancel squeue sacct scontrol srun salloc munge unmunge; do
         if command -v "$command" >/dev/null 2>&1; then
             echo "forbidden command present: $command" >&2

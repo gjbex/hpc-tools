@@ -1,9 +1,11 @@
 Bootstrap: docker
-From: python:3.12.11-slim-bookworm
+From: python@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
 
 %labels
     org.opencontainers.image.title hpc-tools restricted agent boundary fixture
     org.opencontainers.image.description Minimal Python runtime and MCP relay without an agent, SSH, Slurm, or Munge clients
+    org.hpc-tools.base.name docker.io/library/python:3.12.11-slim-bookworm
+    org.hpc-tools.base.digest sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
 
 %files
     hpc-mcp-relay /opt/hpc-tools/hpc-mcp-relay
