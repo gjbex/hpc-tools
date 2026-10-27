@@ -25,21 +25,27 @@ class DelegationExampleTests(unittest.TestCase):
                     expected_parent_job_id="123456",
                     now=datetime(2026, 10, 17, 12, 0, tzinfo=UTC),
                 )
-                self.assertEqual(3, delegation.MANIFEST_VERSION)
+                self.assertEqual(4, delegation.MANIFEST_VERSION)
                 self.assertEqual(
                     expected_submissions,
                     manifest.budget["max_submissions"],
                 )
                 self.assertIsNotNone(manifest.credit_budget)
                 self.assertIsNotNone(manifest.filesystem)
+                self.assertEqual("model-only", manifest.network.mode.value)
 
     def test_schema_tracks_the_frozen_credit_contract(self) -> None:
         schema = json.loads(
-            (EXAMPLES / "delegation-manifest-v3.schema.json").read_text(
+            (EXAMPLES / "delegation-manifest-v4.schema.json").read_text(
                 encoding="utf-8"
             )
         )
-        self.assertEqual(3, schema["properties"]["format_version"]["const"])
+        self.assertEqual(4, schema["properties"]["format_version"]["const"])
+        self.assertIn("network", schema["required"])
+        self.assertEqual(
+            ["model-only", "model-indexed-search", "model-live-search"],
+            schema["$defs"]["network"]["properties"]["mode"]["enum"],
+        )
         credit = schema["$defs"]["creditBudget"]
         self.assertEqual(
             {"unit", "scale", "maximum_total", "quote_ttl_seconds"},

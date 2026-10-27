@@ -410,13 +410,16 @@ class CreditBudgetAcceptanceTests(unittest.TestCase):
         manifest.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 3
+                format_version = 4
                 id = "credit-acceptance"
                 issuer = "acceptance-test"
                 profile = "example"
                 parent_job_id = "9001"
                 issued_at = "2026-01-01T00:00:00Z"
                 expires_at = "2099-01-01T00:00:00Z"
+
+                [network]
+                mode = "model-only"
 
                 [allowed]
                 accounts = ["proj"]

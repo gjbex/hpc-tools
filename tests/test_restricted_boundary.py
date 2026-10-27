@@ -53,13 +53,16 @@ class RestrictedBoundaryTests(unittest.TestCase):
         manifest_path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 3
+                format_version = 4
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "cluster"
                 parent_job_id = "9001"
                 issued_at = "2026-01-01T00:00:00Z"
                 expires_at = "2099-01-01T00:00:00Z"
+
+                [network]
+                mode = "model-only"
 
                 [allowed]
                 accounts = ["project"]
@@ -409,6 +412,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
 
             self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
             provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
+            self.assertEqual(2, provenance["format_version"])
             self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
             self.assertEqual("abc", provenance["work_source"]["commit"])
             self.assertEqual(
@@ -422,6 +426,14 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(paths["container"].read_bytes()).hexdigest(),
                 provenance["agent_image"]["sha256"],
+            )
+            self.assertEqual(
+                {
+                    "mode": "model-only",
+                    "web_search": "disabled",
+                    "command_network_access": False,
+                },
+                provenance["network"],
             )
             for path in (
                 artifacts.provenance_path,

@@ -258,7 +258,7 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("job_ownership", delegation_text)
         self.assertIn("lifecycle_operations", delegation_text)
         self.assertIn("## Restricted lifecycle authorization", delegation_text)
-        self.assertIn("PRAGMA user_version = 4", delegation_text)
+        self.assertIn("PRAGMA user_version = 5", delegation_text)
         self.assertIn("A zero-cost quote still consumes one", delegation_text)
         mcp_text = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
         self.assertIn("hpc_job_accounting", mcp_text)
@@ -276,9 +276,14 @@ class SkillFeatureTests(SkillFixtures, unittest.TestCase):
         self.assertIn("exactly one UTF-8 JSON object", configuration)
         self.assertIn("whichever limit is reached first", restricted)
         self.assertIn("A zero-cost job still consumes one", restricted)
-        self.assertIn("delegation-manifest-v3.schema.json", reference)
+        self.assertIn("delegation-manifest-v4.schema.json", reference)
+        self.assertIn("model-indexed-search", restricted)
+        production_plan = (
+            ROOT / "docs" / "development" / "restricted-agent-production-plan.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Runtime enforcement remains WP2", production_plan)
         for name in (
-            "delegation-manifest-v3.schema.json",
+            "delegation-manifest-v4.schema.json",
             "restricted-agent-credit-minimal.toml",
             "restricted-agent-credit-full.toml",
         ):

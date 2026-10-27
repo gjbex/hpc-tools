@@ -26,13 +26,16 @@ class AgentAuditTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 """
-                format_version = 3
+                format_version = 4
                 id = "delegate-1"
                 issuer = "operator"
                 profile = "cluster"
                 parent_job_id = "9001"
                 issued_at = "2026-01-01T00:00:00Z"
                 expires_at = "2099-01-01T00:00:00Z"
+
+                [network]
+                mode = "model-only"
 
                 [allowed]
                 accounts = ["project"]
@@ -146,6 +149,16 @@ class AgentAuditTests(unittest.TestCase):
 
             self.assertEqual(1, len(report["delegations"]))
             item = report["delegations"][0]
+            self.assertEqual(3, report["format_version"])
+            self.assertEqual("model-only", item["network_mode"])
+            self.assertEqual(
+                {
+                    "mode": "model-only",
+                    "web_search": "disabled",
+                    "command_network_access": False,
+                },
+                item["manifest"]["network"],
+            )
             self.assertEqual(
                 str(artifacts),
                 item["controller_attempts"][0]["artifacts"]["artifact_directory"],
@@ -157,6 +170,13 @@ class AgentAuditTests(unittest.TestCase):
             )
             self.assertEqual("submitted", operation["submission_events"][0]["event"])
             self.assertIn("audit_events:", agent_audit.format_report(report))
+            self.assertIn(
+                "network_mode: model-only", agent_audit.format_report(report)
+            )
+            self.assertEqual(
+                "model-only",
+                item["audit_events"][0]["detail"]["network"]["mode"],
+            )
 
     def test_report_exposes_quote_maxima_without_mutating_the_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -209,7 +229,7 @@ class AgentAuditTests(unittest.TestCase):
                 submissions_database=root / "missing-submissions.sqlite3",
             )
 
-            self.assertEqual(2, report["format_version"])
+            self.assertEqual(3, report["format_version"])
             item = report["delegations"][0]
             self.assertEqual(
                 {"value": 3000, "scale": 0, "unit": "credits"},

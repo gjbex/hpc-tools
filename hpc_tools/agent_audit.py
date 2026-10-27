@@ -15,7 +15,7 @@ from urllib.parse import quote
 from hpc_tools import delegation, submissions
 from hpc_tools.config import ConfigError
 
-REPORT_FORMAT_VERSION = 2
+REPORT_FORMAT_VERSION = 3
 
 
 def build_report(
@@ -50,7 +50,8 @@ def build_report(
             parameters = (delegation_id,)
         rows = database.execute(
             """SELECT delegation_id,manifest_sha256,issuer,profile,parent_job_id,
-                      issued_at,expires_at,manifest_json,revoked_at,revocation_reason
+                      issued_at,expires_at,network_mode,manifest_json,revoked_at,
+                      revocation_reason
                FROM delegations"""
             + where
             + " ORDER BY issued_at,delegation_id",
@@ -84,6 +85,7 @@ def format_report(report: dict[str, Any]) -> str:
                 f"delegation: {item['delegation_id']}",
                 f"  profile: {item['profile']}",
                 f"  parent_job_id: {item['parent_job_id']}",
+                f"  network_mode: {item['network_mode']}",
                 f"  expires_at: {item['expires_at']}",
                 f"  revoked_at: {item['revoked_at'] or '-'}",
             ]
@@ -329,6 +331,7 @@ def _delegation_report(
         "parent_job_id": row["parent_job_id"],
         "issued_at": row["issued_at"],
         "expires_at": row["expires_at"],
+        "network_mode": row["network_mode"],
         "manifest": manifest,
         "revoked_at": row["revoked_at"],
         "revocation_reason": row["revocation_reason"],

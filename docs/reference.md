@@ -335,8 +335,8 @@ authority model and role-based templates.
 
 ## Delegation manifest schema and examples
 
-Version-3 delegation manifests are strict TOML documents. The canonical parsed
-object schema is `examples/delegations/delegation-manifest-v3.schema.json`.
+Version-4 delegation manifests are strict TOML documents. The canonical parsed
+object schema is `examples/delegations/delegation-manifest-v4.schema.json`.
 `restricted-agent-credit-minimal.toml` in the same directory shows the minimum
 credit and logical-job ceilings for the container workflow; the `full` example
 adds per-job, aggregate-resource, filesystem, and lifecycle limits. Replace all
@@ -346,8 +346,10 @@ The JSON Schema validates structure and scalar bounds. The hpc-tools loader is
 also authoritative for checks JSON Schema cannot express conveniently:
 protected-file ownership and mode, current expiry, selected profile and parent
 job, non-overlapping/symlink-free filesystem roots, work-root authorization,
-and `maximum_per_job <= maximum_total`. Unknown keys are rejected at every
-manifest table implemented by version 3.
+and `maximum_per_job <= maximum_total`. Version 4 also requires an explicit
+`[network]` table whose `mode` is `model-only`, `model-indexed-search`, or
+`model-live-search`; all three keep command networking disabled. Unknown keys
+are rejected at every implemented manifest table.
 
 ## Slurm submit override options
 

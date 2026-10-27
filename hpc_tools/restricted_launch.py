@@ -636,7 +636,7 @@ def _prepare_agent_artifacts(
     _write_private_bytes(diagnostic_log, b"")
     provenance_path = attempt_directory / "provenance.json"
     provenance = {
-        "format_version": 1,
+        "format_version": 2,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "delegation_id": manifest.identifier,
         "controller_generation": generation,
@@ -644,6 +644,7 @@ def _prepare_agent_artifacts(
         "controller_authority": controller_authority.public_summary(
             include_config_path=True
         ),
+        "network": manifest.network.public_summary(),
         "agent_command": agent_command,
         "prompt": (
             {

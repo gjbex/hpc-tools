@@ -676,6 +676,14 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                             "max_level"
                         ],
                     )
+                    self.assertEqual(
+                        {
+                            "mode": "model-only",
+                            "web_search": "disabled",
+                            "command_network_access": False,
+                        },
+                        runtime["delegation"]["network"],
+                    )
 
         asyncio.run(exercise_server())
 
@@ -689,13 +697,15 @@ class McpServerFeatureTests(McpFixtures, unittest.TestCase):
                 manifest_path.write_text(
                     textwrap.dedent(
                         """
-                        format_version = 3
+                        format_version = 4
                         id = "delegate-1"
                         issuer = "operator"
                         profile = "genius"
                         parent_job_id = "9001"
                         issued_at = "2026-01-01T00:00:00Z"
                         expires_at = "2099-01-01T00:00:00Z"
+                        [network]
+                        mode = "model-only"
                         [allowed]
                         accounts = ["proj"]
                         clusters = ["wice"]

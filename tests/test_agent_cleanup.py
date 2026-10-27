@@ -53,13 +53,16 @@ class AgentCleanupTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 3
+                format_version = 4
                 id = "{identifier}"
                 issuer = "operator"
                 profile = "cluster"
                 parent_job_id = "{parent_job_id}"
                 issued_at = "2026-01-01T00:00:00Z"
                 expires_at = "2099-01-01T00:00:00Z"
+
+                [network]
+                mode = "model-only"
 
                 [allowed]
                 accounts = ["project"]

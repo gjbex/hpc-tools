@@ -2,11 +2,29 @@
   "purpose": "Synchronized delegated-credit work-package state; this is a change detector, not a compatibility promise.",
   "current": {
     "array_submission_count_unit": "logical-submission",
-    "audit_report_format_version": 2,
+    "audit_report_format_version": 3,
     "credit_budget_manifest_supported": true,
     "controller_generation_bound_to_evidence": true,
-    "ledger_schema_version": 4,
-    "manifest_version": 3,
+    "delegation_columns": [
+      "delegation_id",
+      "manifest_sha256",
+      "issuer",
+      "profile",
+      "parent_job_id",
+      "issued_at",
+      "expires_at",
+      "network_mode",
+      "manifest_json",
+      "revoked_at",
+      "revocation_reason"
+    ],
+    "ledger_schema_version": 5,
+    "manifest_version": 4,
+    "network_modes": [
+      "model-only",
+      "model-indexed-search",
+      "model-live-search"
+    ],
     "profile_quote_fields": [
       "sam_quote_command",
       "sam_quote_format"

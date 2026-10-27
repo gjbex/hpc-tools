@@ -29,13 +29,16 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 """
-                format_version = 3
+                format_version = 4
                 id = "credit-baseline"
                 issuer = "operator"
                 profile = "genius"
                 parent_job_id = "9001"
                 issued_at = "2026-01-01T00:00:00Z"
                 expires_at = "2099-01-01T00:00:00Z"
+
+                [network]
+                mode = "model-only"
 
                 [allowed]
                 accounts = ["proj"]
@@ -92,6 +95,10 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
             [code.value for code in delegation.SubmissionDenialCode],
         )
         self.assertEqual(
+            self.baseline["network_modes"],
+            [mode.value for mode in delegation.AgentNetworkMode],
+        )
+        self.assertEqual(
             self.baseline["profile_quote_fields"],
             [field.name for field in fields(Profile) if "quote" in field.name],
         )
@@ -104,6 +111,10 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
             ledger_path = root / "ledger.sqlite3"
             delegation.DelegationLedger(ledger_path).register(manifest)
             with sqlite3.connect(ledger_path) as connection:
+                delegation_columns = [
+                    row[1]
+                    for row in connection.execute("PRAGMA table_info(delegations)")
+                ]
                 columns = [
                     row[1]
                     for row in connection.execute(
@@ -111,6 +122,7 @@ class DelegatedCreditBudgetBaselineTests(unittest.TestCase):
                     )
                 ]
 
+        self.assertEqual(self.baseline["delegation_columns"], delegation_columns)
         self.assertEqual(self.baseline["submission_operation_columns"], columns)
 
     def test_quote_evidence_has_signed_typed_cost_and_expiry(self) -> None:

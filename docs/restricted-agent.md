@@ -108,6 +108,28 @@ and results as untrusted data. The host-side MCP preset and ledger remain
 responsible for enforcing the actual tool surface, job ownership, allowlists,
 and budget.
 
+## Declare the agent network contract
+
+Manifest version 4 requires one explicit network mode:
+
+```toml
+[network]
+mode = "model-only"
+```
+
+The only accepted modes are `model-only`, `model-indexed-search`, and
+`model-live-search`. They map to disabled, indexed, and live Codex web search,
+respectively. Command networking remains disabled in every mode. The selected
+mode is recorded in `hpc://runtime`, the protected ledger and audit export, and
+each controller attempt's provenance. Proxy addresses and credentials do not
+belong in the manifest or those public summaries.
+
+This is the protected policy contract, not runtime enforcement. Until WP2 of
+the [production implementation plan](development/restricted-agent-production-plan.md)
+is complete and qualified on the target cluster, selecting indexed or live
+search is not evidence that the corresponding network path is available or
+site-enforced.
+
 ### Keep boundary tests independent of Codex
 
 The `agent-boundary` bundle preserves the minimal Python-and-relay definition
@@ -164,7 +186,7 @@ Start with
 `examples/delegations/restricted-agent-credit-minimal.toml`, or use the full
 example beside it when per-job, aggregate-resource, and lifecycle ceilings are
 needed. The parsed-object contract is
-`examples/delegations/delegation-manifest-v3.schema.json`. Replace every
+`examples/delegations/delegation-manifest-v4.schema.json`. Replace every
 illustrative identity, timestamp, account, cluster, container, and path; then
 make the manifest private before launch:
 
@@ -302,7 +324,7 @@ Every launched controller generation creates this protected directory:
 
 Files are mode `0600` and directories are mode `0700`. `provenance.json`
 records hashes for the prompt, manifest, agent image, Codex configuration, and
-captured profile policy and configuration;
+captured profile policy and configuration; the public network policy;
 the Codex and hpc-tools versions; the exact agent argv; and the Git commit and
 dirty flag for both hpc-tools and `work_root` when those directories are Git
 checkouts. Hashing the complete SIF is intentional evidence but can add startup

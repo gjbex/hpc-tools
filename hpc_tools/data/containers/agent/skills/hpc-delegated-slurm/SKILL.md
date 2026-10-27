@@ -64,7 +64,10 @@ of guessing. There is no human available to answer a question during this run.
    delegation, and a filesystem policy. Record allowlists, per-job limits, work
    and output roots, logical-submission and resource budgets, active-job
    capacity, the fixed-point credit policy and quoted-credit usage when
-   configured, expiry, and the lifecycle/controller state. Treat the quoted
+   configured, the explicit network mode, expiry, and the
+   lifecycle/controller state. Treat the network mode as fixed operator policy:
+   never infer a missing value, request broader access, or treat web-search
+   access as command-network access. Treat the quoted
    maximum as `(value, scale, unit)`; do not convert, round, or infer an account
    balance or actual charge.
    If startup reconciliation is required, call `hpc_jobs` and do not prepare a

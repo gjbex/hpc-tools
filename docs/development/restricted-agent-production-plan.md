@@ -1,6 +1,6 @@
 # Restricted-agent production implementation plan
 
-Status: proposed on 2026-10-26; no work package in this plan is complete.
+Status: WP1 completed locally on 2026-10-27; WP2--WP6 remain incomplete.
 
 This plan closes the remaining gap between the implemented restricted-agent
 boundary and a production-qualified Codex harness running in an Apptainer
@@ -181,6 +181,11 @@ Tests:
 Exit criteria: one protected manifest unambiguously selects the web-search
 capability, and no runtime component needs to infer policy from environment
 variables or Codex defaults.
+
+Implementation record (2026-10-27): manifest version 4 and ledger schema
+version 5 now require and retain the strict network policy. Runtime summaries,
+authorization audit events, audit exports, and version-2 attempt provenance
+expose only its public mode mapping. Runtime enforcement remains WP2.
 
 ## WP2: Network-mode enforcement
 

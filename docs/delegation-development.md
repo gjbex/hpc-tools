@@ -37,16 +37,19 @@ also requires `HPC_TOOLS_PARENT_JOB_ID`; it must match `parent_job_id`.
 The ledger path is selected by `--ledger`, `HPC_TOOLS_MCP_LEDGER`, or the
 default `~/.config/hpc-tools/delegations.sqlite3`.
 
-Example format version 3:
+Example format version 4:
 
 ```toml
-format_version = 3
+format_version = 4
 id = "agent-20260826-001"
 issuer = "operator@example.org"
 profile = "genius"
 parent_job_id = "60350000"
 issued_at = "2026-08-26T09:00:00Z"
 expires_at = "2026-08-26T17:00:00Z"
+
+[network]
+mode = "model-only"
 
 [allowed]
 accounts = ["project123"]
@@ -220,11 +223,11 @@ expiry. It is not a job runtime, queue limit, lease, or budget-reset period.
 
 The authorization ledger is separate from `submissions.sqlite3`. The latter
 is agent-readable lifecycle history and must not be used as authorization
-state. Ledger schema version 4 uses `PRAGMA user_version = 4` and these tables:
+state. Ledger schema version 5 uses `PRAGMA user_version = 5` and these tables:
 
 | Table | Purpose |
 | --- | --- |
-| `delegations` | Manifest digest, issuer, profile, parent allocation, expiry, and revocation state. |
+| `delegations` | Manifest digest, issuer, profile, parent allocation, expiry, queryable network mode, and revocation state. |
 | `submission_operations` | Idempotency key, request digest, reservation state, accounted resources, quoted maximum and evidence identity/expiry, and resulting job identity. |
 | `job_ownership` | Exact delegation/base-job/cluster ownership used by lifecycle authorization; a job/cluster pair is globally unique in one ledger. |
 | `lifecycle_operations` | Idempotent cancellation reservations and scheduler results. |
@@ -240,7 +243,7 @@ distributed multi-node database.
 
 There is no schema migration because this authorization format has not entered
 production and existing delegation data was explicitly out of scope. A
-non-version-4 ledger is rejected rather than modified implicitly.
+non-version-5 ledger is rejected rather than modified implicitly.
 
 The first accepted controller start adds one `controller_authority` audit row.
 It contains the complete C3 profile-policy snapshot, its digest, the path and

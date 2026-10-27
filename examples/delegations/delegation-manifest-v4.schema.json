@@ -1,22 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/gjbex/hpc-tools/examples/delegations/delegation-manifest-v3.schema.json",
-  "title": "hpc-tools delegation manifest version 3",
-  "description": "JSON Schema for the object produced by parsing a version-3 TOML delegation manifest. Runtime checks additionally enforce expiry, ownership, path separation, profile/parent binding, and maximum_per_job <= maximum_total.",
+  "$id": "https://github.com/gjbex/hpc-tools/examples/delegations/delegation-manifest-v4.schema.json",
+  "title": "hpc-tools delegation manifest version 4",
+  "description": "JSON Schema for the object produced by parsing a version-4 TOML delegation manifest. Runtime checks additionally enforce expiry, ownership, path separation, profile/parent binding, and maximum_per_job <= maximum_total.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "format_version", "id", "issuer", "profile", "parent_job_id",
-    "issued_at", "expires_at", "allowed"
+    "issued_at", "expires_at", "network", "allowed"
   ],
   "properties": {
-    "format_version": {"const": 3},
+    "format_version": {"const": 4},
     "id": {"$ref": "#/$defs/nonempty"},
     "issuer": {"$ref": "#/$defs/nonempty"},
     "profile": {"$ref": "#/$defs/nonempty"},
     "parent_job_id": {"$ref": "#/$defs/nonempty"},
     "issued_at": {"type": "string", "format": "date-time"},
     "expires_at": {"type": "string", "format": "date-time"},
+    "network": {"$ref": "#/$defs/network"},
     "allowed": {"$ref": "#/$defs/allowed"},
     "per_job_limits": {"$ref": "#/$defs/perJobLimits"},
     "budget": {"$ref": "#/$defs/budget"},
@@ -35,6 +36,20 @@
     "absolutePath": {
       "type": "string",
       "pattern": "^/(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "enum": [
+            "model-only",
+            "model-indexed-search",
+            "model-live-search"
+          ]
+        }
+      }
     },
     "allowed": {
       "type": "object",

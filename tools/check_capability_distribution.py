@@ -185,7 +185,7 @@ def _check_archive_contract(wheel: Path, sdist: Path) -> None:
         image_reference,
         ".codex-plugin/plugin.json",
         "skills/hpc-slurm-jobs/SKILL.md",
-        "examples/delegations/delegation-manifest-v3.schema.json",
+        "examples/delegations/delegation-manifest-v4.schema.json",
         "examples/delegations/restricted-agent-credit-minimal.toml",
         "examples/delegations/restricted-agent-credit-full.toml",
     }

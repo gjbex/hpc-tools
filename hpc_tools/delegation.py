@@ -38,8 +38,8 @@ from hpc_tools.credit_quotes import (
     parse_credit_amount,
 )
 
-MANIFEST_VERSION = 3
-LEDGER_SCHEMA_VERSION = 4
+MANIFEST_VERSION = 4
+LEDGER_SCHEMA_VERSION = 5
 DELEGATION_ENV_VAR = "HPC_TOOLS_MCP_DELEGATION"
 LEDGER_ENV_VAR = "HPC_TOOLS_MCP_LEDGER"
 PARENT_JOB_ENV_VAR = "HPC_TOOLS_PARENT_JOB_ID"
@@ -85,6 +85,36 @@ class SubmissionDenied(DelegationError):
         if self.resource is not None:
             result["resource"] = self.resource
         return result
+
+
+class AgentNetworkMode(StrEnum):
+    """Operator-selected network policy for the unattended agent harness."""
+
+    MODEL_ONLY = "model-only"
+    MODEL_INDEXED_SEARCH = "model-indexed-search"
+    MODEL_LIVE_SEARCH = "model-live-search"
+
+
+@dataclass(frozen=True)
+class AgentNetworkPolicy:
+    """Public network contract selected by the protected manifest."""
+
+    mode: AgentNetworkMode
+
+    @property
+    def web_search_mode(self) -> str:
+        return {
+            AgentNetworkMode.MODEL_ONLY: "disabled",
+            AgentNetworkMode.MODEL_INDEXED_SEARCH: "indexed",
+            AgentNetworkMode.MODEL_LIVE_SEARCH: "live",
+        }[self.mode]
+
+    def public_summary(self) -> dict[str, str | bool]:
+        return {
+            "mode": self.mode.value,
+            "web_search": self.web_search_mode,
+            "command_network_access": False,
+        }
 
 
 @dataclass(frozen=True)
@@ -181,6 +211,7 @@ class DelegationManifest:
     per_job_limits: dict[str, int]
     budget: dict[str, int]
     credit_budget: CreditBudget | None
+    network: AgentNetworkPolicy
     filesystem: FilesystemPolicy | None
     lifecycle: LifecyclePolicy
     source_path: Path
@@ -198,6 +229,7 @@ class DelegationManifest:
             "allowed": {key: list(value) for key, value in self.allowed.items()},
             "per_job_limits": self.per_job_limits,
             "budget": self.budget,
+            "network": self.network.public_summary(),
             "credit_budget": (
                 self.credit_budget.public_summary()
                 if self.credit_budget is not None
@@ -394,7 +426,7 @@ def load_manifest(
         {
             "format_version", "id", "issuer", "profile", "parent_job_id",
             "issued_at", "expires_at", "allowed", "per_job_limits", "budget",
-            "credit_budget", "filesystem", "lifecycle",
+            "credit_budget", "network", "filesystem", "lifecycle",
         },
         "delegation manifest",
     )
@@ -403,6 +435,7 @@ def load_manifest(
             f"unsupported delegation manifest version {raw.get('format_version')!r}; "
             f"expected {MANIFEST_VERSION}"
         )
+    network = _network_policy(raw.get("network"))
     identifier = _string(raw, "id")
     profile = _string(raw, "profile")
     parent = _string(raw, "parent_job_id")
@@ -479,6 +512,7 @@ def load_manifest(
         per_job_limits=per_job_limits,
         budget=budget,
         credit_budget=credit_budget,
+        network=network,
         filesystem=filesystem,
         lifecycle=lifecycle,
         source_path=path,
@@ -578,25 +612,36 @@ class DelegationLedger:
     def register(self, manifest: DelegationManifest) -> None:
         with self._transaction() as db:
             row = db.execute(
-                "SELECT manifest_sha256,revoked_at FROM delegations WHERE delegation_id=?",
+                """SELECT manifest_sha256,revoked_at,network_mode
+                   FROM delegations WHERE delegation_id=?""",
                 (manifest.identifier,),
             ).fetchone()
             if row and row[0] != manifest.digest:
                 raise DelegationError("delegation id is registered with different contents")
             if row and row[1]:
                 raise DelegationError("delegation is revoked")
+            if row and row[2] != manifest.network.mode.value:
+                raise DelegationError("delegation network mode does not match the ledger")
             if not row:
                 db.execute(
                     """INSERT INTO delegations
                        (delegation_id,manifest_sha256,issuer,profile,parent_job_id,
-                        issued_at,expires_at,manifest_json) VALUES (?,?,?,?,?,?,?,?)""",
+                        issued_at,expires_at,network_mode,manifest_json)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
                     (
                         manifest.identifier, manifest.digest, manifest.issuer,
                         manifest.profile, manifest.parent_job_id, manifest.issued_at,
-                        manifest.expires_at, json.dumps(manifest.public_summary(), sort_keys=True),
+                        manifest.expires_at, manifest.network.mode.value,
+                        json.dumps(manifest.public_summary(), sort_keys=True),
                     ),
                 )
-                self._audit(db, manifest.identifier, "register", "accepted", {})
+                self._audit(
+                    db,
+                    manifest.identifier,
+                    "register",
+                    "accepted",
+                    {"network": manifest.network.public_summary()},
+                )
             attempt = db.execute(
                 """SELECT 1 FROM controller_attempts
                    WHERE delegation_id=? LIMIT 1""",
@@ -652,6 +697,7 @@ class DelegationLedger:
                 else None
             ),
             "quote_format": quote_format,
+            "network": manifest.network.public_summary(),
         }
         with self._transaction() as db:
             self._registered(db, manifest)
@@ -1804,7 +1850,8 @@ class DelegationLedger:
 
     def _active(self, db: sqlite3.Connection, manifest: DelegationManifest) -> None:
         row = db.execute(
-            """SELECT manifest_sha256,expires_at,revoked_at FROM delegations
+            """SELECT manifest_sha256,expires_at,revoked_at,network_mode
+               FROM delegations
                WHERE delegation_id=?""",
             (manifest.identifier,),
         ).fetchone()
@@ -1812,6 +1859,8 @@ class DelegationLedger:
             raise DelegationError("delegation is not registered with this ledger")
         if row[2]:
             raise DelegationError("delegation is revoked")
+        if row[3] != manifest.network.mode.value:
+            raise DelegationError("delegation network mode does not match the ledger")
         if _parse_time(row[1]) <= datetime.now(timezone.utc):
             raise DelegationError("delegation is expired")
 
@@ -1859,11 +1908,14 @@ class DelegationLedger:
         self, db: sqlite3.Connection, manifest: DelegationManifest
     ) -> None:
         row = db.execute(
-            "SELECT manifest_sha256 FROM delegations WHERE delegation_id=?",
+            """SELECT manifest_sha256,network_mode FROM delegations
+               WHERE delegation_id=?""",
             (manifest.identifier,),
         ).fetchone()
         if not row or row[0] != manifest.digest:
             raise DelegationError("delegation is not registered with this ledger")
+        if row[1] != manifest.network.mode.value:
+            raise DelegationError("delegation network mode does not match the ledger")
 
     def _audit(
         self,
@@ -1947,6 +1999,8 @@ class DelegationLedger:
                     manifest_sha256 TEXT NOT NULL, issuer TEXT NOT NULL,
                     profile TEXT NOT NULL, parent_job_id TEXT NOT NULL,
                     issued_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+                    network_mode TEXT NOT NULL CHECK (network_mode IN
+                      ('model-only','model-indexed-search','model-live-search')),
                     manifest_json TEXT NOT NULL, revoked_at TEXT,
                     revocation_reason TEXT
                 );
@@ -2092,6 +2146,10 @@ def _controller_authority(
     config_sha256 = detail.get("config_sha256")
     captured_credit_budget = _credit_budget(detail.get("credit_budget"))
     quote_format = detail.get("quote_format")
+    if detail.get("network") != manifest.network.public_summary():
+        raise DelegationError(
+            "captured controller network policy does not match the delegation"
+        )
     if calculated != policy_sha256:
         raise DelegationError("captured controller policy digest does not match")
     if not isinstance(config_path, str) or not config_path:
@@ -2320,6 +2378,19 @@ def _reject_unknown_keys(
     unknown = sorted(set(value) - allowed)
     if unknown:
         raise DelegationError(f"unsupported {name} field(s): {', '.join(unknown)}")
+
+
+def _network_policy(value: Any) -> AgentNetworkPolicy:
+    if not isinstance(value, dict):
+        raise DelegationError("network must be a table")
+    _reject_unknown_keys(value, {"mode"}, "network")
+    selected = value.get("mode")
+    try:
+        mode = AgentNetworkMode(selected)
+    except (TypeError, ValueError) as error:
+        choices = ", ".join(mode.value for mode in AgentNetworkMode)
+        raise DelegationError(f"network.mode must be one of: {choices}") from error
+    return AgentNetworkPolicy(mode=mode)
 
 
 def _lifecycle_policy(value: Any) -> LifecyclePolicy:

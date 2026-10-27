@@ -46,13 +46,16 @@ class DelegationTests(unittest.TestCase):
         path.write_text(
             textwrap.dedent(
                 f"""
-                format_version = 3
+                format_version = 4
                 id = "{values['id']}"
                 issuer = "operator@example.org"
                 profile = "{values['profile']}"
                 parent_job_id = "{values['parent_job_id']}"
                 issued_at = "2026-01-01T00:00:00Z"
                 expires_at = "{values['expires_at']}"
+
+                [network]
+                mode = "model-only"
 
                 [allowed]
                 accounts = ["proj"]
@@ -140,6 +143,10 @@ class DelegationTests(unittest.TestCase):
                 now=datetime(2026, 8, 1, tzinfo=timezone.utc),
             )
             self.assertEqual("delegate-1", manifest.identifier)
+            self.assertEqual(
+                delegation.AgentNetworkMode.MODEL_ONLY,
+                manifest.network.mode,
+            )
             with self.assertRaisesRegex(delegation.DelegationError, "profile"):
                 delegation.load_manifest(path, expected_profile="other")
             with self.assertRaisesRegex(delegation.DelegationError, "parent"):
@@ -150,7 +157,7 @@ class DelegationTests(unittest.TestCase):
             with self.assertRaisesRegex(delegation.DelegationError, "writable"):
                 delegation.load_manifest(path, expected_profile="genius")
 
-    def test_manifest_v3_parses_optional_fixed_point_credit_budget(self) -> None:
+    def test_manifest_v4_parses_optional_fixed_point_credit_budget(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             without_credit = delegation.load_manifest(
@@ -298,19 +305,87 @@ class DelegationTests(unittest.TestCase):
                 with self.assertRaisesRegex(delegation.DelegationError, message):
                     delegation.load_manifest(path, expected_profile="genius")
 
-    def test_manifest_v2_is_rejected_without_implicit_migration(self) -> None:
+    def test_manifest_v3_is_rejected_without_implicit_migration(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = self._manifest(Path(directory))
             path.write_text(
                 path.read_text(encoding="utf-8").replace(
-                    "format_version = 3", "format_version = 2"
+                    "format_version = 4", "format_version = 3"
                 ),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(
-                delegation.DelegationError, "version 2.*expected 3"
+                delegation.DelegationError, "version 3.*expected 4"
             ):
                 delegation.load_manifest(path, expected_profile="genius")
+
+    def test_manifest_maps_each_explicit_network_mode(self) -> None:
+        expected = {
+            "model-only": "disabled",
+            "model-indexed-search": "indexed",
+            "model-live-search": "live",
+        }
+        for selected, web_search in expected.items():
+            with (
+                self.subTest(mode=selected),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                path = self._manifest(Path(directory))
+                path.write_text(
+                    path.read_text(encoding="utf-8").replace(
+                        'mode = "model-only"', f'mode = "{selected}"'
+                    ),
+                    encoding="utf-8",
+                )
+                manifest = delegation.load_manifest(
+                    path, expected_profile="genius"
+                )
+
+                self.assertEqual(selected, manifest.network.mode.value)
+                self.assertEqual(
+                    {
+                        "mode": selected,
+                        "web_search": web_search,
+                        "command_network_access": False,
+                    },
+                    manifest.public_summary()["network"],
+                )
+
+    def test_manifest_network_policy_fails_closed(self) -> None:
+        cases = {
+            "absent": (
+                '[network]\nmode = "model-only"\n\n',
+                "",
+                "network must be a table",
+            ),
+            "unknown mode": (
+                'mode = "model-only"',
+                'mode = "unrestricted"',
+                "network.mode must be one of",
+            ),
+            "wrong type": ('mode = "model-only"', "mode = true", "network.mode"),
+            "unknown key": (
+                'mode = "model-only"',
+                'mode = "model-only"\nproxy_url = "secret"',
+                "unsupported network field",
+            ),
+            "duplicate mode": (
+                'mode = "model-only"',
+                'mode = "model-only"\nmode = "model-only"',
+                "invalid delegation manifest",
+            ),
+        }
+        for name, (source, replacement, message) in cases.items():
+            with (
+                self.subTest(name=name),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                path = self._manifest(Path(directory))
+                content = path.read_text(encoding="utf-8")
+                content = content.replace(source, replacement)
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaisesRegex(delegation.DelegationError, message):
+                    delegation.load_manifest(path, expected_profile="genius")
 
     def test_credit_controller_startup_requires_and_captures_quote_contract(
         self,
@@ -604,17 +679,17 @@ class DelegationTests(unittest.TestCase):
             self.assertEqual("reconciling", restarted["state"])
             self.assertTrue(restarted["reconciliation_required"])
 
-    def test_pre_credit_ledger_schema_is_rejected_without_migration(self) -> None:
+    def test_pre_network_ledger_schema_is_rejected_without_migration(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             ledger_path = root / "ledger.sqlite3"
             with closing(sqlite3.connect(ledger_path)) as connection:
-                connection.execute("PRAGMA user_version=3")
+                connection.execute("PRAGMA user_version=4")
             ledger_path.chmod(0o600)
             manifest = delegation.load_manifest(
                 self._manifest(root), expected_profile="genius"
             )
-            with self.assertRaisesRegex(delegation.DelegationError, "schema version 3"):
+            with self.assertRaisesRegex(delegation.DelegationError, "schema version 4"):
                 delegation.DelegationLedger(ledger_path).register(manifest)
 
     def test_expired_malformed_and_misspelled_manifests_fail_closed(self) -> None:
