@@ -21,18 +21,25 @@ ledger=/path/to/protected/delegations.sqlite3
 config=${HPC_TOOLS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hpc-tools/config.toml}
 agent_image=/path/to/restricted-codex.sif
 agent_env_file=/path/to/protected/codex.env
+network_env_file=  # Optional: /path/to/protected/network.env
 prompt_file=/path/to/reviewed-task.md
 
-# codex.env must be mode 0600 and outside every directory bound into the image.
+# Both environment files must be mode 0600 and outside every bind root.
+# codex.env contains exactly one credential: OPENAI_API_KEY or CODEX_ACCESS_TOKEN.
+# network.env is optional and accepts only documented proxy and CA variables.
 # The reviewed prompt must also be mode 0600 and outside every bind root.
-# For programmatic use it normally contains one line: OPENAI_API_KEY=<key>
 # Start from the generated task.md and keep the $hpc-delegated-slurm invocation.
+network_env_args=()
+if [[ -n "$network_env_file" ]]; then
+    network_env_args=(--network-env-file "$network_env_file")
+fi
 hpc-agent-launch \
     --manifest "$manifest" \
     --ledger "$ledger" \
     --config "$config" \
     --profile example \
     --agent-env-file "$agent_env_file" \
+    "${network_env_args[@]}" \
     --agent-image "$agent_image" \
     --prompt-file "$prompt_file" \
     -- codex-agent - &

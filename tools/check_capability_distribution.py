@@ -168,7 +168,14 @@ def _check_archive_contract(wheel: Path, sdist: Path) -> None:
     )
     with zipfile.ZipFile(wheel) as archive:
         wheel_names = set(archive.namelist())
-    for required in (image_skill, image_reference):
+    image_runtime_assets = (
+        "hpc_tools/data/containers/agent/Apptainer.def",
+        "hpc_tools/data/containers/agent/codex-agent",
+        "hpc_tools/data/containers/agent/codex-config-model-only.toml",
+        "hpc_tools/data/containers/agent/codex-config-model-indexed-search.toml",
+        "hpc_tools/data/containers/agent/codex-config-model-live-search.toml",
+    )
+    for required in (image_skill, image_reference, *image_runtime_assets):
         if required not in wheel_names:
             raise AssertionError(f"wheel omitted restricted-agent asset: {required}")
     if "skills/hpc-slurm-jobs/SKILL.md" in wheel_names:

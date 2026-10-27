@@ -183,7 +183,16 @@ class CliCoreTests(unittest.TestCase):
             self.assertEqual(0, args.handler(args, make_profile()))
             definition = (output / "Apptainer.def").read_text(encoding="utf-8")
             wrapper = (output / "codex-agent").read_text(encoding="utf-8")
-            config = (output / "config.toml").read_text(encoding="utf-8")
+            configs = {
+                mode: (output / f"codex-config-{mode}.toml").read_text(
+                    encoding="utf-8"
+                )
+                for mode in (
+                    "model-only",
+                    "model-indexed-search",
+                    "model-live-search",
+                )
+            }
             task = (output / "task.md").read_text(encoding="utf-8")
             slurm = (output / "restricted-agent.slurm").read_text(encoding="utf-8")
             skill = (
@@ -191,13 +200,24 @@ class CliCoreTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertIn("@openai/codex@0.150.1", definition)
             self.assertIn("hpc-mcp-relay", definition)
-            self.assertIn("config.toml /opt/hpc-tools/config.toml", definition)
+            self.assertIn(
+                "codex-config-model-only.toml "
+                "/opt/hpc-tools/config/model-only.toml",
+                definition,
+            )
             self.assertIn("def relay_main", (output / "hpc-mcp-relay").read_text())
             self.assertIn("--ephemeral", wrapper)
             self.assertIn("--sandbox workspace-write", wrapper)
             self.assertIn('cp -R /opt/hpc-tools/skills "$codex_home/skills"', wrapper)
-            self.assertIn("[mcp_servers.hpc-tools]", config)
-            self.assertIn("required = true", config)
+            self.assertIn('web_search = "disabled"', configs["model-only"])
+            self.assertIn(
+                'web_search = "indexed"', configs["model-indexed-search"]
+            )
+            self.assertIn('web_search = "live"', configs["model-live-search"])
+            for config in configs.values():
+                self.assertIn("[mcp_servers.hpc-tools]", config)
+                self.assertIn("required = true", config)
+                self.assertIn("network_access = false", config)
             self.assertIn("Use $hpc-delegated-slurm", task)
             self.assertIn("name: hpc-delegated-slurm", skill)
             self.assertEqual(
@@ -214,6 +234,7 @@ class CliCoreTests(unittest.TestCase):
                 ).is_file()
             )
             self.assertIn("--agent-env-file", slurm)
+            self.assertIn("--network-env-file", slurm)
             self.assertIn("-- codex-agent -", slurm)
             self.assertFalse((output / "mcp.json").exists())
 

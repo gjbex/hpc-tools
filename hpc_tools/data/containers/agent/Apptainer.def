@@ -9,7 +9,9 @@ From: node:22.16.0-bookworm-slim
 %files
     hpc-mcp-relay /opt/hpc-tools/hpc-mcp-relay
     codex-agent /opt/hpc-tools/codex-agent
-    config.toml /opt/hpc-tools/config.toml
+    codex-config-model-only.toml /opt/hpc-tools/config/model-only.toml
+    codex-config-model-indexed-search.toml /opt/hpc-tools/config/model-indexed-search.toml
+    codex-config-model-live-search.toml /opt/hpc-tools/config/model-live-search.toml
     skills/hpc-delegated-slurm /opt/hpc-tools/skills/hpc-delegated-slurm
 
 %post
@@ -22,7 +24,7 @@ From: node:22.16.0-bookworm-slim
     npm cache clean --force
     rm -rf /var/lib/apt/lists/*
     chmod 0755 /opt/hpc-tools/hpc-mcp-relay /opt/hpc-tools/codex-agent
-    chmod 0644 /opt/hpc-tools/config.toml
+    chmod 0644 /opt/hpc-tools/config/*.toml
     ln -s /opt/hpc-tools/hpc-mcp-relay /usr/local/bin/hpc-mcp-relay
     ln -s /opt/hpc-tools/codex-agent /usr/local/bin/codex-agent
 
@@ -38,6 +40,19 @@ From: node:22.16.0-bookworm-slim
     command -v hpc-mcp-relay >/dev/null
     test "$(codex --version)" = "codex-cli 0.150.1"
     test -f /opt/hpc-tools/skills/hpc-delegated-slurm/SKILL.md
+    test -f /opt/hpc-tools/config/model-only.toml
+    test -f /opt/hpc-tools/config/model-indexed-search.toml
+    test -f /opt/hpc-tools/config/model-live-search.toml
+    grep -Fx 'web_search = "disabled"' /opt/hpc-tools/config/model-only.toml >/dev/null
+    grep -Fx 'web_search = "indexed"' /opt/hpc-tools/config/model-indexed-search.toml >/dev/null
+    grep -Fx 'web_search = "live"' /opt/hpc-tools/config/model-live-search.toml >/dev/null
+    for config in /opt/hpc-tools/config/*.toml; do
+        grep -Fx 'allow_login_shell = false' "$config" >/dev/null
+        grep -Fx 'network_access = false' "$config" >/dev/null
+        grep -Fx '"OPENAI_API_KEY" = "exclude"' "$config" >/dev/null
+        grep -Fx '"HTTPS_PROXY" = "exclude"' "$config" >/dev/null
+        grep -Fx 'required = true' "$config" >/dev/null
+    done
     test -f /opt/hpc-tools/skills/hpc-delegated-slurm/references/job-design.md
     test "$(find /opt/hpc-tools/skills -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
     for command in ssh scp sftp sbatch scancel squeue sacct scontrol srun salloc munge unmunge; do

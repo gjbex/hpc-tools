@@ -72,10 +72,28 @@ Slurm, and Munge commands. The host launcher repeats a negative preflight before
 every run and also rejects `/etc/slurm`, `/etc/ssh`, and common Munge socket
 directories under the actual containment flags.
 
-The generated `config.toml` uses Codex's native stdio MCP configuration and
-makes the relay required:
+The image contains three complete Codex configurations. Each uses Codex's
+native stdio MCP configuration, makes the relay required, disables command
+networking, and sets one explicit web-search mode:
 
 ```toml
+web_search = "disabled"  # or "indexed" / "live" in the other files
+sandbox_mode = "workspace-write"
+allow_login_shell = false
+
+[sandbox_workspace_write]
+network_access = false
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = false
+experimental_use_profile = false
+
+[shell_environment_policy.filters]
+"OPENAI_API_KEY" = "exclude"
+"CODEX_ACCESS_TOKEN" = "exclude"
+"HTTPS_PROXY" = "exclude"  # HTTP/NO_PROXY and CA variables are also excluded
+
 [mcp_servers.hpc-tools]
 command = "hpc-mcp-relay"
 required = true
@@ -83,8 +101,11 @@ startup_timeout_sec = 20
 tool_timeout_sec = 300
 ```
 
-The wrapper copies that file into a new mode-`0700` `CODEX_HOME` in the
-container's private temporary filesystem and copies only the bundled
+The launcher derives `HPC_TOOLS_AGENT_NETWORK_MODE` only from the protected
+manifest. The wrapper accepts exactly the three manifest modes in a closed
+`case` statement and copies the corresponding packaged file into a new
+mode-`0700` `CODEX_HOME` in the container's private temporary filesystem. It
+copies only the bundled
 `hpc-delegated-slurm` skill into that home. It runs `codex exec` with
 `--strict-config`, `--ephemeral`, `--json`, `--sandbox workspace-write`, and
 `--skip-git-repo-check`. No Codex conversation rollout is retained inside the
@@ -124,11 +145,12 @@ mode is recorded in `hpc://runtime`, the protected ledger and audit export, and
 each controller attempt's provenance. Proxy addresses and credentials do not
 belong in the manifest or those public summaries.
 
-This is the protected policy contract, not runtime enforcement. Until WP2 of
-the [production implementation plan](development/restricted-agent-production-plan.md)
-is complete and qualified on the target cluster, selecting indexed or live
-search is not evidence that the corresponding network path is available or
-site-enforced.
+The launcher and Codex configuration now enforce this selection within the
+harness contract. They do not isolate the container from the shared host
+network: a compromised harness may bypass Codex's command sandbox. Production
+qualification therefore still requires an independently enforced site egress
+policy; selecting indexed or live search is not evidence that such a policy is
+installed or effective.
 
 ### Keep boundary tests independent of Codex
 
@@ -267,6 +289,7 @@ hpc-agent-launch \
     --config ~/.config/hpc-tools/config.toml \
     --profile example \
     --agent-env-file /protected/codex.env \
+    --network-env-file /protected/network.env \
     --agent-image /project/images/restricted-codex.sif \
     --prompt-file /protected/reviewed-task.md \
     -- codex-agent -
@@ -324,7 +347,8 @@ Every launched controller generation creates this protected directory:
 
 Files are mode `0600` and directories are mode `0700`. `provenance.json`
 records hashes for the prompt, manifest, agent image, Codex configuration, and
-captured profile policy and configuration; the public network policy;
+captured profile policy and configuration; the public network policy and only
+the presence and SHA-256 hash of any allowlisted network environment;
 the Codex and hpc-tools versions; the exact agent argv; and the Git commit and
 dirty flag for both hpc-tools and `work_root` when those directories are Git
 checkouts. Hashing the complete SIF is intentional evidence but can add startup
@@ -351,10 +375,14 @@ does not support those flags fail closed and must review an adapted launcher;
 silently dropping a containment flag is unsafe.
 
 The outer Apptainer environment removes SSH-agent variables, delegation paths,
-credentials, `LD_PRELOAD`, and agent-controlled
+credentials, ambient proxy/CA variables, `LD_PRELOAD`, and agent-controlled
 `APPTAINERENV_`/`SINGULARITYENV_` injections by constructing a small allowlisted
-outer environment. The container explicitly receives only a temporary home and
-the MCP socket path from this layer.
+outer environment. Fixed launcher-controlled options set the temporary home,
+manifest-selected network mode, and MCP socket path; the separately parsed
+private environment file supplies only credentials and explicitly allowlisted
+proxy/CA settings. The launcher also requires the agent command to be exactly
+`codex-agent -`, so job-script arguments cannot override the selected
+configuration or sandbox.
 
 For programmatic Codex use, OpenAI recommends API-key authentication. Put
 `OPENAI_API_KEY=<key>` in the protected mode-`0600` environment file outside
@@ -368,6 +396,22 @@ agent process, so a compromised agent could still disclose them. Prefer
 short-lived, narrowly scoped credentials or an external credential broker. The
 file is never passed to delegated jobs. See [Codex
 authentication](https://learn.chatgpt.com/docs/auth).
+
+If the site requires a proxy or custom CA, put only the required assignments in
+a separate private mode-`0600` file and pass `--network-env-file`. The exact
+allowlist is `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, their lowercase variants,
+`SSL_CERT_FILE`, `SSL_CERT_DIR`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`, and
+lowercase variants of those CA names. Empty files, duplicates, arbitrary names,
+shell-startup variables, loader variables, and `APPTAINER_*` or `SINGULARITY_*`
+names are rejected. The credential and network files are parsed into a
+launcher-created mode-`0600` environment file under the private runtime
+directory; their source paths and values are neither mounted nor printed.
+Those variables remain available to the Codex process for authentication and
+transport setup, but the packaged shell-environment policy removes every
+credential, proxy, CA, mode-selector, and MCP-socket variable from commands
+spawned by Codex. Login shells and shell-profile loading are disabled. This is
+defence in depth, not a substitute for short-lived credentials: the Codex
+process itself must still be trusted with the values it consumes.
 
 ## Parent termination and delegated jobs
 

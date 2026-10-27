@@ -13,6 +13,7 @@ import tempfile
 import textwrap
 import threading
 import time
+import tomllib
 import unittest
 from dataclasses import replace
 from importlib import resources
@@ -145,7 +146,18 @@ class RestrictedBoundaryTests(unittest.TestCase):
         assets = resources.files("hpc_tools.data").joinpath("containers", "agent")
         definition = assets.joinpath("Apptainer.def").read_text(encoding="utf-8")
         wrapper = assets.joinpath("codex-agent").read_text(encoding="utf-8")
-        config = assets.joinpath("codex-config.toml").read_text(encoding="utf-8")
+        configs = {
+            mode: tomllib.loads(
+                assets.joinpath(f"codex-config-{mode}.toml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            for mode in (
+                "model-only",
+                "model-indexed-search",
+                "model-live-search",
+            )
+        }
 
         self.assertIn("From: node:22.16.0-bookworm-slim", definition)
         self.assertIn("npm install --global @openai/codex@0.150.1", definition)
@@ -160,9 +172,59 @@ class RestrictedBoundaryTests(unittest.TestCase):
         self.assertIn("--sandbox workspace-write", wrapper)
         self.assertIn("--skip-git-repo-check", wrapper)
         self.assertNotIn("set -x", wrapper)
-        self.assertIn("[mcp_servers.hpc-tools]", config)
-        self.assertIn('command = "hpc-mcp-relay"', config)
-        self.assertIn("required = true", config)
+        self.assertIn("case \"${HPC_TOOLS_AGENT_NETWORK_MODE:-}\"", wrapper)
+        for mode in configs:
+            self.assertIn(f"    {mode})", wrapper)
+        self.assertLess(
+            wrapper.index('case "${HPC_TOOLS_AGENT_NETWORK_MODE:-}"'),
+            wrapper.index('if [ -z "${HPC_TOOLS_MCP_SOCKET:-}" ]'),
+        )
+        self.assertLess(
+            wrapper.index('if [ -z "${HPC_TOOLS_MCP_SOCKET:-}" ]'),
+            wrapper.index("codex login"),
+        )
+        self.assertEqual(
+            {
+                "model-only": "disabled",
+                "model-indexed-search": "indexed",
+                "model-live-search": "live",
+            },
+            {mode: config["web_search"] for mode, config in configs.items()},
+        )
+        for config in configs.values():
+            self.assertEqual("workspace-write", config["sandbox_mode"])
+            self.assertFalse(config["allow_login_shell"])
+            self.assertFalse(config["sandbox_workspace_write"]["network_access"])
+            self.assertEqual(
+                {
+                    "inherit": "all",
+                    "ignore_default_excludes": False,
+                    "experimental_use_profile": False,
+                    "filters": {
+                        "OPENAI_API_KEY": "exclude",
+                        "CODEX_ACCESS_TOKEN": "exclude",
+                        "HTTP_PROXY": "exclude",
+                        "HTTPS_PROXY": "exclude",
+                        "NO_PROXY": "exclude",
+                        "SSL_CERT_FILE": "exclude",
+                        "SSL_CERT_DIR": "exclude",
+                        "REQUESTS_CA_BUNDLE": "exclude",
+                        "CURL_CA_BUNDLE": "exclude",
+                        "HPC_TOOLS_AGENT_NETWORK_MODE": "exclude",
+                        "HPC_TOOLS_MCP_SOCKET": "exclude",
+                    },
+                },
+                config["shell_environment_policy"],
+            )
+            self.assertEqual(
+                {
+                    "command": "hpc-mcp-relay",
+                    "required": True,
+                    "startup_timeout_sec": 20,
+                    "tool_timeout_sec": 300,
+                },
+                config["mcp_servers"]["hpc-tools"],
+            )
         self.assertNotIn("hpc-agent-reap", definition)
 
     def test_parent_template_requests_requeue_and_forwards_lifecycle_signals(self) -> None:
@@ -384,6 +446,33 @@ class RestrictedBoundaryTests(unittest.TestCase):
             self.assertNotIn(str(paths["state"]), rendered)
             self.assertNotIn(str(runtime.ledger_path), rendered)
 
+    def test_manifest_network_mode_is_the_only_container_mode_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, paths = self._fixture(Path(directory))
+            socket_directory = Path(directory) / "socket"
+            socket_directory.mkdir(mode=0o700)
+            for mode in delegation.AgentNetworkMode:
+                with self.subTest(mode=mode.value):
+                    manifest = replace(
+                        runtime.manifest,
+                        network=delegation.AgentNetworkPolicy(mode),
+                    )
+                    command = restricted_launch.build_apptainer_command(
+                        manifest=manifest,
+                        agent_image=paths["container"],
+                        socket_directory=socket_directory,
+                        agent_command=["codex-agent", "-"],
+                    )
+                    self.assertIn(
+                        f"{restricted_launch.NETWORK_MODE_ENV_VAR}={mode.value}",
+                        command,
+                    )
+
+            with self.assertRaisesRegex(ConfigError, "exactly 'codex-agent -'"):
+                restricted_launch._validate_agent_command(
+                    ["codex-agent", "-c", 'web_search="live"', "-"]
+                )
+
     def test_parent_attempt_artifacts_snapshot_prompt_and_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             runtime, paths = self._fixture(Path(directory))
@@ -394,7 +483,7 @@ class RestrictedBoundaryTests(unittest.TestCase):
                 mock.patch(
                     "hpc_tools.restricted_launch._read_image_text",
                     side_effect=["codex-cli 0.150.1\n", "model = 'test'\n"],
-                ),
+                ) as read_image,
                 mock.patch(
                     "hpc_tools.restricted_launch._git_revision",
                     return_value={"commit": "abc", "dirty": False},
@@ -408,11 +497,15 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     agent_image=paths["container"],
                     agent_command=["codex-agent", "-"],
                     controller_authority=runtime.controller_authority,
+                    network_environment=restricted_launch.NetworkEnvironmentEvidence(
+                        supplied=True,
+                        sha256="b" * 64,
+                    ),
                 )
 
             self.assertEqual("bounded objective\n", artifacts.prompt_path.read_text(encoding="utf-8"))
             provenance = json.loads(artifacts.provenance_path.read_text(encoding="utf-8"))
-            self.assertEqual(2, provenance["format_version"])
+            self.assertEqual(3, provenance["format_version"])
             self.assertEqual("codex-cli 0.150.1", provenance["codex"]["version"])
             self.assertEqual("abc", provenance["work_source"]["commit"])
             self.assertEqual(
@@ -432,9 +525,19 @@ class RestrictedBoundaryTests(unittest.TestCase):
                     "mode": "model-only",
                     "web_search": "disabled",
                     "command_network_access": False,
+                    "environment": {"supplied": True, "sha256": "b" * 64},
                 },
                 provenance["network"],
             )
+            self.assertEqual(
+                [
+                    "cat",
+                    "/opt/hpc-tools/config/model-only.toml",
+                ],
+                read_image.call_args_list[1].args[2],
+            )
+            self.assertNotIn("proxy-secret", json.dumps(provenance))
+            self.assertEqual("", artifacts.diagnostic_log.read_text(encoding="utf-8"))
             for path in (
                 artifacts.provenance_path,
                 artifacts.prompt_path,
@@ -527,7 +630,13 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertEqual([], observation["available"])
             self.assertTrue(
                 set(observation["environment"]).issubset(
-                    {"HOME", "HPC_TOOLS_MCP_SOCKET", "PATH", "LC_CTYPE"}
+                    {
+                        "HOME",
+                        "HPC_TOOLS_AGENT_NETWORK_MODE",
+                        "HPC_TOOLS_MCP_SOCKET",
+                        "PATH",
+                        "LC_CTYPE",
+                    }
                 )
             )
             self.assertNotIn("OPENAI_API_KEY", observation["environment"])
@@ -553,7 +662,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     ledger_path=runtime.ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
-                    agent_command=["agent", "--batch"],
+                    agent_command=["codex-agent", "-"],
                     runtime_base=runtime_base,
                     config_path=paths["config"],
                     dry_run=True,
@@ -593,7 +702,7 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                     ledger_path=runtime.ledger_path,
                     profile="cluster",
                     agent_image=paths["container"],
-                    agent_command=["agent", "--batch"],
+                    agent_command=["codex-agent", "-"],
                     runtime_base=root / "runtime",
                     config_path=paths["config"],
                     dry_run=True,
@@ -696,6 +805,127 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
             self.assertEqual("final", controller["state"])
             self.assertIn("timeout-requeue-failed", controller["reason"])
 
+    def test_network_environment_is_allowlisted_and_hashed_without_disclosure(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            credential = root / "credential.env"
+            credential.write_text("OPENAI_API_KEY=credential-secret\n", encoding="utf-8")
+            credential.chmod(0o600)
+            network = root / "network.env"
+            network.write_text(
+                "HTTPS_PROXY=https://proxy-secret@example.invalid:8443\n"
+                "NO_PROXY=127.0.0.1,localhost\n"
+                "SSL_CERT_FILE=/etc/ssl/certs/site.pem\n",
+                encoding="utf-8",
+            )
+            network.chmod(0o600)
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o700)
+
+            generated, evidence = restricted_launch._materialize_agent_environment(
+                runtime,
+                credential_file=credential,
+                network_file=network,
+            )
+
+            self.assertIsNotNone(generated)
+            assert generated is not None
+            self.assertEqual(0o600, stat.S_IMODE(generated.stat().st_mode))
+            contents = generated.read_text(encoding="utf-8")
+            self.assertIn("OPENAI_API_KEY=credential-secret", contents)
+            self.assertIn("HTTPS_PROXY=https://proxy-secret", contents)
+            self.assertTrue(evidence.supplied)
+            expected_network = (
+                "HTTPS_PROXY=https://proxy-secret@example.invalid:8443\n"
+                "NO_PROXY=127.0.0.1,localhost\n"
+                "SSL_CERT_FILE=/etc/ssl/certs/site.pem\n"
+            ).encode("utf-8")
+            self.assertEqual(
+                hashlib.sha256(expected_network).hexdigest(), evidence.sha256
+            )
+            self.assertNotIn("proxy-secret", json.dumps(evidence.public_summary()))
+
+    def test_network_environment_rejects_injection_and_arbitrary_names(self) -> None:
+        rejected = (
+            "APPTAINERENV_ESCAPE",
+            "SINGULARITYENV_ESCAPE",
+            "LD_PRELOAD",
+            "BASH_ENV",
+            "HPC_TOOLS_AGENT_NETWORK_MODE",
+            "ARBITRARY",
+        )
+        for name in rejected:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "network.env"
+                path.write_text(f"{name}=secret\n", encoding="utf-8")
+                path.chmod(0o600)
+                with self.assertRaisesRegex(ConfigError, "unsupported.*variable"):
+                    restricted_launch._parse_environment_file(
+                        path,
+                        label="network environment file",
+                        allowed_names=restricted_launch.NETWORK_ENV_NAMES,
+                    )
+
+        with tempfile.TemporaryDirectory() as directory:
+            credential = Path(directory) / "credential.env"
+            credential.write_text(
+                "OPENAI_API_KEY=secret\nHTTPS_PROXY=https://proxy.invalid\n",
+                encoding="utf-8",
+            )
+            credential.chmod(0o600)
+            with self.assertRaisesRegex(ConfigError, "unsupported.*HTTPS_PROXY"):
+                restricted_launch._parse_environment_file(
+                    credential,
+                    label="agent environment file",
+                    allowed_names=restricted_launch.AGENT_CREDENTIAL_ENV_NAMES,
+                )
+
+    def test_dry_run_uses_generated_env_file_without_printing_secrets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime, paths = self._fixture(root)
+            paths["manifest"].chmod(0o600)
+            credential = root / "credential.env"
+            credential.write_text("OPENAI_API_KEY=credential-secret\n", encoding="utf-8")
+            credential.chmod(0o600)
+            network = root / "network.env"
+            network.write_text(
+                "HTTPS_PROXY=https://proxy-secret@example.invalid\n",
+                encoding="utf-8",
+            )
+            network.chmod(0o600)
+            runtime_base = root / "runtime"
+            runtime_base.mkdir(mode=0o700)
+            stdout = io.StringIO()
+
+            with (
+                mock.patch.dict(os.environ, {"SLURM_JOB_ID": "9001"}, clear=True),
+                contextlib.redirect_stdout(stdout),
+            ):
+                result = restricted_launch.launch(
+                    manifest_path=paths["manifest"],
+                    ledger_path=runtime.ledger_path,
+                    profile="cluster",
+                    agent_image=paths["container"],
+                    agent_command=["codex-agent", "-"],
+                    runtime_base=runtime_base,
+                    agent_env_file=credential,
+                    network_env_file=network,
+                    config_path=paths["config"],
+                    dry_run=True,
+                )
+
+            rendered = stdout.getvalue()
+            self.assertEqual(0, result)
+            self.assertIn("--env-file", rendered)
+            self.assertIn("HPC_TOOLS_AGENT_NETWORK_MODE=model-only", rendered)
+            self.assertNotIn("credential-secret", rendered)
+            self.assertNotIn("proxy-secret", rendered)
+            self.assertNotIn(str(credential), rendered)
+            self.assertNotIn(str(network), rendered)
+
     def test_environment_filter_removes_credentials_and_apptainer_injection(self) -> None:
         with mock.patch.dict(
             os.environ,
@@ -704,6 +934,9 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
                 "SSH_AUTH_SOCK": "/tmp/agent",
                 "OPENAI_API_KEY": "secret",
                 "APPTAINERENV_ESCAPE": "value",
+                "SINGULARITYENV_ESCAPE": "value",
+                "HPC_TOOLS_AGENT_NETWORK_MODE": "model-live-search",
+                "HTTPS_PROXY": "https://ambient-secret@example.invalid",
                 "SAFE_VALUE": "yes",
             },
             clear=True,
@@ -714,6 +947,9 @@ raise SystemExit(subprocess.run(command, env=container_environment).returncode)
         self.assertNotIn("SSH_AUTH_SOCK", filtered)
         self.assertNotIn("OPENAI_API_KEY", filtered)
         self.assertNotIn("APPTAINERENV_ESCAPE", filtered)
+        self.assertNotIn("SINGULARITYENV_ESCAPE", filtered)
+        self.assertNotIn("HPC_TOOLS_AGENT_NETWORK_MODE", filtered)
+        self.assertNotIn("HTTPS_PROXY", filtered)
 
     def test_host_server_environment_drops_unneeded_credentials(self) -> None:
         with mock.patch.dict(

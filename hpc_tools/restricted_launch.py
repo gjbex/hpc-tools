@@ -45,6 +45,27 @@ FORBIDDEN_COMMANDS = (
 REQUEUE_SIGNAL = signal.SIGUSR1
 TERMINATION_SIGNALS = (signal.SIGTERM, signal.SIGINT)
 MAX_PROMPT_BYTES = 1024 * 1024
+MAX_ENVIRONMENT_FILE_BYTES = 64 * 1024
+NETWORK_MODE_ENV_VAR = "HPC_TOOLS_AGENT_NETWORK_MODE"
+AGENT_CREDENTIAL_ENV_NAMES = frozenset({"OPENAI_API_KEY", "CODEX_ACCESS_TOKEN"})
+NETWORK_ENV_NAMES = frozenset(
+    {
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+        "ssl_cert_file",
+        "ssl_cert_dir",
+        "requests_ca_bundle",
+        "curl_ca_bundle",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -54,6 +75,15 @@ class AgentArtifacts:
     prompt_path: Path | None
     event_log: Path
     diagnostic_log: Path
+
+
+@dataclass(frozen=True)
+class NetworkEnvironmentEvidence:
+    supplied: bool
+    sha256: str | None
+
+    def public_summary(self) -> dict[str, bool | str | None]:
+        return {"supplied": self.supplied, "sha256": self.sha256}
 
 
 def build_apptainer_command(
@@ -83,6 +113,8 @@ def build_apptainer_command(
             "--env",
             "HOME=/tmp",
             "--env",
+            f"{NETWORK_MODE_ENV_VAR}={manifest.network.mode.value}",
+            "--env",
             f"{SOCKET_ENV_VAR}={CONTAINER_SOCKET_DIRECTORY}/server.sock",
             "--pwd",
             str(policy.work_root),
@@ -102,6 +134,7 @@ def launch(
     agent_command: list[str],
     runtime_base: Path | None = None,
     agent_env_file: Path | None = None,
+    network_env_file: Path | None = None,
     prompt_file: Path | None = None,
     config_path: Path | None = None,
     dry_run: bool = False,
@@ -157,12 +190,24 @@ def launch(
         (manifest.source_path, ledger_path, selected_config_path, policy.state_root),
         (policy.work_root, policy.output_root, *policy.input_roots),
     )
-    selected_env_file = None
+    selected_credential_file = None
     if agent_env_file is not None:
-        selected_env_file = _absolute_literal(agent_env_file, "agent environment file")
-        _ensure_private_file(selected_env_file, "agent environment file")
+        selected_credential_file = _absolute_literal(
+            agent_env_file, "agent environment file"
+        )
+        _ensure_private_file(selected_credential_file, "agent environment file")
         _ensure_not_exposed(
-            (selected_env_file,),
+            (selected_credential_file,),
+            (policy.work_root, policy.output_root, *policy.input_roots),
+        )
+    selected_network_file = None
+    if network_env_file is not None:
+        selected_network_file = _absolute_literal(
+            network_env_file, "network environment file"
+        )
+        _ensure_private_file(selected_network_file, "network environment file")
+        _ensure_not_exposed(
+            (selected_network_file,),
             (policy.work_root, policy.output_root, *policy.input_roots),
         )
     selected_prompt_file = None
@@ -182,6 +227,7 @@ def launch(
         raise ConfigError("agent image must not be group- or world-writable")
     if not agent_command:
         raise ConfigError("an agent command is required after --")
+    _validate_agent_command(agent_command)
 
     selected_runtime_base = runtime_base or _default_runtime_base()
     selected_runtime_base = _secure_directory(
@@ -193,12 +239,17 @@ def launch(
         socket_directory = Path(temporary)
         os.chmod(socket_directory, 0o700)
         socket_path = socket_directory / "server.sock"
+        materialized_env_file, network_environment = _materialize_agent_environment(
+            socket_directory,
+            credential_file=selected_credential_file,
+            network_file=selected_network_file,
+        )
         container_command = build_apptainer_command(
             manifest=manifest,
             agent_image=image,
             socket_directory=socket_directory,
             agent_command=agent_command,
-            agent_env_file=selected_env_file,
+            agent_env_file=materialized_env_file,
         )
         if dry_run:
             rendered = subprocess.list2cmdline(container_command)
@@ -242,6 +293,7 @@ def launch(
                 agent_image=image,
                 agent_command=agent_command,
                 controller_authority=authority,
+                network_environment=network_environment,
             )
             ledger.record_controller_artifacts(
                 manifest,
@@ -581,6 +633,102 @@ def _write_private_script(path: Path, content: str) -> None:
         handle.write(content)
 
 
+def _validate_agent_command(agent_command: list[str]) -> None:
+    if agent_command != ["codex-agent", "-"]:
+        raise ConfigError(
+            "restricted agent command must be exactly 'codex-agent -'; "
+            "configuration and sandbox overrides are not accepted"
+        )
+
+
+def _materialize_agent_environment(
+    runtime_directory: Path,
+    *,
+    credential_file: Path | None,
+    network_file: Path | None,
+) -> tuple[Path | None, NetworkEnvironmentEvidence]:
+    credentials = (
+        _parse_environment_file(
+            credential_file,
+            label="agent environment file",
+            allowed_names=AGENT_CREDENTIAL_ENV_NAMES,
+        )
+        if credential_file is not None
+        else {}
+    )
+    if len(credentials) > 1:
+        raise ConfigError(
+            "agent environment file must contain exactly one supported credential"
+        )
+    network = (
+        _parse_environment_file(
+            network_file,
+            label="network environment file",
+            allowed_names=NETWORK_ENV_NAMES,
+        )
+        if network_file is not None
+        else {}
+    )
+    network_payload = _environment_payload(network)
+    evidence = NetworkEnvironmentEvidence(
+        supplied=network_file is not None,
+        sha256=(
+            hashlib.sha256(network_payload).hexdigest()
+            if network_file is not None
+            else None
+        ),
+    )
+    combined = credentials | network
+    if not combined:
+        return None, evidence
+    destination = runtime_directory / "agent-environment.env"
+    _write_private_bytes(destination, _environment_payload(combined))
+    return destination, evidence
+
+
+def _parse_environment_file(
+    path: Path,
+    *,
+    label: str,
+    allowed_names: frozenset[str],
+) -> dict[str, str]:
+    _ensure_private_file(path, label)
+    payload = path.read_bytes()
+    if len(payload) > MAX_ENVIRONMENT_FILE_BYTES:
+        raise ConfigError(
+            f"{label} exceeds the {MAX_ENVIRONMENT_FILE_BYTES}-byte limit"
+        )
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ConfigError(f"{label} must be UTF-8") from error
+    values: dict[str, str] = {}
+    for line_number, line in enumerate(text.splitlines(), start=1):
+        if not line or line.startswith("#"):
+            continue
+        name, separator, value = line.partition("=")
+        if not separator or not name or not value:
+            raise ConfigError(f"invalid {label} entry on line {line_number}")
+        if name not in allowed_names:
+            raise ConfigError(
+                f"unsupported {label} variable on line {line_number}: {name}"
+            )
+        if name in values:
+            raise ConfigError(f"duplicate {label} variable: {name}")
+        if "\x00" in value:
+            raise ConfigError(f"invalid NUL byte in {label} variable: {name}")
+        values[name] = value
+    if not values:
+        raise ConfigError(f"{label} contains no supported variables")
+    return values
+
+
+def _environment_payload(values: dict[str, str]) -> bytes:
+    return "".join(
+        f"{name}={values[name]}\n" for name in sorted(values)
+    ).encode("utf-8")
+
+
 def _prepare_agent_artifacts(
     *,
     manifest: delegation.DelegationManifest,
@@ -590,6 +738,7 @@ def _prepare_agent_artifacts(
     agent_image: Path,
     agent_command: list[str],
     controller_authority: delegation.ControllerAuthority,
+    network_environment: NetworkEnvironmentEvidence | None = None,
 ) -> AgentArtifacts:
     attempts_root = policy.state_root / "agent-attempts"
     _mkdir_private(attempts_root, "agent attempt root")
@@ -620,7 +769,12 @@ def _prepare_agent_artifacts(
     codex_version_output = _read_image_text(policy, agent_image, ["codex", "--version"])
     codex_version = codex_version_output.strip() if codex_version_output else None
     codex_config = _read_image_text(
-        policy, agent_image, ["cat", "/opt/hpc-tools/config.toml"]
+        policy,
+        agent_image,
+        [
+            "cat",
+            f"/opt/hpc-tools/config/{manifest.network.mode.value}.toml",
+        ],
     )
     codex_config_snapshot = None
     codex_config_sha256 = None
@@ -636,7 +790,7 @@ def _prepare_agent_artifacts(
     _write_private_bytes(diagnostic_log, b"")
     provenance_path = attempt_directory / "provenance.json"
     provenance = {
-        "format_version": 2,
+        "format_version": 3,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "delegation_id": manifest.identifier,
         "controller_generation": generation,
@@ -644,7 +798,12 @@ def _prepare_agent_artifacts(
         "controller_authority": controller_authority.public_summary(
             include_config_path=True
         ),
-        "network": manifest.network.public_summary(),
+        "network": manifest.network.public_summary()
+        | {
+            "environment": (
+                network_environment or NetworkEnvironmentEvidence(False, None)
+            ).public_summary()
+        },
         "agent_command": agent_command,
         "prompt": (
             {
@@ -905,16 +1064,6 @@ def _sanitized_apptainer_environment() -> dict[str, str]:
         "TMPDIR",
         "XDG_RUNTIME_DIR",
         "LD_LIBRARY_PATH",
-        "SSL_CERT_FILE",
-        "SSL_CERT_DIR",
-        "REQUESTS_CA_BUNDLE",
-        "CURL_CA_BUNDLE",
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "NO_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "no_proxy",
     }
     environment: dict[str, str] = {}
     for key, value in os.environ.items():
@@ -1034,7 +1183,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--agent-env-file",
         type=Path,
-        help="private mode-0600 env file injected only into the parent agent",
+        help=(
+            "private mode-0600 file containing exactly one supported parent-agent "
+            "credential"
+        ),
+    )
+    parser.add_argument(
+        "--network-env-file",
+        type=Path,
+        help=(
+            "private mode-0600 allowlisted proxy and CA environment for the "
+            "parent agent"
+        ),
     )
     parser.add_argument(
         "--prompt-file",
@@ -1058,6 +1218,7 @@ def main(argv: list[str] | None = None) -> int:
             agent_command=command,
             runtime_base=args.runtime_directory,
             agent_env_file=args.agent_env_file,
+            network_env_file=args.network_env_file,
             prompt_file=args.prompt_file,
             config_path=args.config,
             dry_run=args.dry_run,

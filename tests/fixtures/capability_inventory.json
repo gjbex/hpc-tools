@@ -1867,6 +1867,7 @@
         "agent-image",
         "runtime-directory",
         "agent-env-file",
+        "network-env-file",
         "prompt-file",
         "agent_command"
       ],

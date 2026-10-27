@@ -1,6 +1,26 @@
 #!/bin/sh
 set -eu
 
+case "${HPC_TOOLS_AGENT_NETWORK_MODE:-}" in
+    model-only)
+        packaged_config=/opt/hpc-tools/config/model-only.toml
+        ;;
+    model-indexed-search)
+        packaged_config=/opt/hpc-tools/config/model-indexed-search.toml
+        ;;
+    model-live-search)
+        packaged_config=/opt/hpc-tools/config/model-live-search.toml
+        ;;
+    "")
+        echo "codex-agent: HPC_TOOLS_AGENT_NETWORK_MODE is not set" >&2
+        exit 2
+        ;;
+    *)
+        echo "codex-agent: unsupported HPC_TOOLS_AGENT_NETWORK_MODE" >&2
+        exit 2
+        ;;
+esac
+
 if [ -z "${HPC_TOOLS_MCP_SOCKET:-}" ]; then
     echo "codex-agent: HPC_TOOLS_MCP_SOCKET is not set" >&2
     exit 2
@@ -8,7 +28,7 @@ fi
 
 codex_home=$(mktemp -d /tmp/codex-home.XXXXXX)
 chmod 0700 "$codex_home"
-cp /opt/hpc-tools/config.toml "$codex_home/config.toml"
+cp "$packaged_config" "$codex_home/config.toml"
 chmod 0600 "$codex_home/config.toml"
 cp -R /opt/hpc-tools/skills "$codex_home/skills"
 chmod -R go-rwx "$codex_home/skills"

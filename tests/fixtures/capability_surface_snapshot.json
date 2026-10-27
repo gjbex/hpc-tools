@@ -4177,6 +4177,17 @@
           {
             "choices": null,
             "default": null,
+            "dest": "network_env_file",
+            "nargs": null,
+            "options": [
+              "--network-env-file"
+            ],
+            "required": false,
+            "type": "Path"
+          },
+          {
+            "choices": null,
+            "default": null,
             "dest": "prompt_file",
             "nargs": null,
             "options": [

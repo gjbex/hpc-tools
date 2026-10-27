@@ -390,7 +390,15 @@ def _container_bundle(kind: str) -> dict[str, str]:
                 encoding="utf-8"
             ),
             "codex-agent": data.joinpath("codex-agent").read_text(encoding="utf-8"),
-            "config.toml": data.joinpath("codex-config.toml").read_text(encoding="utf-8"),
+            "codex-config-model-only.toml": data.joinpath(
+                "codex-config-model-only.toml"
+            ).read_text(encoding="utf-8"),
+            "codex-config-model-indexed-search.toml": data.joinpath(
+                "codex-config-model-indexed-search.toml"
+            ).read_text(encoding="utf-8"),
+            "codex-config-model-live-search.toml": data.joinpath(
+                "codex-config-model-live-search.toml"
+            ).read_text(encoding="utf-8"),
             "task.md": data.joinpath("task.md").read_text(encoding="utf-8"),
             "skills/hpc-delegated-slurm/SKILL.md": delegated_skill.joinpath(
                 "SKILL.md"

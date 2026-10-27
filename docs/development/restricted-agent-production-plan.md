@@ -1,6 +1,6 @@
 # Restricted-agent production implementation plan
 
-Status: WP1 completed locally on 2026-10-27; WP2--WP6 remain incomplete.
+Status: WP1--WP2 completed locally on 2026-10-27; WP3--WP6 remain incomplete.
 
 This plan closes the remaining gap between the implemented restricted-agent
 boundary and a production-qualified Codex harness running in an Apptainer
@@ -184,8 +184,8 @@ variables or Codex defaults.
 
 Implementation record (2026-10-27): manifest version 4 and ledger schema
 version 5 now require and retain the strict network policy. Runtime summaries,
-authorization audit events, audit exports, and version-2 attempt provenance
-expose only its public mode mapping. Runtime enforcement remains WP2.
+authorization audit events, audit exports, and attempt provenance expose only
+its public mode mapping. Runtime enforcement was completed in WP2.
 
 ## WP2: Network-mode enforcement
 
@@ -236,6 +236,15 @@ Tests:
 Exit criteria: the protected manifest deterministically selects the Codex
 web-search mode, while command-network access stays disabled and network secrets
 do not cross unrelated interfaces.
+
+Implementation record (2026-10-27): the image now packages three strict Codex
+configurations, and the launcher passes only the manifest-selected mode to the
+closed wrapper. Credential and network environment sources are separately
+allowlisted and materialized privately; provenance records only network-env
+presence and its SHA-256. The packaged shell-environment policy also blocks
+credentials, proxy/CA settings, the mode selector, and the MCP socket from
+agent-spawned commands and disables login-shell profile loading.
+Site-level egress enforcement remains an external qualification requirement.
 
 ## WP3: Atomic manifest-template materialization
 

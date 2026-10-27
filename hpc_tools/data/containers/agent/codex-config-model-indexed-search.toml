@@ -1,0 +1,30 @@
+web_search = "indexed"
+sandbox_mode = "workspace-write"
+allow_login_shell = false
+
+[sandbox_workspace_write]
+network_access = false
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = false
+experimental_use_profile = false
+
+[shell_environment_policy.filters]
+"OPENAI_API_KEY" = "exclude"
+"CODEX_ACCESS_TOKEN" = "exclude"
+"HTTP_PROXY" = "exclude"
+"HTTPS_PROXY" = "exclude"
+"NO_PROXY" = "exclude"
+"SSL_CERT_FILE" = "exclude"
+"SSL_CERT_DIR" = "exclude"
+"REQUESTS_CA_BUNDLE" = "exclude"
+"CURL_CA_BUNDLE" = "exclude"
+"HPC_TOOLS_AGENT_NETWORK_MODE" = "exclude"
+"HPC_TOOLS_MCP_SOCKET" = "exclude"
+
+[mcp_servers.hpc-tools]
+command = "hpc-mcp-relay"
+required = true
+startup_timeout_sec = 20
+tool_timeout_sec = 300
