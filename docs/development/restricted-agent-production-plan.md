@@ -1,6 +1,6 @@
 # Restricted-agent production implementation plan
 
-Status: WP1--WP4 completed locally on 2026-10-27; WP5--WP6 remain incomplete.
+Status: WP1--WP5 completed locally on 2026-10-27; WP6 remains incomplete.
 
 This plan closes the remaining gap between the implemented restricted-agent
 boundary and a production-qualified Codex harness running in an Apptainer
@@ -398,6 +398,20 @@ Tests:
 Exit criteria: the generated job script is a safe generic template with a
 documented, finite set of site substitutions rather than illustrative steps
 that hide required authority or lifecycle decisions.
+
+Implementation record (2026-10-27): the parent template now uses a login Bash
+environment, exposes only a finite commented set of site policy/module
+adaptations, and fails early on missing executables, unsafe protected inputs,
+an unreviewed image digest, insecure runtime storage, or warning-policy drift.
+It supports either a verified site `SLURM_TMPDIR` or an explicit private
+`--runtime-directory`, while preserving background signal forwarding, same-ID
+requeue, append logs, and template-based materialization. The expanded task
+template requires exact artifacts, application-level validation, authorized
+selection rules, bounded corrective resubmission, and stopping conditions.
+Operator, reference, and troubleshooting documentation now separate parent and
+cleanup workload quotation/confirmation from delegated budgets. Generated
+script syntax, preflight behavior, bundle completeness, and documentation are
+covered by synchronized tests.
 
 ## WP6: Local and installed-distribution acceptance
 

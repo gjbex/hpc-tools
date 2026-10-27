@@ -233,6 +233,10 @@ class CliCoreTests(unittest.TestCase):
                 self.assertIn("required = true", config)
                 self.assertIn("network_access = false", config)
             self.assertIn("Use $hpc-delegated-slurm", task)
+            self.assertIn("application-level", task)
+            self.assertIn("Corrective resubmission policy", task)
+            self.assertIn("Maximum corrective submissions", task)
+            self.assertIn("Stopping condition", task)
             self.assertIn("template_version = 1", delegation_template)
             self.assertNotIn("parent_job_id", delegation_template)
             files_section = definition.split("%files", 1)[1].split("%post", 1)[0]
@@ -256,12 +260,32 @@ class CliCoreTests(unittest.TestCase):
             self.assertIn("--agent-image-sha256", slurm)
             self.assertIn("--manifest-template", slurm)
             self.assertIn("--manifest-output", slurm)
+            self.assertIn("--runtime-directory", slurm)
+            self.assertIn("command -v hpc-agent-launch", slurm)
+            self.assertIn("warning_seconds=600", slurm)
             self.assertIn("-- codex-agent -", slurm)
             self.assertIn("apptainer test", build_job)
             self.assertIn("APPTAINER_CACHEDIR", build_job)
             self.assertIn('cd "$bundle_directory"', build_job)
             self.assertIn("SIF SHA-256", build_record)
             self.assertFalse((output / "mcp.json").exists())
+            self.assertEqual(
+                {
+                    "Apptainer.def",
+                    "build-agent-image.slurm",
+                    "codex-agent",
+                    "codex-config-model-indexed-search.toml",
+                    "codex-config-model-live-search.toml",
+                    "codex-config-model-only.toml",
+                    "delegation-template.toml",
+                    "hpc-mcp-relay",
+                    "image-build-record.md",
+                    "restricted-agent.slurm",
+                    "skills",
+                    "task.md",
+                },
+                {path.name for path in output.iterdir()},
+            )
 
     def test_write_agent_boundary_container_bundle(self) -> None:
         parser = build_parser()

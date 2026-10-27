@@ -303,7 +303,9 @@ the objective, success checks, retry authority, and stopping condition
 explicit. Generate the reviewed build bundle with
 `hpc write-container --kind agent restricted-codex-build`.
 That bundle includes a compute-node image-build template and a provenance
-record; built SIFs and Apptainer caches remain outside Git.
+record, plus a parent-job template that preflights protected inputs and requires
+explicit site policy and private runtime storage; built SIFs and Apptainer
+caches remain outside Git.
 For faster boundary-only development without an installed agent or API
 credential, use
 `hpc write-container --kind agent-boundary restricted-boundary-build`.

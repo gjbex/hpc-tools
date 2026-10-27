@@ -376,6 +376,37 @@ to preserve a private mode-`0600` incident artifact. Check live `squeue` and
 terminal `sacct` state separately; the audit command deliberately performs no
 remote calls or mutations.
 
+If no controller generation was recorded, diagnose the batch preflight before
+the MCP or agent layers. The generated script reports failures with a
+`restricted-agent:` prefix. Check:
+
+```console
+command -v hpc-agent-launch
+stat -c '%U %a %n' \
+    /protected/delegation-template.toml \
+    /protected/codex.env \
+    /protected/reviewed-task.md \
+    /project/images/restricted-codex.sif
+stat -c '%U %a %n' /protected/materialized-manifests "$SLURM_TMPDIR"
+```
+
+Private files must be owned by the submitting user with mode `0600`; protected
+and runtime directories must be owned by that user with mode `0700`. The SIF,
+configuration, and configured Apptainer executable must not be group- or
+world-writable. A site without `SLURM_TMPDIR` needs an explicitly configured
+private `runtime_directory`; creating a shared fallback weakens the socket
+boundary.
+
+Also compare the three warning values: the `#SBATCH --signal` offset, the
+script's `warning_seconds`, and `lifecycle.warning_seconds` in the manifest
+template. Compare `apptainer_path` with `filesystem.apptainer_path`. Fix the
+reviewed source rather than editing a materialized manifest after first launch.
+
+If startup reaches cleanup registration and then fails, inspect whether nested
+`sbatch` is allowed and whether the parent account and partition can schedule
+the one-CPU, 15-minute `afterany` cleanup job. That job is outside the delegated
+budget but is still a real charged or quota-consuming site workload.
+
 ## The Codex plugin is installed but workflows are absent
 
 Check:
